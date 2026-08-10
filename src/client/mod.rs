@@ -49,6 +49,26 @@ pub enum Error {
     #[error(transparent)]
     Transport(#[from] TransportError),
 
+    /// Building or signing the transaction failed.
+    #[error(transparent)]
+    Tx(crate::tx::Error),
+
+    /// The endpoint serves a different network than the caller named.
+    ///
+    /// Checked before anything is signed. EIP-155 binds a signature to a chain
+    /// id, so a host whose endpoint config points at the wrong network would
+    /// otherwise produce a perfectly valid transaction for a chain the user
+    /// did not choose.
+    #[error("{network} endpoint reports chain id {reported}, expected {expected}")]
+    ChainIdMismatch {
+        /// The network the caller named.
+        network: NetworkId,
+        /// The chain id that network should have.
+        expected: u64,
+        /// What the endpoint actually reported.
+        reported: u128,
+    },
+
     /// The node answered, but not in the shape this chain's API documents.
     ///
     /// Distinct from a [`TransportError::Rpc`] carrying the node's own error
@@ -115,6 +135,29 @@ pub async fn balance(transport: &dyn Transport, network: Network, address: &str)
         Network::Solana(_) => solana::balance(transport, &address).await,
         Network::Tron => tron::balance(transport, &address).await,
     }
+}
+
+/// Build, sign and broadcast a native-asset transfer on an EVM network.
+///
+/// Returns the transaction hash. See [`evm::send`] for the two ordering
+/// decisions that matter: the chain id is verified before signing, and the
+/// nonce is read at `pending` rather than `latest`.
+///
+/// # Errors
+///
+/// See [`Error`]. No signature is produced if any pre-flight step fails.
+pub async fn send_evm(
+    transport: &dyn Transport,
+    network: crate::asset::EvmNetwork,
+    from: &str,
+    to: &str,
+    value: u128,
+    data: Vec<u8>,
+    secret_key: &[u8],
+) -> Result<String> {
+    let from = crate::address::evm::validate(from)?;
+    let to = crate::address::evm::validate(to)?;
+    evm::send(transport, network, &from, &to, value, data, secret_key).await
 }
 
 /// Map a [`Network`] onto the transport's [`NetworkId`].
