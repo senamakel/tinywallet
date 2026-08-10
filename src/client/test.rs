@@ -965,6 +965,38 @@ async fn send_tron_returns_the_txid_after_a_successful_broadcast() {
 }
 
 #[tokio::test]
+async fn send_tron_rejects_missing_txid_and_a_malformed_broadcast_body() {
+    let to_hex = crate::address::tron::to_hex(TRON_ADDR).unwrap();
+    let raw = format!("0a02b1f42208{to_hex}5a0f");
+    let txid = crate::tx::tron::recompute_txid(&raw).unwrap();
+
+    let missing_txid = RestScript::new(&[(
+        "wallet/createtransaction",
+        json!({ "raw_data_hex": raw }).to_string(),
+    )]);
+    assert!(matches!(
+        super::send_tron(&missing_txid, TRON_ADDR, TRON_ADDR, 1, &SEND_KEY)
+            .await
+            .unwrap_err(),
+        Error::MalformedResponse { operation: "wallet/createtransaction", .. }
+    ));
+
+    let malformed_broadcast = RestScript::new(&[
+        (
+            "wallet/createtransaction",
+            json!({ "raw_data_hex": raw, "txID": txid }).to_string(),
+        ),
+        ("wallet/broadcasttransaction", "not json".to_string()),
+    ]);
+    assert!(matches!(
+        super::send_tron(&malformed_broadcast, TRON_ADDR, TRON_ADDR, 1, &SEND_KEY)
+            .await
+            .unwrap_err(),
+        Error::MalformedResponse { operation: "wallet/broadcasttransaction", .. }
+    ));
+}
+
+#[tokio::test]
 async fn evm_status_maps_receipt_status_to_confirmed_or_failed() {
     // A reverted transaction still has a receipt and still spent its fee, so
     // it is a terminal state rather than an error.
