@@ -223,9 +223,17 @@ fn derivation_backend_failures_remain_specific_without_leaking_inputs() {
         }
     );
 
-    let compressed =
-        super::btc::map_compressed_public_key(Err(bitcoin::key::UncompressedPublicKeyError))
-            .unwrap_err();
+    let private = bitcoin::key::PrivateKey::new_uncompressed(
+        bitcoin::secp256k1::SecretKey::from_slice(&[1; 32]).unwrap(),
+        bitcoin::Network::Bitcoin,
+    );
+    let compressed = super::btc::map_compressed_public_key(
+        bitcoin::key::CompressedPublicKey::from_private_key(
+            &bitcoin::secp256k1::Secp256k1::new(),
+            &private,
+        ),
+    )
+    .unwrap_err();
     assert_eq!(
         compressed,
         Error::Derivation {
