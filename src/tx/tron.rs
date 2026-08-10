@@ -106,7 +106,7 @@ pub fn sign(raw_data_hex: &str, secret_key: &[u8]) -> Result<Signature> {
     Ok(out)
 }
 
-/// Render a signature as the hex string TronGrid expects.
+/// Render a signature as the hex string `TronGrid` expects.
 #[must_use]
 pub fn signature_hex(signature: &Signature) -> String {
     hex_lower(signature)
