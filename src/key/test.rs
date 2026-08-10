@@ -210,6 +210,27 @@ fn a_solana_path_with_a_non_numeric_segment_is_rejected() {
 }
 
 #[test]
+fn derivation_backend_failures_remain_specific_without_leaking_inputs() {
+    let bip32 = super::bip32::map_derivation::<()>(
+        Err(bitcoin::bip32::Error::MaximumDepthExceeded),
+        "BIP-32 child key",
+    )
+    .unwrap_err();
+    assert_eq!(bip32, Error::Derivation { step: "BIP-32 child key" });
+
+    let compressed = super::btc::map_compressed_public_key(Err(
+        bitcoin::key::UncompressedPublicKeyError,
+    ))
+    .unwrap_err();
+    assert_eq!(
+        compressed,
+        Error::Derivation {
+            step: "BTC compressed public key"
+        }
+    );
+}
+
+#[test]
 fn debug_never_prints_key_material() {
     // A derived Debug here would put a private key into every panic message
     // and every log line that formats a struct containing one.
