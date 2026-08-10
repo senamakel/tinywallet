@@ -18,6 +18,11 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    # The rust-bitcoin family (`bitcoin`, `base58ck`) are CC0-1.0 — a
+    # public-domain dedication, permissive and GPL-compatible. GPL-compatibility
+    # is the only hard rule; the rest of the list is the set a Rust wallet
+    # actually encounters.
+    "CC0-1.0",
     "GPL-3.0-only",
     "ISC",
     "MIT",
