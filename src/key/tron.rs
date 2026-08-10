@@ -8,7 +8,7 @@
 
 use sha3::{Digest, Keccak256};
 
-use super::{bip32, seed_from_mnemonic, DerivedKey, Result};
+use super::{bip32, seed_from_mnemonic, DerivedKey, Error, Result};
 use crate::address::tron::{ADDRESS_BYTES, MAINNET_PREFIX};
 use crate::chain::Chain;
 
@@ -16,7 +16,7 @@ use crate::chain::Chain;
 pub(super) fn derive(mnemonic: &str, path: &str) -> Result<DerivedKey> {
     let seed = seed_from_mnemonic(mnemonic)?;
     let key = bip32::derive(&seed, path)?;
-    let address = address_from_public(&key.uncompressed_public());
+    let address = address_from_public(&key.uncompressed_public())?;
     Ok(DerivedKey::new(
         Chain::Tron,
         address,
@@ -26,10 +26,17 @@ pub(super) fn derive(mnemonic: &str, path: &str) -> Result<DerivedKey> {
 
 /// Keccak-256 the uncompressed public key without its `0x04` prefix, take the
 /// last 20 bytes, prepend the Tron mainnet version byte, and base58check it.
-fn address_from_public(uncompressed: &[u8; 65]) -> String {
+///
+/// `encode` verifies the version byte and so returns a `Result`. It cannot
+/// fail here — the prefix is written two lines above — but the error is mapped
+/// rather than unwrapped, because a panic in key derivation would take a
+/// wallet down over an unreachable branch.
+fn address_from_public(uncompressed: &[u8; 65]) -> Result<String> {
     let hash = Keccak256::digest(&uncompressed[1..]);
     let mut bytes = [0u8; ADDRESS_BYTES];
     bytes[0] = MAINNET_PREFIX;
     bytes[1..].copy_from_slice(&hash[12..]);
-    crate::address::tron::encode(&bytes)
+    crate::address::tron::encode(&bytes).map_err(|_| Error::Derivation {
+        step: "Tron address encoding",
+    })
 }
