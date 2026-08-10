@@ -4,7 +4,6 @@ use serde_json::json;
 
 use super::{Error, Result, network_id, parse_hex_u128};
 use crate::asset::{EvmNetwork, Network};
-use crate::rpc::Transport as _TransportForSend;
 use crate::rpc::Transport;
 use crate::tx::evm::LegacyTransaction;
 

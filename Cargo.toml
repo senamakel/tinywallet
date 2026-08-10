@@ -103,7 +103,7 @@ net = ["dep:async-trait", "dep:serde_json", "dep:serde"]
 asset = ["btc", "evm", "solana", "tron"]
 # Chain queries over the `Transport` seam (`tinywallet::client`). Needs the
 # seam plus the reference data that names the networks.
-client = ["net", "asset", "serde/derive"]
+client = ["net", "asset", "tx", "serde/derive"]
 # Transaction building and signing (`tinywallet::tx`). Needs secp256k1
 # recoverable signing (via `bitcoin`) and Keccak-256 (via `keccak`).
 tx = ["btc", "evm", "keccak"]
