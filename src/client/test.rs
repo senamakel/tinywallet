@@ -620,3 +620,188 @@ async fn send_solana_rejects_a_key_that_does_not_control_the_sender() {
         "must not broadcast a transaction it could not sign correctly"
     );
 }
+
+/// Answers REST calls from a path-keyed table.
+struct RestScript {
+    answers: std::collections::HashMap<String, String>,
+    calls: std::sync::Mutex<Vec<String>>,
+}
+
+impl RestScript {
+    fn new(pairs: &[(&str, String)]) -> Self {
+        Self {
+            answers: pairs
+                .iter()
+                .map(|(k, v)| ((*k).to_string(), v.clone()))
+                .collect(),
+            calls: std::sync::Mutex::new(Vec::new()),
+        }
+    }
+    fn paths(&self) -> Vec<String> {
+        self.calls.lock().unwrap().clone()
+    }
+    fn answer(&self, network: NetworkId, path: &str) -> TransportResult<String> {
+        self.calls.lock().unwrap().push(path.to_string());
+        self.answers
+            .get(path)
+            .cloned()
+            .ok_or_else(|| TransportError::Rpc {
+                network,
+                message: format!("unscripted path {path}"),
+            })
+    }
+}
+
+#[async_trait]
+impl Transport for RestScript {
+    async fn json_rpc(
+        &self,
+        network: NetworkId,
+        method: &str,
+        _p: Value,
+    ) -> TransportResult<Value> {
+        Err(TransportError::Rpc {
+            network,
+            message: format!("unexpected json_rpc {method}"),
+        })
+    }
+    async fn rest_get(&self, network: NetworkId, path: &str) -> TransportResult<String> {
+        self.answer(network, path)
+    }
+    async fn rest_post(
+        &self,
+        network: NetworkId,
+        path: &str,
+        _b: String,
+        _c: &str,
+    ) -> TransportResult<String> {
+        self.answer(network, path)
+    }
+}
+
+fn btc_key() -> crate::key::DerivedKey {
+    crate::key::derive(
+        crate::Chain::Btc,
+        "abandon abandon abandon abandon abandon abandon \
+         abandon abandon abandon abandon abandon about",
+        "m/84'/0'/0'/0/0",
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn send_btc_fetches_utxos_then_broadcasts_raw_hex() {
+    let key = btc_key();
+    let utxo_body = json!([{
+        "txid": "7f3b662ea8b6ff2e0e1a1f9bd0f1c39a6b8ba51e1b0f0e0d0c0b0a0908070605",
+        "vout": 0,
+        "value": 100_000u64,
+    }])
+    .to_string();
+    let transport = RestScript::new(&[
+        (&format!("address/{}/utxo", key.address()), utxo_body),
+        ("tx", "thetxid\n".to_string()),
+    ]);
+
+    let txid = super::send_btc(
+        &transport,
+        key.address(),
+        BTC_ADDR,
+        50_000,
+        1_000,
+        key.secret_bytes(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(txid, "thetxid", "the txid is trimmed");
+    let paths = transport.paths();
+    assert!(paths[0].ends_with("/utxo"), "UTXOs first: {paths:?}");
+    assert_eq!(paths[1], "tx", "then broadcast");
+}
+
+#[tokio::test]
+async fn send_btc_surfaces_insufficient_funds_without_broadcasting() {
+    let key = btc_key();
+    let transport = RestScript::new(&[(
+        &format!("address/{}/utxo", key.address()),
+        json!([{
+            "txid": "7f3b662ea8b6ff2e0e1a1f9bd0f1c39a6b8ba51e1b0f0e0d0c0b0a0908070605",
+            "vout": 0,
+            "value": 100u64,
+        }])
+        .to_string(),
+    )]);
+
+    let err = super::send_btc(
+        &transport,
+        key.address(),
+        BTC_ADDR,
+        50_000,
+        1_000,
+        key.secret_bytes(),
+    )
+    .await
+    .unwrap_err();
+
+    assert!(matches!(err, Error::Tx(_)), "got {err:?}");
+    assert!(
+        !transport.paths().contains(&"tx".to_string()),
+        "must not broadcast an unfundable transfer"
+    );
+}
+
+#[tokio::test]
+async fn send_tron_verifies_the_node_built_transaction_before_signing() {
+    // A node that returns a transaction paying someone else must not get a
+    // signature — the whole reason Tron verifies before signing.
+    let to_hex = crate::address::tron::to_hex(TRON_ADDR).unwrap();
+    let raw = format!("0a02b1f42208{to_hex}5a0f");
+    let txid = crate::tx::tron::recompute_txid(&raw).unwrap();
+
+    let elsewhere = "TLyqzVGLV1srkB7dToTAEqgDSfPtXRJZYH";
+    let transport = RestScript::new(&[(
+        "wallet/createtransaction",
+        json!({ "raw_data_hex": raw, "txID": txid }).to_string(),
+    )]);
+
+    let err = super::send_tron(&transport, TRON_ADDR, elsewhere, 1, &[0x46; 32])
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, Error::Tx(_)), "got {err:?}");
+    assert!(
+        !transport
+            .paths()
+            .contains(&"wallet/broadcasttransaction".to_string()),
+        "must not broadcast a transaction it could not verify"
+    );
+}
+
+#[tokio::test]
+async fn send_tron_treats_a_result_false_body_as_a_rejection() {
+    // TronGrid answers HTTP 200 with {"result": false} on a rejection, so a
+    // successful status is not a successful broadcast.
+    let to_hex = crate::address::tron::to_hex(TRON_ADDR).unwrap();
+    let raw = format!("0a02b1f42208{to_hex}5a0f");
+    let txid = crate::tx::tron::recompute_txid(&raw).unwrap();
+
+    let transport = RestScript::new(&[
+        (
+            "wallet/createtransaction",
+            json!({ "raw_data_hex": raw, "txID": txid }).to_string(),
+        ),
+        (
+            "wallet/broadcasttransaction",
+            json!({ "result": false, "message": "SIGERROR" }).to_string(),
+        ),
+    ]);
+
+    let err = super::send_tron(&transport, TRON_ADDR, TRON_ADDR, 1, &[0x46; 32])
+        .await
+        .unwrap_err();
+    match err {
+        Error::Transport(e) => assert!(e.to_string().contains("rejected")),
+        other => panic!("expected Transport, got {other:?}"),
+    }
+}

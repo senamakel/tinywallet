@@ -3,9 +3,9 @@
 use serde::Deserialize;
 
 use super::{Error, Result, network_id};
-use crate::tx::btc::{Transfer, Utxo};
 use crate::asset::Network;
 use crate::rpc::Transport;
+use crate::tx::btc::{Transfer, Utxo};
 
 /// Esplora reports funded and spent totals separately, for confirmed and
 /// mempool activity. A balance is the difference, summed across both.

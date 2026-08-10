@@ -81,14 +81,15 @@ pub(super) async fn send(
             operation: "wallet/createtransaction",
             detail: format!("no raw_data_hex in {built}"),
         })?;
-    let txid = built
-        .get("txID")
-        .and_then(Value::as_str)
-        .ok_or_else(|| Error::MalformedResponse {
-            network: id,
-            operation: "wallet/createtransaction",
-            detail: format!("no txID in {built}"),
-        })?;
+    let txid =
+        built
+            .get("txID")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::MalformedResponse {
+                network: id,
+                operation: "wallet/createtransaction",
+                detail: format!("no txID in {built}"),
+            })?;
 
     // Verify before signing — the node built this, not us.
     crate::tx::tron::verify_transfer(raw_data_hex, to, txid).map_err(Error::Tx)?;
