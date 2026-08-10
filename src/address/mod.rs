@@ -21,7 +21,7 @@
 //! | Bitcoin | yes (base58check / bech32) | caught |
 //! | Tron | yes (base58check) | caught |
 //! | EVM | optional (EIP-55, only if mixed-case) | usually *not* caught |
-//! | Solana | none | *not* caught — it names another valid address |
+//! | Solana | none | *not reliably* caught |
 //!
 //! For EVM, [`evm::is_checksum_valid`] recovers the typo protection when the
 //! caller has a mixed-case address. For Solana there is nothing to recover:
