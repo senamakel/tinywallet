@@ -554,3 +554,69 @@ async fn send_evm_surfaces_a_broadcast_rejection_as_non_retryable() {
         other => panic!("expected Transport, got {other:?}"),
     }
 }
+
+#[tokio::test]
+async fn send_solana_fetches_a_blockhash_then_broadcasts_base64() {
+    let transport = Sequenced::new(&[
+        (
+            "getLatestBlockhash",
+            json!({ "value": { "blockhash": "11111111111111111111111111111111" } }),
+        ),
+        ("sendTransaction", json!("5xSig")),
+    ]);
+
+    let key = crate::key::derive(
+        crate::Chain::Solana,
+        "abandon abandon abandon abandon abandon abandon \
+         abandon abandon abandon abandon abandon about",
+        "m/44'/501'/0'/0'",
+    )
+    .unwrap();
+
+    let sig = super::send_solana(
+        &transport,
+        SolanaCluster::Mainnet,
+        key.address(),
+        SOL_ADDR,
+        1_000,
+        key.secret_bytes(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(sig, "5xSig");
+    let methods = transport.methods();
+    assert_eq!(
+        methods,
+        vec![
+            "getLatestBlockhash".to_string(),
+            "sendTransaction".to_string()
+        ],
+        "the blockhash must be fetched immediately before signing"
+    );
+}
+
+#[tokio::test]
+async fn send_solana_rejects_a_key_that_does_not_control_the_sender() {
+    let transport = Sequenced::new(&[(
+        "getLatestBlockhash",
+        json!({ "value": { "blockhash": "11111111111111111111111111111111" } }),
+    )]);
+
+    let err = super::send_solana(
+        &transport,
+        SolanaCluster::Mainnet,
+        SOL_ADDR,
+        SOL_ADDR,
+        1,
+        &[7u8; 32],
+    )
+    .await
+    .unwrap_err();
+
+    assert!(matches!(err, Error::Tx(_)), "got {err:?}");
+    assert!(
+        !transport.methods().contains(&"sendTransaction".to_string()),
+        "must not broadcast a transaction it could not sign correctly"
+    );
+}

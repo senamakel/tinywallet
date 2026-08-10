@@ -96,7 +96,9 @@ impl NativeTransfer {
         let mut data = Vec::with_capacity(12);
         data.extend_from_slice(&SYSTEM_TRANSFER_INDEX.to_le_bytes());
         data.extend_from_slice(&self.lamports.to_le_bytes());
-        out.extend(encode_shortvec(u16::try_from(data.len()).unwrap_or(u16::MAX)));
+        out.extend(encode_shortvec(
+            u16::try_from(data.len()).unwrap_or(u16::MAX),
+        ));
         out.extend_from_slice(&data);
 
         Ok(out)
@@ -144,10 +146,12 @@ fn decode_blockhash(raw: &str) -> Result<[u8; 32]> {
             field: "recent_blockhash",
             reason: format!("not base58: {e}"),
         })?;
-    decoded.try_into().map_err(|v: Vec<u8>| Error::InvalidField {
-        field: "recent_blockhash",
-        reason: format!("expected 32 bytes, got {}", v.len()),
-    })
+    decoded
+        .try_into()
+        .map_err(|v: Vec<u8>| Error::InvalidField {
+            field: "recent_blockhash",
+            reason: format!("expected 32 bytes, got {}", v.len()),
+        })
 }
 
 /// Solana's compact-u16 (shortvec) length encoding.
@@ -260,8 +264,8 @@ mod test {
         let tx = transfer().sign(&key()).unwrap();
         let message = transfer().message().unwrap();
         let signature = Signature::from_slice(&tx[1..65]).unwrap();
-        let public = VerifyingKey::from_bytes(&crate::address::solana::decode(FROM).unwrap())
-            .unwrap();
+        let public =
+            VerifyingKey::from_bytes(&crate::address::solana::decode(FROM).unwrap()).unwrap();
         public
             .verify(&message, &signature)
             .expect("signature must verify against the sender's key");
