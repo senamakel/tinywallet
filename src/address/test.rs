@@ -44,7 +44,10 @@ fn dispatches_every_chain_to_its_own_validator() {
             );
         } else {
             assert!(
-                matches!(validate(chain, address), Err(Error::ChainNotCompiled { .. })),
+                matches!(
+                    validate(chain, address),
+                    Err(Error::ChainNotCompiled { .. })
+                ),
                 "{chain} gate is off in this build, so validation must report \
                  ChainNotCompiled, not validate"
             );
