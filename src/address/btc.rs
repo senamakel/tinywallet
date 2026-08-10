@@ -116,11 +116,11 @@ pub fn validate_sender(address: &str) -> Result<String> {
     if !parsed.script_pubkey().is_p2wpkh() {
         return Err(Error::UnsupportedAddressType {
             chain: Chain::Btc,
-            address: trimmed,
+            address: trimmed.to_string(),
             reason: "only P2WPKH (bc1q… native segwit) can be signed for".to_string(),
         });
     }
-    Ok(trimmed)
+    Ok(trimmed.to_string())
 }
 
 #[cfg(test)]
