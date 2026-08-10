@@ -15,6 +15,8 @@
 #[cfg(feature = "btc")]
 pub mod btc;
 pub mod evm;
+#[cfg(feature = "tron")]
+pub mod tron;
 mod rlp;
 #[cfg(feature = "solana")]
 pub mod solana;
@@ -50,6 +52,17 @@ pub enum Error {
         available: u64,
         /// Amount plus fee, in satoshis.
         required: u64,
+    },
+
+    /// A node returned something that does not match what was requested.
+    ///
+    /// Raised where a chain has the node build the transaction (Tron), so the
+    /// client must check the result before signing it. Signing blind would let
+    /// a compromised endpoint have its own transfer authorised.
+    #[error("untrusted node response: {reason}")]
+    UntrustedResponse {
+        /// What did not match.
+        reason: String,
     },
 
     /// Signing failed.
