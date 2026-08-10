@@ -45,11 +45,14 @@
 //! | `tron` | on | Tron addresses (pulls `bs58`, `hex`) |
 //! | `keccak` | on | EIP-55 checksums for EVM (pulls `sha3`) |
 //! | `net` | on | the [`rpc::Transport`] network seam (pulls `async-trait`) |
+//! | `key` | on | BIP-39/BIP-32/SLIP-0010 key derivation (`tinywallet::key`) |
 
 mod error;
 
 pub mod address;
 pub mod chain;
+#[cfg(feature = "key")]
+pub mod key;
 #[cfg(feature = "net")]
 pub mod rpc;
 
