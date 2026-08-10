@@ -305,7 +305,7 @@ async fn every_chain_issues_exactly_one_request_for_a_balance() {
             }),
         ),
     ] {
-        let transport = Scripted::json(body);
+        let transport = Scripted::json(&body);
         let out = balance(&transport, network, address).await.unwrap();
         assert_eq!(out, 1, "{network} balance");
         assert_eq!(transport.calls().len(), 1, "{network} request count");
