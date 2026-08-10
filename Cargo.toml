@@ -1,15 +1,15 @@
 [package]
-name = "rust-template"
+name = "tinywallet"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 license = "GPL-3.0-only"
-description = "A production-ready Rust library template."
-repository = "https://github.com/tinyhumansai/rust-template"
-documentation = "https://docs.rs/rust-template"
+description = "Agent-friendly multi-chain wallet primitives in Rust."
+repository = "https://github.com/tinyhumansai/tinywallet"
+documentation = "https://docs.rs/tinywallet"
 readme = "README.md"
-keywords = ["template"]
-categories = ["development-tools"]
+keywords = ["wallet", "bitcoin", "solana", "ethereum", "tron"]
+categories = ["cryptography::cryptocurrencies"]
 # Keep the published package to what a consumer actually needs.
 exclude = [
     ".github/",
@@ -25,11 +25,48 @@ exclude = [
 # Derive macros for the crate-wide error type in `src/error/mod.rs`. Every
 # dependency entry should carry a comment like this one saying why it is here.
 thiserror = "2"
+# Base58 (Solana) and base58check (Tron) address decoding. `check` brings in
+# the checksum variant Tron addresses require.
+bs58 = { version = "0.5", features = ["check"], optional = true }
+# Hex codec for the Tron hex-address form the TronGrid API speaks.
+hex = { version = "0.4", optional = true }
+# Full Bitcoin address parsing — base58check, bech32, and the script-type
+# introspection that distinguishes a P2WPKH sender from any other address
+# type. Not worth hand-rolling; `no-std` off, `std` on.
+bitcoin = { version = "0.32", default-features = false, features = ["std"], optional = true }
+# Keccak-256, the hash EIP-55 checksums are defined over. Only needed for the
+# EVM checksum helpers, so it rides its own gate rather than `evm`'s — the
+# common case (validate an address) stays dependency-free.
+sha3 = { version = "0.10", optional = true }
 
 [dev-dependencies]
 
+# The example and the public-API tests exercise every chain, so they only
+# build with the full default set. Without this, a `--no-default-features`
+# check fails on those targets rather than reporting the real question: does
+# the library itself still compile with the gates off.
+[[example]]
+name = "basic"
+required-features = ["btc", "evm", "solana", "tron", "keccak"]
+
+[[test]]
+name = "public_api"
+required-features = ["btc", "evm", "solana", "tron", "keccak"]
+
 [features]
-default = []
+default = ["btc", "evm", "solana", "tron", "keccak"]
+# Bitcoin address parsing and validation.
+btc = ["dep:bitcoin"]
+# EVM (Ethereum and compatible chains) address validation. Dependency-free:
+# an EVM address is 20 hex-encoded bytes, so the whole format is spelled out
+# in `src/address/evm.rs` rather than pulling in a chain client for it.
+evm = []
+# Solana base58 address validation.
+solana = ["dep:bs58"]
+# Tron base58check address validation and hex conversion.
+tron = ["dep:bs58", "dep:hex"]
+# EIP-55 mixed-case checksum support for EVM addresses.
+keccak = ["evm", "dep:sha3"]
 
 # Lints apply to the whole crate and to every target. CI runs clippy with
 # `-D warnings`, so anything set to "warn" here fails the build in CI.
