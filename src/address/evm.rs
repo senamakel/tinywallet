@@ -86,12 +86,21 @@ fn strip_prefix(address: &str) -> &str {
     address.strip_prefix("0x").unwrap_or(address)
 }
 
-/// Whether `address` carries a valid EIP-55 mixed-case checksum.
+/// Whether `address` carries a valid EIP-55 checksum.
 ///
-/// An all-lowercase or all-uppercase address carries no checksum information,
-/// so this returns `false` for both — it answers "is this checksummed
-/// correctly", not "is this valid". Pair it with [`validate`], which is the
-/// function that answers the latter.
+/// This compares the input against the canonical mixed-case rendering
+/// [`to_checksummed`] produces: it returns `true` only when the two are
+/// byte-for-byte identical. That is what makes a typo detectable — a wrong
+/// character almost always breaks the agreement.
+///
+/// Concretely, an all-uppercase address never matches, and an all-lowercase
+/// one usually does not either, because the canonical form is normally
+/// mixed-case. The `usually` matters: an address whose canonical form is
+/// itself entirely lowercase (as with
+/// `0xde709f2102306220921060314715629080e2fb77`) matches as-is. So this
+/// answers "does the address carry a correct checksum", not "is it a valid
+/// address" — pair it with [`validate`], which is the function that answers
+/// the latter.
 ///
 /// # Errors
 ///
