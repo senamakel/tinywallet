@@ -44,7 +44,7 @@
 //! | `solana` | on | Solana addresses (pulls `bs58`) |
 //! | `tron` | on | Tron addresses (pulls `bs58`, `hex`) |
 //! | `keccak` | on | EIP-55 checksums for EVM (pulls `sha3`) |
-//! | `net` | on | the [`rpc::Transport`] network seam (pulls `async-trait`) |
+//! | `net` | on | the `rpc::Transport` network seam (pulls `async-trait`) |
 //! | `key` | on | BIP-39/BIP-32/SLIP-0010 key derivation (`tinywallet::key`) |
 //! | `asset` | on | network and token reference data (`tinywallet::asset`) |
 //! | `client` | on | chain queries over the seam (`tinywallet::client`) |
