@@ -154,11 +154,14 @@ mod test {
             .to_vec()
     }
 
-    /// A raw_data blob containing the recipient's hex address.
+    /// A `raw_data`-shaped hex blob embedding the recipient's hex address.
+    ///
+    /// Not a real protobuf — `verify_transfer` deliberately does not parse
+    /// one, it checks the recipient's bytes are present, so a representative
+    /// blob is enough and avoids pinning a schema the node owns.
     fn raw_data() -> String {
         let to_hex = crate::address::tron::to_hex(TO).unwrap();
-        format!("0a02b1f4220succ{to_hex}5a0f")
-            .replace("succ", "ee")
+        format!("0a02b1f42208{to_hex}5a0f")
     }
 
     #[test]
