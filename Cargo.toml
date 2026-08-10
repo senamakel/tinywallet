@@ -33,7 +33,7 @@ hex = { version = "0.4", optional = true }
 # Full Bitcoin address parsing — base58check, bech32, and the script-type
 # introspection that distinguishes a P2WPKH sender from any other address
 # type. Not worth hand-rolling; `no-std` off, `std` on.
-bitcoin = { version = "0.32", default-features = false, features = ["std"], optional = true }
+bitcoin = { version = "0.32", default-features = false, features = ["std", "secp-recovery"], optional = true }
 # Keccak-256, the hash EIP-55 checksums are defined over. Only needed for the
 # EVM checksum helpers, so it rides its own gate rather than `evm`'s — the
 # common case (validate an address) stays dependency-free.
@@ -80,7 +80,7 @@ name = "public_api"
 required-features = ["btc", "evm", "solana", "tron", "keccak"]
 
 [features]
-default = ["btc", "evm", "solana", "tron", "keccak", "net", "key", "asset", "client"]
+default = ["btc", "evm", "solana", "tron", "keccak", "net", "key", "asset", "client", "tx"]
 # Bitcoin address parsing and validation.
 btc = ["dep:bitcoin"]
 # EVM (Ethereum and compatible chains) address validation. Dependency-free:
@@ -104,6 +104,9 @@ asset = ["btc", "evm", "solana", "tron"]
 # Chain queries over the `Transport` seam (`tinywallet::client`). Needs the
 # seam plus the reference data that names the networks.
 client = ["net", "asset", "serde/derive"]
+# Transaction building and signing (`tinywallet::tx`). Needs secp256k1
+# recoverable signing (via `bitcoin`) and Keccak-256 (via `keccak`).
+tx = ["btc", "evm", "keccak"]
 # Deterministic key derivation from a BIP-39 mnemonic (`tinywallet::key`).
 # Needs every chain gate it derives for; `keccak` covers the EVM/Tron address
 # hash and `btc` brings the secp256k1 BIP-32 walk the three curve-sharing

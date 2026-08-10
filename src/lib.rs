@@ -48,6 +48,7 @@
 //! | `key` | on | BIP-39/BIP-32/SLIP-0010 key derivation (`tinywallet::key`) |
 //! | `asset` | on | network and token reference data (`tinywallet::asset`) |
 //! | `client` | on | chain queries over the seam (`tinywallet::client`) |
+//! | `tx` | on | transaction building and signing (`tinywallet::tx`) |
 
 mod error;
 
@@ -61,6 +62,8 @@ pub mod client;
 pub mod key;
 #[cfg(feature = "net")]
 pub mod rpc;
+#[cfg(feature = "tx")]
+pub mod tx;
 
 pub use chain::Chain;
 pub use error::{Error, Result};
