@@ -209,11 +209,11 @@ fn debug_never_prints_key_material() {
     assert!(rendered.contains(key.address()), "address is safe to show");
 
     // The secret must not appear in any plausible encoding.
-    let hex: String = key
-        .secret_bytes()
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect();
+    let hex = key.secret_bytes().iter().fold(String::new(), |mut out, b| {
+        use std::fmt::Write as _;
+        let _ = write!(out, "{b:02x}");
+        out
+    });
     assert!(!rendered.contains(&hex), "leaked the secret as hex");
     assert!(
         !rendered.contains(&format!("{:?}", key.secret_bytes())),
