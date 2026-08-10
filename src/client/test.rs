@@ -708,7 +708,12 @@ async fn send_solana_rejects_malformed_blockhash_and_signature_responses() {
         Error::MalformedResponse { operation: "getLatestBlockhash", .. }
     ));
 
-    let key = crate::key::derive(crate::Chain::Solana, VECTOR, SOLANA_PATH).unwrap();
+    let key = crate::key::derive(
+        crate::Chain::Solana,
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+        "m/44'/501'/0'/0'",
+    )
+    .unwrap();
     let invalid_signature = Sequenced::new(&[
         (
             "getLatestBlockhash",
@@ -914,6 +919,49 @@ async fn send_tron_treats_a_result_false_body_as_a_rejection() {
         Error::Transport(e) => assert!(e.to_string().contains("rejected")),
         other => panic!("expected Transport, got {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn tron_rejects_malformed_account_and_transaction_responses() {
+    let malformed_account = Scripted::raw("not json");
+    assert!(matches!(
+        balance(&malformed_account, Network::Tron, TRON_ADDR)
+            .await
+            .unwrap_err(),
+        Error::MalformedResponse { operation: "wallet/getaccount", .. }
+    ));
+
+    let missing_transaction = RestScript::new(&[(
+        "wallet/createtransaction",
+        json!({ "txID": "abc" }).to_string(),
+    )]);
+    assert!(matches!(
+        super::send_tron(&missing_transaction, TRON_ADDR, TRON_ADDR, 1, &SEND_KEY)
+            .await
+            .unwrap_err(),
+        Error::MalformedResponse { operation: "wallet/createtransaction", .. }
+    ));
+}
+
+#[tokio::test]
+async fn send_tron_returns_the_txid_after_a_successful_broadcast() {
+    let to_hex = crate::address::tron::to_hex(TRON_ADDR).unwrap();
+    let raw = format!("0a02b1f42208{to_hex}5a0f");
+    let txid = crate::tx::tron::recompute_txid(&raw).unwrap();
+    let transport = RestScript::new(&[
+        (
+            "wallet/createtransaction",
+            json!({ "raw_data_hex": raw, "txID": txid }).to_string(),
+        ),
+        ("wallet/broadcasttransaction", json!({ "result": true }).to_string()),
+    ]);
+
+    assert_eq!(
+        super::send_tron(&transport, TRON_ADDR, TRON_ADDR, 1, &SEND_KEY)
+            .await
+            .unwrap(),
+        txid
+    );
 }
 
 #[tokio::test]
