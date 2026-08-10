@@ -112,12 +112,16 @@ cargo run --example basic
 ```
 
 Run the gated builds too — they are the only thing that catches code that
-compiles only when a feature is on:
+compiles only when a feature is on. The lib tests are feature-aware, so the
+same matrix also exercises the `ChainNotCompiled` contract (a disabled chain
+must error, never validate):
 
 ```sh
 cargo clippy --all-targets --no-default-features -- -D warnings
+cargo test --lib --no-default-features
 for f in btc evm solana tron keccak; do
   cargo check --lib --no-default-features --features "$f"
+  cargo test --lib --no-default-features --features "$f"
 done
 ```
 
