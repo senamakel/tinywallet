@@ -199,6 +199,49 @@ fn a_solana_path_not_starting_at_m_is_rejected() {
 }
 
 #[test]
+fn a_solana_path_with_a_non_numeric_segment_is_rejected() {
+    match derive(Chain::Solana, VECTOR, "m/44'/not-an-index'/0'").unwrap_err() {
+        Error::InvalidPath { path, reason } => {
+            assert_eq!(path, "m/44'/not-an-index'/0'");
+            assert!(reason.contains("not-an-index"), "{reason}");
+        }
+        other => panic!("expected InvalidPath, got {other:?}"),
+    }
+}
+
+#[test]
+fn derivation_backend_failures_remain_specific_without_leaking_inputs() {
+    let bip32 = super::bip32::map_derivation::<()>(
+        Err(bitcoin::bip32::Error::MaximumDepthExceeded),
+        "BIP-32 child key",
+    )
+    .unwrap_err();
+    assert_eq!(
+        bip32,
+        Error::Derivation {
+            step: "BIP-32 child key"
+        }
+    );
+
+    let private = bitcoin::key::PrivateKey::new_uncompressed(
+        bitcoin::secp256k1::SecretKey::from_slice(&[1; 32]).unwrap(),
+        bitcoin::Network::Bitcoin,
+    );
+    let compressed =
+        super::btc::map_compressed_public_key(bitcoin::key::CompressedPublicKey::from_private_key(
+            &bitcoin::secp256k1::Secp256k1::new(),
+            &private,
+        ))
+        .unwrap_err();
+    assert_eq!(
+        compressed,
+        Error::Derivation {
+            step: "BTC compressed public key"
+        }
+    );
+}
+
+#[test]
 fn debug_never_prints_key_material() {
     // A derived Debug here would put a private key into every panic message
     // and every log line that formats a struct containing one.

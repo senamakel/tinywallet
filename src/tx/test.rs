@@ -167,6 +167,40 @@ fn an_invalid_secret_key_is_rejected_without_echoing_it() {
 }
 
 #[test]
+fn an_eip155_chain_id_that_overflows_v_is_rejected() {
+    let tx = LegacyTransaction {
+        chain_id: u64::MAX,
+        ..eip155_vector()
+    };
+    assert!(matches!(
+        tx.sign(&VECTOR_KEY),
+        Err(Error::InvalidField {
+            field: "chain_id",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn defensive_evm_encoding_errors_are_reported_without_panicking() {
+    assert!(matches!(
+        super::evm::require_hex(None, "not-hex"),
+        Err(Error::InvalidField { field: "to", .. })
+    ));
+    assert!(matches!(
+        super::evm::recovery_as_u64(-1),
+        Err(Error::Signing { .. })
+    ));
+    assert!(matches!(
+        super::evm::checked_v(u64::MAX, 0),
+        Err(Error::InvalidField {
+            field: "chain_id",
+            ..
+        })
+    ));
+}
+
+#[test]
 fn an_invalid_recipient_is_rejected_before_signing() {
     let tx = LegacyTransaction {
         to: Some("not-an-address".to_string()),

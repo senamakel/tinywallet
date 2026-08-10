@@ -67,6 +67,18 @@ fn rejects_an_address_with_a_foreign_version_prefix() {
 }
 
 #[test]
+fn rejects_a_base58check_value_with_the_right_prefix_but_wrong_length() {
+    let short = bs58::encode([MAINNET_PREFIX]).with_check().into_string();
+    assert!(matches!(
+        decode(&short),
+        Err(Error::InvalidAddress {
+            chain: Chain::Tron,
+            ..
+        })
+    ));
+}
+
+#[test]
 fn decode_retains_the_version_prefix() {
     let bytes = decode(USDT).unwrap();
     assert_eq!(bytes.len(), ADDRESS_BYTES);

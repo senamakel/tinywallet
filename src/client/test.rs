@@ -138,6 +138,20 @@ async fn evm_rejects_a_non_hex_balance_as_malformed() {
 }
 
 #[tokio::test]
+async fn evm_rejects_a_non_string_balance_as_malformed() {
+    let transport = Scripted::json(&json!({ "wei": 1 }));
+    assert!(matches!(
+        balance(&transport, Network::Evm(EvmNetwork::Base), EVM_ADDR)
+            .await
+            .unwrap_err(),
+        Error::MalformedResponse {
+            operation: "eth_getBalance",
+            ..
+        }
+    ));
+}
+
+#[tokio::test]
 async fn solana_unwraps_the_context_envelope() {
     // Solana wraps results in {context, value}; reading the envelope instead
     // of `value` would yield nonsense.
@@ -556,6 +570,68 @@ async fn send_evm_surfaces_a_broadcast_rejection_as_non_retryable() {
 }
 
 #[tokio::test]
+async fn send_evm_includes_calldata_and_rejects_a_non_string_hash() {
+    struct Capturing(std::sync::Mutex<Vec<(String, Value)>>);
+
+    #[async_trait]
+    impl Transport for Capturing {
+        async fn json_rpc(
+            &self,
+            _network: NetworkId,
+            method: &str,
+            params: Value,
+        ) -> TransportResult<Value> {
+            self.0.lock().unwrap().push((method.to_string(), params));
+            Ok(match method {
+                "eth_chainId" => json!("0x2105"),
+                "eth_getTransactionCount" => json!("0x9"),
+                "eth_gasPrice" => json!("0x1"),
+                "eth_estimateGas" => json!("0x5208"),
+                "eth_sendRawTransaction" => json!(42),
+                _ => unreachable!(),
+            })
+        }
+        async fn rest_get(&self, _n: NetworkId, _p: &str) -> TransportResult<String> {
+            unreachable!()
+        }
+        async fn rest_post(
+            &self,
+            _n: NetworkId,
+            _p: &str,
+            _b: String,
+            _c: &str,
+        ) -> TransportResult<String> {
+            unreachable!()
+        }
+    }
+
+    let transport = Capturing(std::sync::Mutex::new(Vec::new()));
+    assert!(matches!(
+        super::send_evm(
+            &transport,
+            EvmNetwork::Base,
+            EVM_ADDR,
+            EVM_ADDR,
+            1,
+            vec![0xde, 0xad],
+            &SEND_KEY,
+        )
+        .await
+        .unwrap_err(),
+        Error::MalformedResponse {
+            operation: "eth_sendRawTransaction",
+            ..
+        }
+    ));
+    let calls = transport.0.lock().unwrap();
+    let (_, estimate) = calls
+        .iter()
+        .find(|(method, _)| method == "eth_estimateGas")
+        .expect("gas estimate was requested");
+    assert_eq!(estimate[0]["data"], "0xdead");
+}
+
+#[tokio::test]
 async fn send_solana_fetches_a_blockhash_then_broadcasts_base64() {
     let transport = Sequenced::new(&[
         (
@@ -619,6 +695,57 @@ async fn send_solana_rejects_a_key_that_does_not_control_the_sender() {
         !transport.methods().contains(&"sendTransaction".to_string()),
         "must not broadcast a transaction it could not sign correctly"
     );
+}
+
+#[tokio::test]
+async fn send_solana_rejects_malformed_blockhash_and_signature_responses() {
+    let missing_blockhash = Sequenced::new(&[("getLatestBlockhash", json!({}))]);
+    assert!(matches!(
+        super::send_solana(
+            &missing_blockhash,
+            SolanaCluster::Mainnet,
+            SOL_ADDR,
+            SOL_ADDR,
+            1,
+            &[7u8; 32],
+        )
+        .await
+        .unwrap_err(),
+        Error::MalformedResponse {
+            operation: "getLatestBlockhash",
+            ..
+        }
+    ));
+
+    let key = crate::key::derive(
+        crate::Chain::Solana,
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+        "m/44'/501'/0'/0'",
+    )
+    .unwrap();
+    let invalid_signature = Sequenced::new(&[
+        (
+            "getLatestBlockhash",
+            json!({ "value": { "blockhash": "11111111111111111111111111111111" } }),
+        ),
+        ("sendTransaction", json!({ "signature": "not-a-string" })),
+    ]);
+    assert!(matches!(
+        super::send_solana(
+            &invalid_signature,
+            SolanaCluster::Mainnet,
+            key.address(),
+            SOL_ADDR,
+            1,
+            key.secret_bytes(),
+        )
+        .await
+        .unwrap_err(),
+        Error::MalformedResponse {
+            operation: "sendTransaction",
+            ..
+        }
+    ));
 }
 
 /// Answers REST calls from a path-keyed table.
@@ -804,6 +931,96 @@ async fn send_tron_treats_a_result_false_body_as_a_rejection() {
         Error::Transport(e) => assert!(e.to_string().contains("rejected")),
         other => panic!("expected Transport, got {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn tron_rejects_malformed_account_and_transaction_responses() {
+    let malformed_account = Scripted::raw("not json");
+    assert!(matches!(
+        balance(&malformed_account, Network::Tron, TRON_ADDR)
+            .await
+            .unwrap_err(),
+        Error::MalformedResponse {
+            operation: "wallet/getaccount",
+            ..
+        }
+    ));
+
+    let missing_transaction = RestScript::new(&[(
+        "wallet/createtransaction",
+        json!({ "txID": "abc" }).to_string(),
+    )]);
+    assert!(matches!(
+        super::send_tron(&missing_transaction, TRON_ADDR, TRON_ADDR, 1, &SEND_KEY)
+            .await
+            .unwrap_err(),
+        Error::MalformedResponse {
+            operation: "wallet/createtransaction",
+            ..
+        }
+    ));
+}
+
+#[tokio::test]
+async fn send_tron_returns_the_txid_after_a_successful_broadcast() {
+    let to_hex = crate::address::tron::to_hex(TRON_ADDR).unwrap();
+    let raw = format!("0a02b1f42208{to_hex}5a0f");
+    let txid = crate::tx::tron::recompute_txid(&raw).unwrap();
+    let transport = RestScript::new(&[
+        (
+            "wallet/createtransaction",
+            json!({ "raw_data_hex": raw, "txID": txid }).to_string(),
+        ),
+        (
+            "wallet/broadcasttransaction",
+            json!({ "result": true }).to_string(),
+        ),
+    ]);
+
+    assert_eq!(
+        super::send_tron(&transport, TRON_ADDR, TRON_ADDR, 1, &SEND_KEY)
+            .await
+            .unwrap(),
+        txid
+    );
+}
+
+#[tokio::test]
+async fn send_tron_rejects_missing_txid_and_a_malformed_broadcast_body() {
+    let to_hex = crate::address::tron::to_hex(TRON_ADDR).unwrap();
+    let raw = format!("0a02b1f42208{to_hex}5a0f");
+    let txid = crate::tx::tron::recompute_txid(&raw).unwrap();
+
+    let missing_txid = RestScript::new(&[(
+        "wallet/createtransaction",
+        json!({ "raw_data_hex": raw }).to_string(),
+    )]);
+    assert!(matches!(
+        super::send_tron(&missing_txid, TRON_ADDR, TRON_ADDR, 1, &SEND_KEY)
+            .await
+            .unwrap_err(),
+        Error::MalformedResponse {
+            operation: "wallet/createtransaction",
+            ..
+        }
+    ));
+
+    let malformed_broadcast = RestScript::new(&[
+        (
+            "wallet/createtransaction",
+            json!({ "raw_data_hex": raw, "txID": txid }).to_string(),
+        ),
+        ("wallet/broadcasttransaction", "not json".to_string()),
+    ]);
+    assert!(matches!(
+        super::send_tron(&malformed_broadcast, TRON_ADDR, TRON_ADDR, 1, &SEND_KEY)
+            .await
+            .unwrap_err(),
+        Error::MalformedResponse {
+            operation: "wallet/broadcasttransaction",
+            ..
+        }
+    ));
 }
 
 #[tokio::test]

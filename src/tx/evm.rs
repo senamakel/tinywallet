@@ -77,10 +77,7 @@ impl LegacyTransaction {
         };
         let validated = crate::address::evm::validate(to).map_err(Error::Address)?;
         let body = validated.strip_prefix("0x").unwrap_or(&validated);
-        decode_hex(body).ok_or_else(|| Error::InvalidField {
-            field: "to",
-            reason: format!("not hex: {to}"),
-        })
+        require_hex(decode_hex(body), to)
     }
 
     /// The exact bytes that get Keccak-hashed and signed.
@@ -122,23 +119,8 @@ impl LegacyTransaction {
 
         // The second half of EIP-155: v = recovery + chain_id * 2 + 35.
         // `RecoveryId` is 0..=3, so the conversion cannot lose information.
-        let recovery = u64::try_from(recovery_id.to_i32()).map_err(|_| Error::Signing {
-            reason: "negative recovery id".to_string(),
-        })?;
-        let v = recovery
-            .checked_add(
-                self.chain_id
-                    .checked_mul(2)
-                    .and_then(|d| d.checked_add(35))
-                    .ok_or_else(|| Error::InvalidField {
-                        field: "chain_id",
-                        reason: format!("{} overflows EIP-155 v", self.chain_id),
-                    })?,
-            )
-            .ok_or_else(|| Error::InvalidField {
-                field: "chain_id",
-                reason: "overflows EIP-155 v".to_string(),
-            })?;
+        let recovery = recovery_as_u64(recovery_id.to_i32())?;
+        let v = checked_v(recovery, self.chain_id)?;
 
         let mut items = self.base_items()?;
         items.push(rlp::encode_uint(u128::from(v)));
@@ -190,10 +172,7 @@ pub fn encode_erc20_transfer(to: &str, amount: u128) -> Result<Vec<u8>> {
 
     let validated = crate::address::evm::validate(to).map_err(Error::Address)?;
     let body = validated.strip_prefix("0x").unwrap_or(&validated);
-    let address = decode_hex(body).ok_or_else(|| Error::InvalidField {
-        field: "to",
-        reason: format!("not hex: {to}"),
-    })?;
+    let address = require_hex(decode_hex(body), to)?;
 
     let mut out = Vec::with_capacity(4 + 64);
     out.extend_from_slice(&SELECTOR);
@@ -204,4 +183,36 @@ pub fn encode_erc20_transfer(to: &str, amount: u128) -> Result<Vec<u8>> {
     out.extend_from_slice(&[0u8; 16]);
     out.extend_from_slice(&amount.to_be_bytes());
     Ok(out)
+}
+
+/// Turn the internal hex decoder's optional result into the public error type.
+pub(super) fn require_hex(decoded: Option<Vec<u8>>, to: &str) -> Result<Vec<u8>> {
+    decoded.ok_or_else(|| Error::InvalidField {
+        field: "to",
+        reason: format!("not hex: {to}"),
+    })
+}
+
+/// Convert the recovery identifier while retaining an explicit defensive error.
+pub(super) fn recovery_as_u64(recovery: i32) -> Result<u64> {
+    u64::try_from(recovery).map_err(|_| Error::Signing {
+        reason: "negative recovery id".to_string(),
+    })
+}
+
+/// Apply EIP-155's `v = recovery + chain_id * 2 + 35` formula safely.
+pub(super) fn checked_v(recovery: u64, chain_id: u64) -> Result<u64> {
+    let chain_component = chain_id
+        .checked_mul(2)
+        .and_then(|d| d.checked_add(35))
+        .ok_or_else(|| Error::InvalidField {
+            field: "chain_id",
+            reason: format!("{chain_id} overflows EIP-155 v"),
+        })?;
+    recovery
+        .checked_add(chain_component)
+        .ok_or_else(|| Error::InvalidField {
+            field: "chain_id",
+            reason: "overflows EIP-155 v".to_string(),
+        })
 }

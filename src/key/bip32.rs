@@ -39,20 +39,25 @@ impl Secp256k1Key {
 /// extended key, which is never serialized here — the derived secret is
 /// identical on any network, so this is correct for EVM and Tron too.
 pub(super) fn derive(seed: &[u8], path: &str) -> Result<Secp256k1Key> {
-    let master = Xpriv::new_master(Network::Bitcoin, seed).map_err(|_| Error::Derivation {
-        step: "BIP-32 master key",
-    })?;
+    let master = map_derivation(
+        Xpriv::new_master(Network::Bitcoin, seed),
+        "BIP-32 master key",
+    )?;
     let parsed = DerivationPath::from_str(path).map_err(|e| Error::InvalidPath {
         path: path.to_string(),
         reason: e.to_string(),
     })?;
     let secp = Secp256k1::new();
-    let child = master
-        .derive_priv(&secp, &parsed)
-        .map_err(|_| Error::Derivation {
-            step: "BIP-32 child key",
-        })?;
+    let child = map_derivation(master.derive_priv(&secp, &parsed), "BIP-32 child key")?;
     let secret = child.private_key;
     let public = secret.public_key(&secp);
     Ok(Secp256k1Key { secret, public })
+}
+
+/// Collapse BIP-32 implementation errors into the crate's stable error type.
+pub(super) fn map_derivation<T>(
+    result: std::result::Result<T, bitcoin::bip32::Error>,
+    step: &'static str,
+) -> Result<T> {
+    result.map_err(|_| Error::Derivation { step })
 }

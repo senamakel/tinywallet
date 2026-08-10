@@ -94,26 +94,33 @@ pub fn validate(address: &str) -> Result<String> {
 /// assert!(btc::validate_sender("1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2").is_err());
 /// ```
 pub fn validate_sender(address: &str) -> Result<String> {
-    let trimmed = validate(address)?;
+    let trimmed = address.trim();
+    if trimmed.is_empty() {
+        return Err(Error::EmptyAddress { chain: Chain::Btc });
+    }
 
-    // `validate` already proved this parses and is mainnet, so `assume_checked`
-    // cannot mask a network mismatch here.
-    let parsed = Address::from_str(&trimmed)
+    let parsed = Address::from_str(trimmed)
         .map_err(|e| Error::InvalidAddress {
             chain: Chain::Btc,
-            address: trimmed.clone(),
+            address: trimmed.to_string(),
             reason: e.to_string(),
         })?
-        .assume_checked();
+        .require_network(Network::Bitcoin)
+        .map_err(|e| Error::WrongNetwork {
+            chain: Chain::Btc,
+            address: trimmed.to_string(),
+            expected: "mainnet".to_string(),
+            reason: e.to_string(),
+        })?;
 
     if !parsed.script_pubkey().is_p2wpkh() {
         return Err(Error::UnsupportedAddressType {
             chain: Chain::Btc,
-            address: trimmed,
+            address: trimmed.to_string(),
             reason: "only P2WPKH (bc1q… native segwit) can be signed for".to_string(),
         });
     }
-    Ok(trimmed)
+    Ok(trimmed.to_string())
 }
 
 #[cfg(test)]
