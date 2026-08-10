@@ -108,8 +108,16 @@ pub fn to_hex(address: &str) -> Result<String> {
 
 /// Render 21 decoded bytes as a base58check Tron address.
 ///
-/// The inverse of [`decode`]. Infallible: the checksum is computed here, so
-/// any 21-byte array produces a well-formed address.
+/// The inverse of [`decode`]. The input must be a full mainnet address —
+/// version prefix included — so its first byte must be [`MAINNET_PREFIX`].
+/// Enforcing that here means every successful result round-trips through both
+/// [`decode`] and [`validate`].
+///
+/// # Errors
+///
+/// - [`Error::WrongNetwork`] if the first byte is not [`MAINNET_PREFIX`]: the
+///   bytes are then a well-formed address for some other Tron network, not
+///   mainnet.
 ///
 /// # Examples
 ///
@@ -117,12 +125,22 @@ pub fn to_hex(address: &str) -> Result<String> {
 /// use tinywallet::address::tron;
 ///
 /// let bytes = tron::decode("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t")?;
-/// assert_eq!(tron::encode(&bytes), "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t");
+/// assert_eq!(tron::encode(&bytes)?, "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t");
 /// # Ok::<(), tinywallet::Error>(())
 /// ```
-#[must_use]
-pub fn encode(bytes: &[u8; ADDRESS_BYTES]) -> String {
-    bs58::encode(bytes).with_check().into_string()
+pub fn encode(bytes: &[u8; ADDRESS_BYTES]) -> Result<String> {
+    if bytes[0] != MAINNET_PREFIX {
+        return Err(Error::WrongNetwork {
+            chain: Chain::Tron,
+            address: hex::encode(bytes),
+            expected: "mainnet".to_string(),
+            reason: format!(
+                "version prefix is {:#04x}, expected {MAINNET_PREFIX:#04x}",
+                bytes[0]
+            ),
+        });
+    }
+    Ok(bs58::encode(bytes).with_check().into_string())
 }
 
 #[cfg(test)]
