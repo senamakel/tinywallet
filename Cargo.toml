@@ -38,8 +38,20 @@ bitcoin = { version = "0.32", default-features = false, features = ["std"], opti
 # EVM checksum helpers, so it rides its own gate rather than `evm`'s — the
 # common case (validate an address) stays dependency-free.
 sha3 = { version = "0.10", optional = true }
+# Async trait methods for the `Transport` seam in `src/rpc/`. Rust cannot yet
+# express an object-safe async trait natively, and `Transport` must be
+# `dyn`-compatible because chain code takes `&dyn Transport`.
+async-trait = { version = "0.1", optional = true }
+# The `Transport` seam moves JSON payloads across the host boundary; the chain
+# modules build params and read results as `Value`.
+serde_json = { version = "1", optional = true }
 
 [dev-dependencies]
+# Drives the async `Transport` tests. The crate itself pulls in no runtime -
+# picking one is the host's call, so it is a dev-dependency only.
+tokio = { version = "1", features = ["macros", "rt"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 # The example and the public-API tests exercise every chain, so they only
 # build with the full default set. Without this, a `--no-default-features`
@@ -54,7 +66,7 @@ name = "public_api"
 required-features = ["btc", "evm", "solana", "tron", "keccak"]
 
 [features]
-default = ["btc", "evm", "solana", "tron", "keccak"]
+default = ["btc", "evm", "solana", "tron", "keccak", "net"]
 # Bitcoin address parsing and validation.
 btc = ["dep:bitcoin"]
 # EVM (Ethereum and compatible chains) address validation. Dependency-free:
@@ -67,6 +79,10 @@ solana = ["dep:bs58"]
 tron = ["dep:bs58", "dep:hex"]
 # EIP-55 mixed-case checksum support for EVM addresses.
 keccak = ["evm", "dep:sha3"]
+# The `Transport` network seam (`tinywallet::rpc`). Everything else in the
+# crate is a pure function; this is the one module that models I/O, and it
+# still performs none itself - the host supplies the implementation.
+net = ["dep:async-trait", "dep:serde_json"]
 
 # Lints apply to the whole crate and to every target. CI runs clippy with
 # `-D warnings`, so anything set to "warn" here fails the build in CI.

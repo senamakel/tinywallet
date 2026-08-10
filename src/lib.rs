@@ -44,11 +44,14 @@
 //! | `solana` | on | Solana addresses (pulls `bs58`) |
 //! | `tron` | on | Tron addresses (pulls `bs58`, `hex`) |
 //! | `keccak` | on | EIP-55 checksums for EVM (pulls `sha3`) |
+//! | `net` | on | the [`rpc::Transport`] network seam (pulls `async-trait`) |
 
 mod error;
 
 pub mod address;
 pub mod chain;
+#[cfg(feature = "net")]
+pub mod rpc;
 
 pub use chain::Chain;
 pub use error::{Error, Result};
