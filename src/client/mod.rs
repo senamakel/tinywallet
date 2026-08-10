@@ -35,7 +35,10 @@ mod tron;
 mod test;
 
 /// Errors raised by a chain query.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+///
+/// Not `Clone`: it wraps [`crate::Error`], which is not, and a query error is
+/// handled once at the call site rather than fanned out.
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
     /// The address was rejected before any request was made.
