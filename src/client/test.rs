@@ -311,3 +311,240 @@ async fn every_chain_issues_exactly_one_request_for_a_balance() {
         assert_eq!(transport.calls().len(), 1, "{network} request count");
     }
 }
+
+/// Answers each JSON-RPC method from a table, so the multi-call send path can
+/// be driven end to end.
+struct Sequenced {
+    answers: std::collections::HashMap<String, Value>,
+    calls: std::sync::Mutex<Vec<String>>,
+}
+
+impl Sequenced {
+    fn new(pairs: &[(&str, Value)]) -> Self {
+        Self {
+            answers: pairs
+                .iter()
+                .map(|(k, v)| ((*k).to_string(), v.clone()))
+                .collect(),
+            calls: std::sync::Mutex::new(Vec::new()),
+        }
+    }
+
+    fn methods(&self) -> Vec<String> {
+        self.calls.lock().unwrap().clone()
+    }
+}
+
+#[async_trait]
+impl Transport for Sequenced {
+    async fn json_rpc(
+        &self,
+        network: NetworkId,
+        method: &str,
+        _params: Value,
+    ) -> TransportResult<Value> {
+        self.calls.lock().unwrap().push(method.to_string());
+        self.answers
+            .get(method)
+            .cloned()
+            .ok_or_else(|| TransportError::Rpc {
+                network,
+                message: format!("unscripted method {method}"),
+            })
+    }
+
+    async fn rest_get(&self, network: NetworkId, _path: &str) -> TransportResult<String> {
+        Err(TransportError::Rpc {
+            network,
+            message: "unused".to_string(),
+        })
+    }
+
+    async fn rest_post(
+        &self,
+        network: NetworkId,
+        _path: &str,
+        _body: String,
+        _content_type: &str,
+    ) -> TransportResult<String> {
+        Err(TransportError::Rpc {
+            network,
+            message: "unused".to_string(),
+        })
+    }
+}
+
+const SEND_KEY: [u8; 32] = [0x46; 32];
+const TX_HASH: &str = "0xabc123";
+
+fn base_send_script() -> Vec<(&'static str, Value)> {
+    vec![
+        ("eth_chainId", json!("0x2105")), // 8453 = Base
+        ("eth_getTransactionCount", json!("0x9")),
+        ("eth_gasPrice", json!("0x4a817c800")),
+        ("eth_estimateGas", json!("0x5208")),
+        ("eth_sendRawTransaction", json!(TX_HASH)),
+    ]
+}
+
+#[tokio::test]
+async fn send_evm_broadcasts_and_returns_the_hash() {
+    let transport = Sequenced::new(&base_send_script());
+    let hash = super::send_evm(
+        &transport,
+        EvmNetwork::Base,
+        EVM_ADDR,
+        EVM_ADDR,
+        1_000,
+        Vec::new(),
+        &SEND_KEY,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(hash, TX_HASH);
+    assert!(transport.methods().contains(&"eth_sendRawTransaction".to_string()));
+}
+
+#[tokio::test]
+async fn send_evm_verifies_the_chain_id_before_signing_anything() {
+    // The dangerous case: an endpoint config pointing at the wrong network
+    // would otherwise yield a perfectly valid transaction for a chain the user
+    // never chose. It must fail, and it must fail before broadcasting.
+    let mut script = base_send_script();
+    script[0] = ("eth_chainId", json!("0x1")); // Ethereum, not Base
+    let transport = Sequenced::new(&script);
+
+    let err = super::send_evm(
+        &transport,
+        EvmNetwork::Base,
+        EVM_ADDR,
+        EVM_ADDR,
+        1_000,
+        Vec::new(),
+        &SEND_KEY,
+    )
+    .await
+    .unwrap_err();
+
+    match err {
+        Error::ChainIdMismatch {
+            expected, reported, ..
+        } => {
+            assert_eq!(expected, 8453);
+            assert_eq!(reported, 1);
+        }
+        other => panic!("expected ChainIdMismatch, got {other:?}"),
+    }
+    assert!(
+        !transport.methods().contains(&"eth_sendRawTransaction".to_string()),
+        "must not broadcast after a chain id mismatch"
+    );
+}
+
+#[tokio::test]
+async fn send_evm_reads_the_nonce_at_pending_not_latest() {
+    // A balance is read at `latest` because pending transactions can be
+    // dropped. A nonce is the opposite: at `latest`, two transfers in quick
+    // succession share a nonce and the second replaces the first.
+    struct Capturing(std::sync::Mutex<Vec<String>>);
+
+    #[async_trait]
+    impl Transport for Capturing {
+        async fn json_rpc(
+            &self,
+            _network: NetworkId,
+            method: &str,
+            params: Value,
+        ) -> TransportResult<Value> {
+            self.0.lock().unwrap().push(format!("{method} {params}"));
+            Ok(match method {
+                "eth_chainId" => json!("0x2105"),
+                "eth_getTransactionCount" => json!("0x9"),
+                "eth_gasPrice" => json!("0x4a817c800"),
+                "eth_estimateGas" => json!("0x5208"),
+                _ => json!(TX_HASH),
+            })
+        }
+        async fn rest_get(&self, _n: NetworkId, _p: &str) -> TransportResult<String> {
+            unreachable!()
+        }
+        async fn rest_post(
+            &self,
+            _n: NetworkId,
+            _p: &str,
+            _b: String,
+            _c: &str,
+        ) -> TransportResult<String> {
+            unreachable!()
+        }
+    }
+
+    let transport = Capturing(std::sync::Mutex::new(Vec::new()));
+    super::send_evm(
+        &transport,
+        EvmNetwork::Base,
+        EVM_ADDR,
+        EVM_ADDR,
+        1,
+        Vec::new(),
+        &SEND_KEY,
+    )
+    .await
+    .unwrap();
+
+    let nonce_call = transport
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|c| c.starts_with("eth_getTransactionCount"))
+        .cloned()
+        .expect("nonce was fetched");
+    assert!(nonce_call.contains("pending"), "{nonce_call}");
+}
+
+#[tokio::test]
+async fn send_evm_rejects_a_bad_address_before_any_request() {
+    let transport = Sequenced::new(&base_send_script());
+    assert!(matches!(
+        super::send_evm(
+            &transport,
+            EvmNetwork::Base,
+            "nope",
+            EVM_ADDR,
+            1,
+            Vec::new(),
+            &SEND_KEY
+        )
+        .await
+        .unwrap_err(),
+        Error::Address(_)
+    ));
+    assert!(transport.methods().is_empty());
+}
+
+#[tokio::test]
+async fn send_evm_surfaces_a_broadcast_rejection_as_non_retryable() {
+    // "nonce too low" is the node's real answer. Retrying it elsewhere would
+    // get the same answer — and risk a double broadcast.
+    let mut script = base_send_script();
+    script.pop();
+    let transport = Sequenced::new(&script);
+
+    match super::send_evm(
+        &transport,
+        EvmNetwork::Base,
+        EVM_ADDR,
+        EVM_ADDR,
+        1,
+        Vec::new(),
+        &SEND_KEY,
+    )
+    .await
+    .unwrap_err()
+    {
+        Error::Transport(e) => assert!(!e.is_retryable()),
+        other => panic!("expected Transport, got {other:?}"),
+    }
+}
