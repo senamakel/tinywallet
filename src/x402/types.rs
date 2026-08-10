@@ -61,6 +61,7 @@ pub const USDC_ETHEREUM_MAINNET: &str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606e
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+/// The 402 challenge a server sends: what it will accept, and for what.
 pub struct PaymentRequired {
     /// See the x402 v2 specification.
     pub x402_version: u8,
@@ -78,6 +79,7 @@ pub struct PaymentRequired {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+/// The resource a payment buys access to.
 pub struct ResourceInfo {
     /// See the x402 v2 specification.
     pub url: String,
@@ -91,6 +93,7 @@ pub struct ResourceInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+/// One payment option a server will accept.
 pub struct PaymentRequirements {
     /// See the x402 v2 specification.
     pub scheme: String,
@@ -116,6 +119,7 @@ pub struct PaymentRequirements {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+/// Scheme-specific extras a server attaches to a requirement.
 pub struct PaymentExtra {
     /// Facilitator pubkey that will co-sign as fee payer (Solana).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -141,6 +145,7 @@ pub struct PaymentExtra {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+/// The proof a client sends back after paying.
 pub struct PaymentPayload {
     /// See the x402 v2 specification.
     pub x402_version: u8,
@@ -161,6 +166,9 @@ pub struct PaymentPayload {
 /// `{ "signature": "0x...", "authorization": {...} }` (EVM).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
+/// A chain-specific payment proof.
+///
+/// Serialises untagged, so a facilitator sees the chain's object directly.
 pub enum PaymentProof {
     Solana(SolanaPaymentProof),
     Evm(EvmPaymentProof),
@@ -170,6 +178,9 @@ pub enum PaymentProof {
 /// serialized as standard base64. The facilitator adds its fee-payer signature
 /// and broadcasts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Solana `exact` proof: a partially-signed transaction, base64.
+///
+/// The facilitator adds its fee-payer signature and broadcasts.
 pub struct SolanaPaymentProof {
     /// See the x402 v2 specification.
     pub transaction: String,
@@ -179,6 +190,8 @@ pub struct SolanaPaymentProof {
 /// or plain ERC-20 transfer authorization for the facilitator to submit.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+/// EVM `exact` proof: a signed EIP-3009 authorisation for the
+/// facilitator to submit.
 pub struct EvmPaymentProof {
     /// See the x402 v2 specification.
     pub signature: String,
@@ -189,6 +202,11 @@ pub struct EvmPaymentProof {
 /// EIP-3009 `transferWithAuthorization` parameters signed by the token holder.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+/// EIP-3009 `transferWithAuthorization` parameters signed by the token
+/// holder.
+///
+/// `valid_after`, `valid_before` and `nonce` are what stop the
+/// authorisation being replayable — see the module docs.
 pub struct EvmAuthorization {
     /// See the x402 v2 specification.
     pub from: String,
@@ -210,6 +228,7 @@ pub struct EvmAuthorization {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+/// The settlement result a server returns once the payment landed.
 pub struct SettlementResponse {
     /// See the x402 v2 specification.
     pub success: bool,
@@ -277,6 +296,7 @@ impl PaymentRequired {
 
 /// Which chain family a payment requirement targets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Which chain family a payment requirement targets.
 pub enum PaymentChain {
     /// A Solana `exact`-scheme payment.
     Solana,
