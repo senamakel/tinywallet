@@ -75,7 +75,30 @@ fn decode_retains_the_version_prefix() {
 
 #[test]
 fn encode_and_decode_round_trip() {
-    assert_eq!(encode(&decode(USDT).unwrap()), USDT);
+    assert_eq!(encode(&decode(USDT).unwrap()).unwrap(), USDT);
+}
+
+#[test]
+fn encode_rejects_a_non_mainnet_version_prefix() {
+    // `encode` must not mint an address that `validate` would reject: with any
+    // first byte other than the mainnet prefix the result is well-formed
+    // base58check for some *other* Tron network.
+    let mut bytes = [0u8; ADDRESS_BYTES];
+    bytes[0] = 0x30;
+    match encode(&bytes).unwrap_err() {
+        Error::WrongNetwork {
+            chain,
+            address,
+            expected,
+            reason,
+        } => {
+            assert_eq!(chain, Chain::Tron);
+            assert!(address.starts_with("30"), "hex form: {address}");
+            assert_eq!(expected, "mainnet");
+            assert!(reason.contains(&format!("{MAINNET_PREFIX:#04x}")));
+        }
+        other => panic!("expected WrongNetwork, got {other:?}"),
+    }
 }
 
 #[test]
