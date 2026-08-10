@@ -189,6 +189,60 @@ pub async fn send_solana(
     solana::send(transport, cluster, &from, &to, lamports, secret_key).await
 }
 
+/// List the unspent outputs a Bitcoin address controls.
+///
+/// # Errors
+///
+/// See [`Error`].
+pub async fn btc_utxos(
+    transport: &dyn Transport,
+    address: &str,
+) -> Result<Vec<crate::tx::btc::Utxo>> {
+    let address = crate::address::btc::validate(address)?;
+    btc::utxos(transport, &address).await
+}
+
+/// Build, sign and broadcast a Bitcoin transfer. Returns the txid.
+///
+/// `fee` is absolute, in satoshis. Bitcoin's fee is implicit
+/// (`inputs - outputs`), so it is stated explicitly here rather than inferred.
+///
+/// # Errors
+///
+/// See [`Error`].
+pub async fn send_btc(
+    transport: &dyn Transport,
+    from: &str,
+    to: &str,
+    amount: u64,
+    fee: u64,
+    secret_key: &[u8],
+) -> Result<String> {
+    let from = crate::address::btc::validate_sender(from)?;
+    let to = crate::address::btc::validate(to)?;
+    btc::send(transport, &from, &to, amount, fee, secret_key).await
+}
+
+/// Build, verify, sign and broadcast a Tron transfer. Returns the txid.
+///
+/// `amount` is in sun. The node builds the transaction, so its answer is
+/// verified against the request before anything is signed.
+///
+/// # Errors
+///
+/// See [`Error`].
+pub async fn send_tron(
+    transport: &dyn Transport,
+    from: &str,
+    to: &str,
+    amount: u64,
+    secret_key: &[u8],
+) -> Result<String> {
+    let from = crate::address::tron::validate(from)?;
+    let to = crate::address::tron::validate(to)?;
+    tron::send(transport, &from, &to, amount, secret_key).await
+}
+
 /// Map a [`Network`] onto the transport's [`NetworkId`].
 fn network_id(network: Network) -> NetworkId {
     match network.chain_id() {
