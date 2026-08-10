@@ -49,6 +49,7 @@
 //! | `asset` | on | network and token reference data (`tinywallet::asset`) |
 //! | `client` | on | chain queries over the seam (`tinywallet::client`) |
 //! | `tx` | on | transaction building and signing (`tinywallet::tx`) |
+//! | `x402` | on | x402 machine-payment wire types (`tinywallet::x402`) |
 
 mod error;
 
@@ -64,6 +65,8 @@ pub mod key;
 pub mod rpc;
 #[cfg(feature = "tx")]
 pub mod tx;
+#[cfg(feature = "x402")]
+pub mod x402;
 
 pub use chain::Chain;
 pub use error::{Error, Result};

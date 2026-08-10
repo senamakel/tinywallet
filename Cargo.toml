@@ -80,7 +80,7 @@ name = "public_api"
 required-features = ["btc", "evm", "solana", "tron", "keccak"]
 
 [features]
-default = ["btc", "evm", "solana", "tron", "keccak", "net", "key", "asset", "client", "tx"]
+default = ["btc", "evm", "solana", "tron", "keccak", "net", "key", "asset", "client", "tx", "x402"]
 # Bitcoin address parsing and validation.
 btc = ["dep:bitcoin"]
 # EVM (Ethereum and compatible chains) address validation. Dependency-free:
@@ -106,6 +106,7 @@ asset = ["btc", "evm", "solana", "tron"]
 client = ["net", "asset", "tx", "serde/derive"]
 # Transaction building and signing (`tinywallet::tx`). Needs secp256k1
 # recoverable signing (via `bitcoin`) and Keccak-256 (via `keccak`).
+x402 = ["dep:serde", "dep:serde_json", "serde/derive"]
 tx = ["btc", "evm", "keccak", "solana", "tron", "key", "dep:ed25519-dalek", "dep:bs58", "dep:sha2", "dep:hex"]
 # Deterministic key derivation from a BIP-39 mnemonic (`tinywallet::key`).
 # Needs every chain gate it derives for; `keccak` covers the EVM/Tron address
