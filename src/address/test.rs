@@ -28,12 +28,7 @@ const fn chain_enabled(chain: Chain) -> bool {
         Chain::Solana => true,
         #[cfg(feature = "tron")]
         Chain::Tron => true,
-        #[cfg(not(all(
-            feature = "btc",
-            feature = "evm",
-            feature = "solana",
-            feature = "tron"
-        )))]
+        #[cfg(not(all(feature = "btc", feature = "evm", feature = "solana", feature = "tron")))]
         _ => false,
     }
 }
