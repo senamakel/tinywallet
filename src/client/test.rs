@@ -21,7 +21,7 @@ struct Scripted {
 }
 
 impl Scripted {
-    fn json(value: Value) -> Self {
+    fn json(value: &Value) -> Self {
         Self {
             answer: Ok(value.to_string()),
             calls: std::sync::Mutex::new(Vec::new()),
@@ -99,7 +99,7 @@ const TRON_ADDR: &str = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 
 #[tokio::test]
 async fn evm_reads_a_hex_wei_balance_at_the_latest_block() {
-    let transport = Scripted::json(json!("0xde0b6b3a7640000")); // 1e18
+    let transport = Scripted::json(&json!("0xde0b6b3a7640000")); // 1e18
     let wei = balance(&transport, Network::Evm(EvmNetwork::Base), EVM_ADDR)
         .await
         .unwrap();
@@ -116,7 +116,7 @@ async fn evm_reads_a_hex_wei_balance_at_the_latest_block() {
 
 #[tokio::test]
 async fn evm_accepts_a_zero_balance() {
-    let transport = Scripted::json(json!("0x0"));
+    let transport = Scripted::json(&json!("0x0"));
     assert_eq!(
         balance(&transport, Network::Evm(EvmNetwork::Ethereum), EVM_ADDR)
             .await
@@ -127,7 +127,7 @@ async fn evm_accepts_a_zero_balance() {
 
 #[tokio::test]
 async fn evm_rejects_a_non_hex_balance_as_malformed() {
-    let transport = Scripted::json(json!("not-hex"));
+    let transport = Scripted::json(&json!("not-hex"));
     match balance(&transport, Network::Evm(EvmNetwork::Base), EVM_ADDR)
         .await
         .unwrap_err()
@@ -141,7 +141,7 @@ async fn evm_rejects_a_non_hex_balance_as_malformed() {
 async fn solana_unwraps_the_context_envelope() {
     // Solana wraps results in {context, value}; reading the envelope instead
     // of `value` would yield nonsense.
-    let transport = Scripted::json(json!({ "context": { "slot": 1 }, "value": 2_500_000_000u64 }));
+    let transport = Scripted::json(&json!({ "context": { "slot": 1 }, "value": 2_500_000_000u64 }));
     let lamports = balance(
         &transport,
         Network::Solana(SolanaCluster::Mainnet),
@@ -157,7 +157,7 @@ async fn solana_unwraps_the_context_envelope() {
 async fn btc_sums_confirmed_and_mempool_activity() {
     // Esplora reports funded/spent totals separately for chain and mempool.
     // The balance is (funded - spent) across both.
-    let transport = Scripted::json(json!({
+    let transport = Scripted::json(&json!({
         "chain_stats":   { "funded_txo_sum": 100_000u64, "spent_txo_sum": 40_000u64 },
         "mempool_stats": { "funded_txo_sum":  10_000u64, "spent_txo_sum":  1_000u64 },
     }));
@@ -175,7 +175,7 @@ async fn btc_clamps_rather_than_underflowing_on_a_nonsensical_response() {
     // spent > funded should be impossible. If a broken or hostile endpoint
     // says otherwise, clamping to zero is far better than underflowing into a
     // balance near u64::MAX and showing the user a fortune.
-    let transport = Scripted::json(json!({
+    let transport = Scripted::json(&json!({
         "chain_stats":   { "funded_txo_sum": 1u64, "spent_txo_sum": 999u64 },
         "mempool_stats": { "funded_txo_sum": 0u64, "spent_txo_sum": 0u64 },
     }));
@@ -200,7 +200,7 @@ async fn btc_rejects_a_response_that_is_not_esplora() {
 async fn tron_posts_the_hex_address_not_the_base58_one() {
     // TronGrid wants the 41-prefixed hex form; sending base58check silently
     // returns an empty account, which reads as a zero balance.
-    let transport = Scripted::json(json!({ "balance": 12_345_678u64 }));
+    let transport = Scripted::json(&json!({ "balance": 12_345_678u64 }));
     let sun = balance(&transport, Network::Tron, TRON_ADDR).await.unwrap();
 
     assert_eq!(sun, 12_345_678);
@@ -218,7 +218,7 @@ async fn tron_posts_the_hex_address_not_the_base58_one() {
 async fn tron_treats_an_empty_account_as_zero() {
     // Unlike the other chains, TronGrid returns `{}` for an account that has
     // never been funded rather than a balance of 0. That is not malformed.
-    let transport = Scripted::json(json!({}));
+    let transport = Scripted::json(&json!({}));
     assert_eq!(
         balance(&transport, Network::Tron, TRON_ADDR).await.unwrap(),
         0
@@ -229,7 +229,7 @@ async fn tron_treats_an_empty_account_as_zero() {
 async fn a_bad_address_is_rejected_before_any_request_is_made() {
     // "You typed a bad address" beats a node's inconsistent answer, and beats
     // spending a round trip to find out.
-    let transport = Scripted::json(json!("0x0"));
+    let transport = Scripted::json(&json!("0x0"));
     let err = balance(&transport, Network::Evm(EvmNetwork::Base), "nope")
         .await
         .unwrap_err();
@@ -244,7 +244,7 @@ async fn a_bad_address_is_rejected_before_any_request_is_made() {
 
 #[tokio::test]
 async fn an_address_from_the_wrong_chain_is_rejected() {
-    let transport = Scripted::json(json!("0x0"));
+    let transport = Scripted::json(&json!("0x0"));
     for (network, wrong) in [
         (Network::Evm(EvmNetwork::Base), SOL_ADDR),
         (Network::Btc, EVM_ADDR),

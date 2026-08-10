@@ -103,7 +103,7 @@ net = ["dep:async-trait", "dep:serde_json", "dep:serde"]
 asset = ["btc", "evm", "solana", "tron"]
 # Chain queries over the `Transport` seam (`tinywallet::client`). Needs the
 # seam plus the reference data that names the networks.
-client = ["net", "asset"]
+client = ["net", "asset", "serde/derive"]
 # Deterministic key derivation from a BIP-39 mnemonic (`tinywallet::key`).
 # Needs every chain gate it derives for; `keccak` covers the EVM/Tron address
 # hash and `btc` brings the secp256k1 BIP-32 walk the three curve-sharing
