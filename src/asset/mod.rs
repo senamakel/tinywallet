@@ -315,13 +315,7 @@ pub fn catalog(network: Network) -> Vec<Asset> {
 
         Network::Solana(cluster) => vec![
             Asset::native(network, "SOL", "Solana", 9),
-            Asset::token(
-                network,
-                "USDC",
-                "USD Coin (Solana)",
-                6,
-                cluster.usdc_mint(),
-            ),
+            Asset::token(network, "USDC", "USD Coin (Solana)", 6, cluster.usdc_mint()),
         ],
 
         Network::Evm(evm) => evm_catalog(network, evm),

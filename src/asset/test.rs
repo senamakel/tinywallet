@@ -39,7 +39,10 @@ fn chain_ids_match_the_published_values() {
 #[test]
 fn chain_id_lookup_round_trips() {
     for network in EvmNetwork::ALL {
-        assert_eq!(EvmNetwork::from_chain_id(network.chain_id()), Some(*network));
+        assert_eq!(
+            EvmNetwork::from_chain_id(network.chain_id()),
+            Some(*network)
+        );
     }
     assert_eq!(EvmNetwork::from_chain_id(999_999), None);
 }
@@ -194,7 +197,10 @@ fn a_token_absent_from_a_network_is_not_found_there() {
 fn network_reports_its_chain_and_chain_id() {
     assert_eq!(Network::Btc.chain(), Chain::Btc);
     assert_eq!(Network::Tron.chain(), Chain::Tron);
-    assert_eq!(Network::Solana(SolanaCluster::Devnet).chain(), Chain::Solana);
+    assert_eq!(
+        Network::Solana(SolanaCluster::Devnet).chain(),
+        Chain::Solana
+    );
     assert_eq!(Network::Evm(EvmNetwork::Base).chain(), Chain::Evm);
 
     assert_eq!(Network::Evm(EvmNetwork::Base).chain_id(), Some(8453));
