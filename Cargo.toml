@@ -33,13 +33,39 @@ hex = { version = "0.4", optional = true }
 # Full Bitcoin address parsing — base58check, bech32, and the script-type
 # introspection that distinguishes a P2WPKH sender from any other address
 # type. Not worth hand-rolling; `no-std` off, `std` on.
-bitcoin = { version = "0.32", default-features = false, features = ["std"], optional = true }
+bitcoin = { version = "0.32", default-features = false, features = ["std", "secp-recovery"], optional = true }
 # Keccak-256, the hash EIP-55 checksums are defined over. Only needed for the
 # EVM checksum helpers, so it rides its own gate rather than `evm`'s — the
 # common case (validate an address) stays dependency-free.
 sha3 = { version = "0.10", optional = true }
+# Async trait methods for the `Transport` seam in `src/rpc/`. Rust cannot yet
+# express an object-safe async trait natively, and `Transport` must be
+# `dyn`-compatible because chain code takes `&dyn Transport`.
+async-trait = { version = "0.1", optional = true }
+# BIP-39 mnemonic -> seed. Pinned to the same 0.8 line OpenHuman used before
+# this extraction, so a wallet derived by the old code derives identically here.
+coins-bip39 = { version = "0.8", optional = true }
+# HMAC-SHA512, the whole of SLIP-0010's ed25519 derivation.
+hmac = { version = "0.12", optional = true }
+sha2 = { version = "0.10", optional = true }
+# ed25519 signing keys for Solana.
+ed25519-dalek = { version = "2", default-features = false, features = ["std"], optional = true }
+# Wipes derived key material on drop rather than leaving it in freed memory.
+zeroize = { version = "1", optional = true }
+# The `Transport` seam moves JSON payloads across the host boundary; the chain
+# modules build params and read results as `Value`.
+serde_json = { version = "1", optional = true }
+# `DeserializeOwned`, the bound on `rpc::decode`. No derives are needed here -
+# the chain modules own their own response types - so the `derive` feature is
+# deliberately left off.
+serde = { version = "1", optional = true }
 
 [dev-dependencies]
+# Drives the async `Transport` tests. The crate itself pulls in no runtime -
+# picking one is the host's call, so it is a dev-dependency only.
+tokio = { version = "1", features = ["macros", "rt"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 # The example and the public-API tests exercise every chain, so they only
 # build with the full default set. Without this, a `--no-default-features`
@@ -54,7 +80,7 @@ name = "public_api"
 required-features = ["btc", "evm", "solana", "tron", "keccak"]
 
 [features]
-default = ["btc", "evm", "solana", "tron", "keccak"]
+default = ["btc", "evm", "solana", "tron", "keccak", "net", "key", "asset", "client", "tx"]
 # Bitcoin address parsing and validation.
 btc = ["dep:bitcoin"]
 # EVM (Ethereum and compatible chains) address validation. Dependency-free:
@@ -67,6 +93,33 @@ solana = ["dep:bs58"]
 tron = ["dep:bs58", "dep:hex"]
 # EIP-55 mixed-case checksum support for EVM addresses.
 keccak = ["evm", "dep:sha3"]
+# The `Transport` network seam (`tinywallet::rpc`). Everything else in the
+# crate is a pure function; this is the one module that models I/O, and it
+# still performs none itself - the host supplies the implementation.
+net = ["dep:async-trait", "dep:serde_json", "dep:serde"]
+# Network and token reference data (`tinywallet::asset`). Pure tables; the
+# tests cross-check every contract address against the address validators, so
+# it needs every chain gate.
+asset = ["btc", "evm", "solana", "tron"]
+# Chain queries over the `Transport` seam (`tinywallet::client`). Needs the
+# seam plus the reference data that names the networks.
+client = ["net", "asset", "tx", "serde/derive"]
+# Transaction building and signing (`tinywallet::tx`). Needs secp256k1
+# recoverable signing (via `bitcoin`) and Keccak-256 (via `keccak`).
+tx = ["btc", "evm", "keccak", "solana", "tron", "key", "dep:ed25519-dalek", "dep:bs58", "dep:sha2", "dep:hex"]
+# Deterministic key derivation from a BIP-39 mnemonic (`tinywallet::key`).
+# Needs every chain gate it derives for; `keccak` covers the EVM/Tron address
+# hash and `btc` brings the secp256k1 BIP-32 walk the three curve-sharing
+# chains use.
+key = [
+    "dep:coins-bip39",
+    "dep:hmac",
+    "dep:sha2",
+    "dep:ed25519-dalek",
+    "dep:zeroize",
+    "btc",
+    "keccak",
+]
 
 # Lints apply to the whole crate and to every target. CI runs clippy with
 # `-D warnings`, so anything set to "warn" here fails the build in CI.

@@ -60,7 +60,7 @@ pub enum Error {
     /// An address is well-formed but its type is not supported for the
     /// requested role.
     ///
-    /// Raised by [`crate::address::btc::validate_sender`]: signing is only
+    /// Raised by `address::btc::validate_sender`: signing is only
     /// implemented for P2WPKH, so a P2TR or P2SH address is a perfectly valid
     /// *recipient* and an unusable *sender*.
     #[error("{chain} address '{address}' is not supported as a sender: {reason}")]
