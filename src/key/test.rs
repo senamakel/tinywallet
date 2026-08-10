@@ -216,12 +216,16 @@ fn derivation_backend_failures_remain_specific_without_leaking_inputs() {
         "BIP-32 child key",
     )
     .unwrap_err();
-    assert_eq!(bip32, Error::Derivation { step: "BIP-32 child key" });
+    assert_eq!(
+        bip32,
+        Error::Derivation {
+            step: "BIP-32 child key"
+        }
+    );
 
-    let compressed = super::btc::map_compressed_public_key(Err(
-        bitcoin::key::UncompressedPublicKeyError,
-    ))
-    .unwrap_err();
+    let compressed =
+        super::btc::map_compressed_public_key(Err(bitcoin::key::UncompressedPublicKeyError))
+            .unwrap_err();
     assert_eq!(
         compressed,
         Error::Derivation {

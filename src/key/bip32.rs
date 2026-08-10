@@ -39,7 +39,10 @@ impl Secp256k1Key {
 /// extended key, which is never serialized here — the derived secret is
 /// identical on any network, so this is correct for EVM and Tron too.
 pub(super) fn derive(seed: &[u8], path: &str) -> Result<Secp256k1Key> {
-    let master = map_derivation(Xpriv::new_master(Network::Bitcoin, seed), "BIP-32 master key")?;
+    let master = map_derivation(
+        Xpriv::new_master(Network::Bitcoin, seed),
+        "BIP-32 master key",
+    )?;
     let parsed = DerivationPath::from_str(path).map_err(|e| Error::InvalidPath {
         path: path.to_string(),
         reason: e.to_string(),
