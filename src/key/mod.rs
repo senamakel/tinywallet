@@ -1,6 +1,6 @@
 //! Deterministic key derivation from a BIP-39 mnemonic.
 //!
-//! [`derive`] turns a mnemonic and a derivation path into the signing key and
+//! [`derive()`] turns a mnemonic and a derivation path into the signing key and
 //! address for one chain. It is a pure function: same inputs, same key, every
 //! time, with no I/O and no global state.
 //!

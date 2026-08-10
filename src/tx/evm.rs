@@ -20,7 +20,7 @@
 //! Both are required. Doing only the second produces a signature that
 //! recovers to the wrong address; doing only the first produces one that a
 //! node rejects. Neither mistake is visible without a known-good vector to
-//! compare against, which is why [`test`](super::test) pins the published
+//! compare against, which is why this module's tests pin the published
 //! EIP-155 example byte-for-byte.
 
 use bitcoin::secp256k1::{Message, Secp256k1, SecretKey};

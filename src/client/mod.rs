@@ -139,9 +139,15 @@ pub async fn balance(transport: &dyn Transport, network: Network, address: &str)
 
 /// Build, sign and broadcast a native-asset transfer on an EVM network.
 ///
-/// Returns the transaction hash. See [`evm::send`] for the two ordering
-/// decisions that matter: the chain id is verified before signing, and the
-/// nonce is read at `pending` rather than `latest`.
+/// Returns the transaction hash.
+///
+/// Two ordering decisions matter here. The chain id is verified against the
+/// endpoint *before* anything is signed, because EIP-155 binds a signature to
+/// a chain id and a misrouted endpoint would otherwise yield a perfectly valid
+/// transaction for a network the user never chose. And the nonce is read at
+/// `pending` rather than `latest` — the opposite of a balance — so two
+/// transfers in quick succession do not collide on a nonce and replace one
+/// another.
 ///
 /// # Errors
 ///
