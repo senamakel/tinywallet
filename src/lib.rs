@@ -47,6 +47,7 @@
 //! | `net` | on | the [`rpc::Transport`] network seam (pulls `async-trait`) |
 //! | `key` | on | BIP-39/BIP-32/SLIP-0010 key derivation (`tinywallet::key`) |
 //! | `asset` | on | network and token reference data (`tinywallet::asset`) |
+//! | `client` | on | chain queries over the seam (`tinywallet::client`) |
 
 mod error;
 
@@ -54,6 +55,8 @@ pub mod address;
 #[cfg(feature = "asset")]
 pub mod asset;
 pub mod chain;
+#[cfg(feature = "client")]
+pub mod client;
 #[cfg(feature = "key")]
 pub mod key;
 #[cfg(feature = "net")]
