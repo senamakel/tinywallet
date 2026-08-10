@@ -2,7 +2,7 @@
 
 use sha3::{Digest, Keccak256};
 
-use super::{bip32, seed_from_mnemonic, DerivedKey, Result};
+use super::{DerivedKey, Result, bip32, seed_from_mnemonic};
 use crate::chain::Chain;
 
 /// Derive the EVM signing key and address for `path`.

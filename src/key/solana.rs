@@ -2,7 +2,7 @@
 
 use ed25519_dalek::SigningKey;
 
-use super::{seed_from_mnemonic, slip10, DerivedKey, Result};
+use super::{DerivedKey, Result, seed_from_mnemonic, slip10};
 use crate::chain::Chain;
 
 /// Derive the Solana signing key and address for `path`.

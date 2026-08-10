@@ -11,9 +11,9 @@
 
 use std::str::FromStr;
 
+use bitcoin::Network;
 use bitcoin::bip32::{DerivationPath, Xpriv};
 use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey};
-use bitcoin::Network;
 
 use super::{Error, Result};
 

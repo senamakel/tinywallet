@@ -8,7 +8,7 @@
 
 use sha3::{Digest, Keccak256};
 
-use super::{bip32, seed_from_mnemonic, DerivedKey, Error, Result};
+use super::{DerivedKey, Error, Result, bip32, seed_from_mnemonic};
 use crate::address::tron::{ADDRESS_BYTES, MAINNET_PREFIX};
 use crate::chain::Chain;
 

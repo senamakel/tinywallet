@@ -8,7 +8,7 @@
 use bitcoin::key::{CompressedPublicKey, PrivateKey};
 use bitcoin::{Address, Network};
 
-use super::{bip32, seed_from_mnemonic, DerivedKey, Error, Result};
+use super::{DerivedKey, Error, Result, bip32, seed_from_mnemonic};
 use crate::chain::Chain;
 
 /// Derive the Bitcoin signing key and P2WPKH address for `path`.
