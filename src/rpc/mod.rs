@@ -221,7 +221,7 @@ pub trait Transport: Send + Sync {
 
     /// Perform a REST GET and return the raw body.
     ///
-    /// Used by Bitcoin (Esplora) and Tron (TronGrid), whose APIs are REST
+    /// Used by Bitcoin (Esplora) and Tron (`TronGrid`), whose APIs are REST
     /// rather than JSON-RPC. `path` is relative to whatever base the host has
     /// configured for `network`, without a leading slash.
     ///
@@ -237,7 +237,7 @@ pub trait Transport: Send + Sync {
     /// `path` is relative to the host's configured base for `network`, without
     /// a leading slash. `content_type` is passed because these APIs are not
     /// uniform: Esplora takes a raw transaction as `text/plain`, while
-    /// TronGrid expects `application/json`.
+    /// `TronGrid` expects `application/json`.
     ///
     /// # Errors
     ///
