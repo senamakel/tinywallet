@@ -178,7 +178,7 @@ fn encode_shortvec(value: u16) -> Vec<u8> {
 
 #[cfg(test)]
 mod test {
-    #![allow(clippy::unwrap_used, clippy::panic)]
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{NativeTransfer, encode_shortvec};
     use crate::tx::Error;
