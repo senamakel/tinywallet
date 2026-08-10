@@ -166,6 +166,29 @@ pub async fn send_evm(
     evm::send(transport, network, &from, &to, value, data, secret_key).await
 }
 
+/// Build, sign and broadcast a native SOL transfer.
+///
+/// Returns the transaction signature, which is Solana's transaction id. The
+/// blockhash is fetched immediately before signing because it doubles as the
+/// transaction's expiry — a stale one yields a signed transaction that can
+/// never land.
+///
+/// # Errors
+///
+/// See [`Error`].
+pub async fn send_solana(
+    transport: &dyn Transport,
+    cluster: crate::asset::SolanaCluster,
+    from: &str,
+    to: &str,
+    lamports: u64,
+    secret_key: &[u8],
+) -> Result<String> {
+    let from = crate::address::solana::validate(from)?;
+    let to = crate::address::solana::validate(to)?;
+    solana::send(transport, cluster, &from, &to, lamports, secret_key).await
+}
+
 /// Map a [`Network`] onto the transport's [`NetworkId`].
 fn network_id(network: Network) -> NetworkId {
     match network.chain_id() {
