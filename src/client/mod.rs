@@ -27,6 +27,7 @@ use crate::asset::Network;
 use crate::rpc::{NetworkId, Transport, TransportError, decode};
 
 mod btc;
+mod status;
 mod evm;
 mod solana;
 mod tron;
@@ -89,6 +90,8 @@ pub enum Error {
 
 /// Result alias for chain queries.
 pub type Result<T> = std::result::Result<T, Error>;
+
+pub use status::{TxState, TxStatus, status};
 
 /// Read the native balance of `address` on `network`, in base units.
 ///
