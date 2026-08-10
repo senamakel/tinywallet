@@ -219,7 +219,9 @@ impl Transfer {
         }
 
         let (mut tx, selection) = self.build(utxos)?;
-        let from_spk = script_pubkey(&crate::address::btc::validate_sender(&self.from).map_err(Error::Address)?)?;
+        let from_spk = script_pubkey(
+            &crate::address::btc::validate_sender(&self.from).map_err(Error::Address)?,
+        )?;
 
         let mut cache = SighashCache::new(&mut tx);
         let mut witnesses = Vec::with_capacity(selection.inputs.len());
@@ -369,7 +371,11 @@ mod test {
         let utxos = [utxo(100_000, 0)];
         let (tx, _) = transfer(30_000, 2_000).build(&utxos).unwrap();
         let out: u64 = tx.output.iter().map(|o| o.value.to_sat()).sum();
-        assert_eq!(100_000 - out, 2_000, "implicit fee must equal the stated fee");
+        assert_eq!(
+            100_000 - out,
+            2_000,
+            "implicit fee must equal the stated fee"
+        );
     }
 
     #[test]
@@ -396,7 +402,10 @@ mod test {
             .unwrap()
             .secret_bytes()
             .to_vec();
-        match transfer(10_000, 500).sign(&[utxo(50_000, 0)], &other).unwrap_err() {
+        match transfer(10_000, 500)
+            .sign(&[utxo(50_000, 0)], &other)
+            .unwrap_err()
+        {
             Error::Signing { reason } => assert!(reason.contains("does not control")),
             other => panic!("expected Signing, got {other:?}"),
         }
@@ -428,7 +437,10 @@ mod test {
                 to: to.to_string(),
                 ..transfer(10_000, 500)
             };
-            assert!(t.build(&[utxo(50_000, 0)]).is_ok(), "{to} should be payable");
+            assert!(
+                t.build(&[utxo(50_000, 0)]).is_ok(),
+                "{to} should be payable"
+            );
         }
     }
 

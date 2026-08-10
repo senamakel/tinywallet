@@ -66,7 +66,10 @@ pub fn verify_transfer(raw_data_hex: &str, to: &str, txid: &str) -> Result<()> {
     }
 
     let to_hex = crate::address::tron::to_hex(to).map_err(Error::Address)?;
-    if !raw_data_hex.to_ascii_lowercase().contains(&to_hex.to_ascii_lowercase()) {
+    if !raw_data_hex
+        .to_ascii_lowercase()
+        .contains(&to_hex.to_ascii_lowercase())
+    {
         return Err(Error::UntrustedResponse {
             reason: "the node's transaction does not pay the requested recipient".to_string(),
         });
