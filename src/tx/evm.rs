@@ -117,11 +117,14 @@ impl LegacyTransaction {
         let secp = Secp256k1::signing_only();
         // Recoverable, because an Ethereum signature carries the recovery id
         // in `v` rather than shipping the public key.
-        let signature = secp.sign_ecdsa_recoverable(message, &secret);
+        let signature = secp.sign_ecdsa_recoverable(&message, &secret);
         let (recovery_id, bytes) = signature.serialize_compact();
 
         // The second half of EIP-155: v = recovery + chain_id * 2 + 35.
-        let recovery = i32::from(recovery_id) as u64;
+        // `RecoveryId` is 0..=3, so the conversion cannot lose information.
+        let recovery = u64::try_from(recovery_id.to_i32()).map_err(|_| Error::Signing {
+            reason: "negative recovery id".to_string(),
+        })?;
         let v = recovery
             .checked_add(
                 self.chain_id
