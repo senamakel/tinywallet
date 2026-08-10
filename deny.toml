@@ -18,9 +18,16 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    # The rust-bitcoin family (`bitcoin`, `base58ck`, `bitcoin_hashes`,
+    # `secp256k1`, `hex-conservative`, …) are CC0-1.0 — a public-domain
+    # dedication, permissive and GPL-compatible.
+    "CC0-1.0",
     "GPL-3.0-only",
     "ISC",
     "MIT",
+    # The MIT + no-false-attributions license (`hex_lit`, a rust-bitcoin
+    # helper). Same permissiveness as MIT with the attribution clause dropped.
+    "MITNFA",
     "MPL-2.0",
     "Unicode-3.0",
     "Zlib",

@@ -1,105 +1,147 @@
-# Rust Template
+# TinyWallet
 
-A production-ready Rust 2024 library template used by TinyHumans AI. It ships
-the module layout, lint configuration, error handling, testing, documentation,
-CI, and release workflow that every new crate in this organization starts from —
-plus one small feature module that demonstrates the conventions end to end.
+Agent-friendly multi-chain wallet primitives in Rust.
 
-## Use This Template
+`tinywallet` owns the parts of wallet handling that are pure: address formats,
+their validation, and the conversions between their encodings. Bitcoin, EVM
+chains, Solana, and Tron each get a module, and `address::validate` dispatches
+across them for chain-generic callers.
 
-Choose **Use this template** on GitHub, create a repository, then work through
-the checklist at the top of [`AGENTS.md`](AGENTS.md):
+```rust
+use tinywallet::{address, Chain};
 
-- update the package name, description, repository, keywords, and categories in
-  `Cargo.toml`;
-- update this README and the crate documentation in `src/lib.rs`;
-- replace the placeholder `greeting` module with the first real feature area;
-- update the security contact and repository links in the community files;
-- replace `ROADMAP.md` with the real plan, or delete it;
-- change the license if GPL-3.0-only is not appropriate.
+// Chain-generic dispatch.
+let addr = address::validate(Chain::Btc, "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4")?;
 
-Search for `rust-template` and `rust_template` to find every remaining
-template-specific value.
+// Or reach for a chain's own module when you need more than validation.
+let hex = address::tron::to_hex("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t")?;
+assert!(hex.starts_with("41"));
+# Ok::<(), tinywallet::Error>(())
+```
 
-## What You Get
+## What it does not do
 
-| Area | What is configured |
-| --- | --- |
-| Layout | Directory modules with `mod.rs` / `types.rs` / `test.rs`, a crate-wide error type, integration tests, and a runnable example |
-| Lints | `unsafe_code` forbidden, `missing_docs`, clippy `all` + `pedantic`, no `unwrap`/`expect`/`panic`/`todo` in library code — all declared in `[lints]` so local and CI runs agree |
-| CI | Format, clippy, build, test (default and all features), rustdoc with `-D warnings`, an MSRV build, and a `cargo-deny` supply-chain check |
-| Release | Manual `workflow_dispatch` bump that validates, versions, tags, and publishes to crates.io |
-| Community | Issue and pull request templates, Dependabot, contributing, security, support, and code of conduct docs |
-| Agents | [`AGENTS.md`](AGENTS.md) as the single source of truth, symlinked as `CLAUDE.md`, plus a `.claude/settings.json` allowlist for the standard commands |
-| Vendor | TinyBus pinned as the `vendor/tinybus` submodule, initialized by CI and release workflows |
+No network access, no RPC endpoints, no key storage, no transaction
+broadcasting. Every function here is a deterministic pure function of its
+arguments.
+
+That is the seam, not a gap. Endpoint selection, retry policy, and key custody
+depend on a host's config, threat model, and runtime — a crate that guessed at
+any of them would be wrong for every host that guessed differently. What is
+left is the part that is genuinely the same everywhere.
+
+## What validation proves, per chain
+
+Validation answers one question: is this string a well-formed address on this
+chain. How much that is worth varies sharply, and it is worth being explicit
+because it is easy to assume otherwise:
+
+| Chain | Checksum | A single typo is… |
+| --- | --- | --- |
+| Bitcoin | yes (base58check / bech32) | caught |
+| Tron | yes (base58check) | caught |
+| EVM | optional (EIP-55, only if mixed-case) | usually **not** caught |
+| Solana | none | **not reliably** caught |
+
+For EVM, `address::evm::is_checksum_valid` recovers the typo protection when
+the caller has a mixed-case address. For Solana there is nothing to recover:
+a Base58 substitution can also fail the fixed 32-byte length outright, so a
+typo often errors rather than naming another valid address — but when a typo
+stays on-curve it is undetectable here, so confirm the address out of band.
+
+## Bitcoin has two rules, not one
+
+Which address is acceptable depends on which side of the transaction it sits:
+
+- `btc::validate` — any well-formed mainnet address. Correct for a
+  **recipient**: paying to a P2WPKH, P2TR, P2SH, or P2PKH output is the same
+  operation.
+- `btc::validate_sender` — additionally requires **P2WPKH** (`bc1q…` native
+  segwit), the only script type signing is implemented for.
+
+Using the first where the second belongs is the dangerous direction: it accepts
+an address that fails much later, at signing time, after a transaction has been
+assembled. They are separate functions rather than a boolean flag so that
+mistake reads wrong at the call site.
+
+## Feature flags
+
+Every chain is a separate default-on gate, so a host that needs one chain does
+not pay for the others' parsers.
+
+| Feature | Default | Gates | Pulls |
+| --- | --- | --- | --- |
+| `btc` | on | Bitcoin addresses | `bitcoin` |
+| `evm` | on | EVM addresses | — (dependency-free) |
+| `solana` | on | Solana addresses | `bs58` |
+| `tron` | on | Tron addresses | `bs58`, `hex` |
+| `keccak` | on | EIP-55 checksums for EVM | `sha3` |
+
+With a chain's gate off, `address::validate` returns `Error::ChainNotCompiled`
+for it — a build fact reported honestly, rather than a wrong answer dressed up
+as a real one.
 
 ## Layout
 
 ```text
 src/
 ├── lib.rs              # crate docs + the entire public re-export surface
-├── error/
-│   ├── mod.rs          # crate-wide `Error` and `Result<T>`
-│   └── test.rs
-└── greeting/           # one directory per feature area
-    ├── mod.rs          # module docs, wiring, smallest useful public API
-    └── test.rs         # module-local unit tests
+├── error/              # crate-wide `Error` and `Result<T>`
+├── chain/              # the `Chain` enum, ungated
+└── address/
+    ├── mod.rs          # chain-generic `validate` dispatch
+    ├── btc.rs          # + btc/test.rs
+    ├── evm.rs          # + evm/test.rs
+    ├── solana.rs       # + solana/test.rs
+    └── tron.rs         # + tron/test.rs
 tests/
 └── public_api.rs       # integration tests against the public API only
 examples/
 └── basic.rs            # compiled and linted in CI
-vendor/
-└── tinybus/            # pinned TinyBus git submodule
-docs/
-├── README.md           # documentation index and conventions
-├── specs/              # behavior and architecture specifications
-├── plans/              # implementation-ordered delivery plans
-└── adr/                # immutable architecture decision records
 ```
-
-Feature areas use directory modules: implementation and exports live in
-`mod.rs`, substantial types move to `types.rs`, and unit tests live in
-`test.rs`. [`AGENTS.md`](AGENTS.md) holds the complete repository guidance, and
-`CLAUDE.md` is a symlink to it so every coding agent reads one source of truth.
 
 ## Development
 
-Clone with submodules, or initialize them before building:
-
 ```sh
 git submodule update --init --recursive
-```
 
-```sh
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
-cargo build --all-targets --all-features
 cargo test --all-features
 cargo run --example basic
 ```
 
-Those four checks are exactly what CI runs. Optional extras:
+Run the gated builds too — they are the only thing that catches code that
+compiles only when a feature is on. The lib tests are feature-aware, so the
+same matrix also exercises the `ChainNotCompiled` contract (a disabled chain
+must error, never validate):
 
 ```sh
-cargo doc --no-deps --all-features   # CI builds this with RUSTDOCFLAGS="-D warnings"
-cargo deny check all                 # supply-chain check; see deny.toml
+cargo clippy --all-targets --no-default-features -- -D warnings
+cargo test --lib --no-default-features
+for f in btc evm solana tron keccak; do
+  cargo check --lib --no-default-features --features "$f"
+  cargo test --lib --no-default-features --features "$f"
+done
 ```
 
-## Releasing
+## Roadmap
 
-Run the **Release** workflow from the Actions tab with a `patch`, `minor`, or
-`major` bump. It revalidates the crate, bumps the version, commits, tags
-`vX.Y.Z`, and publishes to crates.io. Do not hand-edit the version in
-`Cargo.toml`.
+Address handling is the first slice. The natural next ones, in order of how
+cleanly they separate from a host:
+
+1. **Key derivation** — BIP39 seeds, BIP32/SLIP-0010 paths, per-chain keypair
+   derivation. Pure, and the largest remaining shared surface.
+2. **Transaction encoding** — Solana message serialization, TRC20 ABI
+   parameters, PSBT construction. Pure, but each needs its chain's type model.
+
+RPC transport, endpoint config, and key custody stay with the host by design
+and are not on this list.
 
 ## Documentation
 
 - [`AGENTS.md`](AGENTS.md) — repository guidelines for humans and agents
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to propose a change
-- [`docs/specs/`](docs/specs/README.md) — behavior and architecture specs
-- [`docs/plans/`](docs/plans/README.md) — test-first implementation plans
-- [`docs/adr/`](docs/adr/0001-record-architecture-decisions.md) — architecture
-  decision records
 - [`SECURITY.md`](SECURITY.md) — how to report a vulnerability
 
 ## License

@@ -1,34 +1,54 @@
-//! A production-ready starting point for a Rust library.
+//! Agent-friendly multi-chain wallet primitives in Rust.
 //!
-//! This crate is a template. It ships the layout, lint configuration, error
-//! handling, testing, and documentation conventions described in `AGENTS.md`,
-//! plus one small feature module ([`greet`]) that demonstrates them end to end.
+//! `tinywallet` owns the parts of wallet handling that are pure: address
+//! formats, their validation, and the conversions between their encodings.
+//! Bitcoin, EVM chains, Solana, and Tron each get a module, and
+//! [`address::validate`] dispatches across them for chain-generic callers.
 //!
-//! # Layout
+//! # What this crate deliberately does not do
 //!
-//! - `src/error/` holds the crate-wide [`Error`] enum and the [`Result`] alias
-//!   returned by every fallible public function.
-//! - Each feature area lives in its own module directory with a `mod.rs`
-//!   module root, an optional `types.rs`, and a `test.rs` holding its unit
-//!   tests.
-//! - Every public item is re-exported from here, so downstream users have a
-//!   single predictable surface.
+//! No network access, no RPC endpoints, no key storage, no transaction
+//! broadcasting. Every function here is a deterministic pure function of its
+//! arguments.
+//!
+//! That is the seam, not a gap. Endpoint selection, retry policy, and key
+//! custody are things a host must own — they depend on its config, its threat
+//! model, and its runtime — and a crate that guessed at any of them would be
+//! wrong for every host that guessed differently. What is left is the part
+//! that is genuinely the same everywhere, which is exactly what belongs in a
+//! shared crate.
 //!
 //! # Example
 //!
 //! ```
-//! use rust_template::{greet, Error};
+//! use tinywallet::{address, chain::Chain};
 //!
-//! assert_eq!(greet("Ferris")?, "Hello, Ferris!");
-//! assert_eq!(greet("   ").unwrap_err(), Error::EmptyName);
-//! # Ok::<(), rust_template::Error>(())
+//! // Chain-generic dispatch.
+//! let addr = address::validate(Chain::Btc, "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4")?;
+//!
+//! // Or reach for a chain's own module when you need more than validation.
+//! let hex = address::tron::to_hex("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t")?;
+//! assert!(hex.starts_with("41"));
+//! # Ok::<(), tinywallet::Error>(())
 //! ```
 //!
-//! Replace the `greeting` module with the first real feature area, keep the
-//! conventions, and update this documentation to describe the new crate.
+//! # Feature flags
+//!
+//! Every chain is a separate default-on gate, so a host that only needs one
+//! chain does not pay for the others' parsers.
+//!
+//! | Feature | Default | Gates |
+//! | --- | --- | --- |
+//! | `btc` | on | Bitcoin addresses (pulls `bitcoin`) |
+//! | `evm` | on | EVM addresses (no dependencies) |
+//! | `solana` | on | Solana addresses (pulls `bs58`) |
+//! | `tron` | on | Tron addresses (pulls `bs58`, `hex`) |
+//! | `keccak` | on | EIP-55 checksums for EVM (pulls `sha3`) |
 
 mod error;
-mod greeting;
 
+pub mod address;
+pub mod chain;
+
+pub use chain::Chain;
 pub use error::{Error, Result};
-pub use greeting::greet;
