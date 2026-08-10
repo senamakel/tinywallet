@@ -50,8 +50,8 @@ pub mod tron;
 /// # Errors
 ///
 /// Whatever the chain's own `validate` returns, plus
-/// [`Error::ChainNotCompiled`] if `chain`'s feature gate is disabled in this
-/// build. That case is a build fact rather than a property of the address:
+/// [`crate::Error::ChainNotCompiled`] if `chain`'s feature gate is disabled in
+/// this build. That case is a build fact rather than a property of the address:
 /// the validation code was not compiled, so there is no answer to give, and
 /// silently accepting or rejecting would be a wrong answer dressed up as a
 /// real one. A host building with a subset of gates can match on [`Chain`]
