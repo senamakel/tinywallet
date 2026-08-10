@@ -102,7 +102,7 @@ pub fn validate_sender(address: &str) -> Result<String> {
     let parsed = Address::from_str(trimmed)
         .map_err(|e| Error::InvalidAddress {
             chain: Chain::Btc,
-            address: trimmed.clone(),
+            address: trimmed.to_string(),
             reason: e.to_string(),
         })?
         .require_network(Network::Bitcoin)
