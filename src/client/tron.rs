@@ -1,4 +1,4 @@
-//! Tron balance query against the TronGrid REST API.
+//! Tron balance query against the `TronGrid` REST API.
 
 use serde_json::json;
 
@@ -6,9 +6,9 @@ use super::{Error, Result, network_id};
 use crate::asset::Network;
 use crate::rpc::Transport;
 
-/// Native balance in sun (1 TRX = 1_000_000 sun).
+/// Native balance in sun (1 TRX = `1_000_000` sun).
 ///
-/// TronGrid wants the hex address form, not the base58check one the user sees.
+/// `TronGrid` wants the hex address form, not the base58check one the user sees.
 /// An account that has never been funded is returned as `{}` rather than a
 /// balance of zero, so a missing `balance` field means zero here — unlike the
 /// other chains, where a missing field would be malformed.
