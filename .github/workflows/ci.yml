@@ -49,6 +49,31 @@ jobs:
       - name: Test default features
         run: cargo test
 
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Enforce per-file line coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="target/coverage.json"
+          cargo llvm-cov --all-features --all-targets --json --output-path "$report"
+
+          below_threshold="$(jq -r '
+            .data[0].files[]
+            | select(.filename | contains("/src/"))
+            | select(.summary.lines.percent < 90)
+            | "\(.filename): \(.summary.lines.percent)%"
+          ' "$report")"
+
+          if [[ -n "$below_threshold" ]]; then
+            echo "Files below 90% line coverage:" >&2
+            echo "$below_threshold" >&2
+            exit 1
+          fi
+
   docs:
     name: Docs
     runs-on: ubuntu-latest
