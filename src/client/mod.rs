@@ -27,9 +27,9 @@ use crate::asset::Network;
 use crate::rpc::{NetworkId, Transport, TransportError, decode};
 
 mod btc;
-mod status;
 mod evm;
 mod solana;
+mod status;
 mod tron;
 
 #[cfg(test)]

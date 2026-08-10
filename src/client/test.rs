@@ -805,3 +805,134 @@ async fn send_tron_treats_a_result_false_body_as_a_rejection() {
         other => panic!("expected Transport, got {other:?}"),
     }
 }
+
+#[tokio::test]
+async fn evm_status_maps_receipt_status_to_confirmed_or_failed() {
+    // A reverted transaction still has a receipt and still spent its fee, so
+    // it is a terminal state rather than an error.
+    for (status, expected) in [
+        (json!("0x1"), super::TxState::Confirmed),
+        (json!("0x0"), super::TxState::Failed),
+    ] {
+        let transport = Sequenced::new(&[(
+            "eth_getTransactionReceipt",
+            json!({ "status": status, "blockNumber": "0x10" }),
+        )]);
+        let out = super::status(&transport, Network::Evm(EvmNetwork::Base), "0xabc")
+            .await
+            .unwrap();
+        assert_eq!(out.state, expected);
+        assert_eq!(out.block, Some(16));
+    }
+}
+
+#[tokio::test]
+async fn a_transaction_the_network_has_not_seen_is_pending_everywhere() {
+    // No chain here can distinguish "never broadcast" from "not yet mined",
+    // so absence must report Pending rather than an error or a failure.
+    let evm = Sequenced::new(&[("eth_getTransactionReceipt", Value::Null)]);
+    assert_eq!(
+        super::status(&evm, Network::Evm(EvmNetwork::Base), "0xabc")
+            .await
+            .unwrap()
+            .state,
+        super::TxState::Pending
+    );
+
+    let sol = Sequenced::new(&[("getSignatureStatuses", json!({ "value": [null] }))]);
+    assert_eq!(
+        super::status(&sol, Network::Solana(SolanaCluster::Mainnet), "sig")
+            .await
+            .unwrap()
+            .state,
+        super::TxState::Pending
+    );
+
+    let btc = RestScript::new(&[("tx/abc/status", json!({ "confirmed": false }).to_string())]);
+    assert_eq!(
+        super::status(&btc, Network::Btc, "abc")
+            .await
+            .unwrap()
+            .state,
+        super::TxState::Pending
+    );
+
+    // TronGrid returns `{}` for an unknown transaction, not an error.
+    let tron = RestScript::new(&[("wallet/gettransactioninfobyid", "{}".to_string())]);
+    assert_eq!(
+        super::status(&tron, Network::Tron, "abc")
+            .await
+            .unwrap()
+            .state,
+        super::TxState::Pending
+    );
+}
+
+#[tokio::test]
+async fn solana_status_reads_err_presence_not_its_shape() {
+    let ok = Sequenced::new(&[(
+        "getSignatureStatuses",
+        json!({ "value": [{ "err": null, "slot": 99u64, "confirmations": 3u64 }] }),
+    )]);
+    let out = super::status(&ok, Network::Solana(SolanaCluster::Mainnet), "sig")
+        .await
+        .unwrap();
+    assert_eq!(out.state, super::TxState::Confirmed);
+    assert_eq!(out.confirmations, Some(3));
+    assert_eq!(out.block, Some(99));
+
+    let failed = Sequenced::new(&[(
+        "getSignatureStatuses",
+        json!({ "value": [{ "err": { "InstructionError": [0, "Custom"] }, "slot": 99u64 }] }),
+    )]);
+    assert_eq!(
+        super::status(&failed, Network::Solana(SolanaCluster::Mainnet), "sig")
+            .await
+            .unwrap()
+            .state,
+        super::TxState::Failed
+    );
+}
+
+#[tokio::test]
+async fn btc_status_has_no_failed_state() {
+    // Bitcoin transactions are in a block or not; there is nothing to map
+    // onto Failed.
+    let transport = RestScript::new(&[(
+        "tx/abc/status",
+        json!({ "confirmed": true, "block_height": 800_000u64 }).to_string(),
+    )]);
+    let out = super::status(&transport, Network::Btc, "abc")
+        .await
+        .unwrap();
+    assert_eq!(out.state, super::TxState::Confirmed);
+    assert_eq!(out.block, Some(800_000));
+}
+
+#[tokio::test]
+async fn tron_status_treats_a_missing_receipt_result_as_success() {
+    // TronGrid only populates `receipt.result` for contract calls, so a mined
+    // native transfer has none — reading that as a failure would report every
+    // successful TRX transfer as failed.
+    let transport = RestScript::new(&[(
+        "wallet/gettransactioninfobyid",
+        json!({ "blockNumber": 55u64 }).to_string(),
+    )]);
+    let out = super::status(&transport, Network::Tron, "abc")
+        .await
+        .unwrap();
+    assert_eq!(out.state, super::TxState::Confirmed);
+    assert_eq!(out.block, Some(55));
+
+    let reverted = RestScript::new(&[(
+        "wallet/gettransactioninfobyid",
+        json!({ "blockNumber": 55u64, "receipt": { "result": "REVERT" } }).to_string(),
+    )]);
+    assert_eq!(
+        super::status(&reverted, Network::Tron, "abc")
+            .await
+            .unwrap()
+            .state,
+        super::TxState::Failed
+    );
+}

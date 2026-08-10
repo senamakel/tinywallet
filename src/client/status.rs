@@ -112,7 +112,9 @@ pub async fn status(
             };
             Ok(TxStatus {
                 state,
-                confirmations: entry.get("confirmations").and_then(serde_json::Value::as_u64),
+                confirmations: entry
+                    .get("confirmations")
+                    .and_then(serde_json::Value::as_u64),
                 block: entry.get("slot").and_then(serde_json::Value::as_u64),
             })
         }
@@ -156,7 +158,10 @@ pub async fn status(
                     detail: format!("not JSON: {e}"),
                 })?;
             // An unknown transaction comes back as `{}`, not as an error.
-            let Some(block) = parsed.get("blockNumber").and_then(serde_json::Value::as_u64) else {
+            let Some(block) = parsed
+                .get("blockNumber")
+                .and_then(serde_json::Value::as_u64)
+            else {
                 return Ok(TxStatus::PENDING);
             };
             let state = match parsed.get("receipt").and_then(|r| r.get("result")) {
