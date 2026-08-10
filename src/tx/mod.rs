@@ -14,6 +14,8 @@
 
 pub mod evm;
 mod rlp;
+#[cfg(feature = "solana")]
+pub mod solana;
 
 #[cfg(test)]
 mod test;

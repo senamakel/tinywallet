@@ -106,7 +106,7 @@ asset = ["btc", "evm", "solana", "tron"]
 client = ["net", "asset", "tx", "serde/derive"]
 # Transaction building and signing (`tinywallet::tx`). Needs secp256k1
 # recoverable signing (via `bitcoin`) and Keccak-256 (via `keccak`).
-tx = ["btc", "evm", "keccak"]
+tx = ["btc", "evm", "keccak", "solana", "key", "dep:ed25519-dalek", "dep:bs58"]
 # Deterministic key derivation from a BIP-39 mnemonic (`tinywallet::key`).
 # Needs every chain gate it derives for; `keccak` covers the EVM/Tron address
 # hash and `btc` brings the secp256k1 BIP-32 walk the three curve-sharing
