@@ -80,7 +80,7 @@ name = "public_api"
 required-features = ["btc", "evm", "solana", "tron", "keccak"]
 
 [features]
-default = ["btc", "evm", "solana", "tron", "keccak", "net", "key"]
+default = ["btc", "evm", "solana", "tron", "keccak", "net", "key", "asset"]
 # Bitcoin address parsing and validation.
 btc = ["dep:bitcoin"]
 # EVM (Ethereum and compatible chains) address validation. Dependency-free:
@@ -97,6 +97,10 @@ keccak = ["evm", "dep:sha3"]
 # crate is a pure function; this is the one module that models I/O, and it
 # still performs none itself - the host supplies the implementation.
 net = ["dep:async-trait", "dep:serde_json", "dep:serde"]
+# Network and token reference data (`tinywallet::asset`). Pure tables; the
+# tests cross-check every contract address against the address validators, so
+# it needs every chain gate.
+asset = ["btc", "evm", "solana", "tron"]
 # Deterministic key derivation from a BIP-39 mnemonic (`tinywallet::key`).
 # Needs every chain gate it derives for; `keccak` covers the EVM/Tron address
 # hash and `btc` brings the secp256k1 BIP-32 walk the three curve-sharing
