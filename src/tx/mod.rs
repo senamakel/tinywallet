@@ -12,6 +12,8 @@
 //! well-formed transaction that moves the wrong funds, or one that is valid on
 //! a chain the user did not intend.
 
+#[cfg(feature = "btc")]
+pub mod btc;
 pub mod evm;
 mod rlp;
 #[cfg(feature = "solana")]
@@ -35,6 +37,19 @@ pub enum Error {
         field: &'static str,
         /// Why it was rejected.
         reason: String,
+    },
+
+    /// The available UTXOs cannot cover the amount plus the fee.
+    ///
+    /// Its own variant because it is the one failure a caller can act on -
+    /// by lowering the amount, lowering the fee, or waiting for a deposit -
+    /// rather than merely report.
+    #[error("insufficient funds: have {available}, need {required}")]
+    InsufficientFunds {
+        /// Total value of the available UTXOs, in satoshis.
+        available: u64,
+        /// Amount plus fee, in satoshis.
+        required: u64,
     },
 
     /// Signing failed.
