@@ -170,7 +170,9 @@ pub struct PaymentPayload {
 ///
 /// Serialises untagged, so a facilitator sees the chain's object directly.
 pub enum PaymentProof {
+    /// A Solana partially-signed transaction.
     Solana(SolanaPaymentProof),
+    /// An EVM EIP-3009 authorisation.
     Evm(EvmPaymentProof),
 }
 
