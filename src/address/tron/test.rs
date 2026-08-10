@@ -71,7 +71,10 @@ fn rejects_a_base58check_value_with_the_right_prefix_but_wrong_length() {
     let short = bs58::encode([MAINNET_PREFIX]).with_check().into_string();
     assert!(matches!(
         decode(&short),
-        Err(Error::InvalidAddress { chain: Chain::Tron, .. })
+        Err(Error::InvalidAddress {
+            chain: Chain::Tron,
+            ..
+        })
     ));
 }
 

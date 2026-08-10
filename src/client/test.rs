@@ -144,7 +144,10 @@ async fn evm_rejects_a_non_string_balance_as_malformed() {
         balance(&transport, Network::Evm(EvmNetwork::Base), EVM_ADDR)
             .await
             .unwrap_err(),
-        Error::MalformedResponse { operation: "eth_getBalance", .. }
+        Error::MalformedResponse {
+            operation: "eth_getBalance",
+            ..
+        }
     ));
 }
 
@@ -615,7 +618,10 @@ async fn send_evm_includes_calldata_and_rejects_a_non_string_hash() {
         )
         .await
         .unwrap_err(),
-        Error::MalformedResponse { operation: "eth_sendRawTransaction", .. }
+        Error::MalformedResponse {
+            operation: "eth_sendRawTransaction",
+            ..
+        }
     ));
     let calls = transport.0.lock().unwrap();
     let (_, estimate) = calls
@@ -705,7 +711,10 @@ async fn send_solana_rejects_malformed_blockhash_and_signature_responses() {
         )
         .await
         .unwrap_err(),
-        Error::MalformedResponse { operation: "getLatestBlockhash", .. }
+        Error::MalformedResponse {
+            operation: "getLatestBlockhash",
+            ..
+        }
     ));
 
     let key = crate::key::derive(
@@ -732,7 +741,10 @@ async fn send_solana_rejects_malformed_blockhash_and_signature_responses() {
         )
         .await
         .unwrap_err(),
-        Error::MalformedResponse { operation: "sendTransaction", .. }
+        Error::MalformedResponse {
+            operation: "sendTransaction",
+            ..
+        }
     ));
 }
 
@@ -928,7 +940,10 @@ async fn tron_rejects_malformed_account_and_transaction_responses() {
         balance(&malformed_account, Network::Tron, TRON_ADDR)
             .await
             .unwrap_err(),
-        Error::MalformedResponse { operation: "wallet/getaccount", .. }
+        Error::MalformedResponse {
+            operation: "wallet/getaccount",
+            ..
+        }
     ));
 
     let missing_transaction = RestScript::new(&[(
@@ -939,7 +954,10 @@ async fn tron_rejects_malformed_account_and_transaction_responses() {
         super::send_tron(&missing_transaction, TRON_ADDR, TRON_ADDR, 1, &SEND_KEY)
             .await
             .unwrap_err(),
-        Error::MalformedResponse { operation: "wallet/createtransaction", .. }
+        Error::MalformedResponse {
+            operation: "wallet/createtransaction",
+            ..
+        }
     ));
 }
 
@@ -953,7 +971,10 @@ async fn send_tron_returns_the_txid_after_a_successful_broadcast() {
             "wallet/createtransaction",
             json!({ "raw_data_hex": raw, "txID": txid }).to_string(),
         ),
-        ("wallet/broadcasttransaction", json!({ "result": true }).to_string()),
+        (
+            "wallet/broadcasttransaction",
+            json!({ "result": true }).to_string(),
+        ),
     ]);
 
     assert_eq!(
@@ -978,7 +999,10 @@ async fn send_tron_rejects_missing_txid_and_a_malformed_broadcast_body() {
         super::send_tron(&missing_txid, TRON_ADDR, TRON_ADDR, 1, &SEND_KEY)
             .await
             .unwrap_err(),
-        Error::MalformedResponse { operation: "wallet/createtransaction", .. }
+        Error::MalformedResponse {
+            operation: "wallet/createtransaction",
+            ..
+        }
     ));
 
     let malformed_broadcast = RestScript::new(&[
@@ -992,7 +1016,10 @@ async fn send_tron_rejects_missing_txid_and_a_malformed_broadcast_body() {
         super::send_tron(&malformed_broadcast, TRON_ADDR, TRON_ADDR, 1, &SEND_KEY)
             .await
             .unwrap_err(),
-        Error::MalformedResponse { operation: "wallet/broadcasttransaction", .. }
+        Error::MalformedResponse {
+            operation: "wallet/broadcasttransaction",
+            ..
+        }
     ));
 }
 
