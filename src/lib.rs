@@ -44,11 +44,26 @@
 //! | `solana` | on | Solana addresses (pulls `bs58`) |
 //! | `tron` | on | Tron addresses (pulls `bs58`, `hex`) |
 //! | `keccak` | on | EIP-55 checksums for EVM (pulls `sha3`) |
+//! | `net` | on | the `rpc::Transport` network seam (pulls `async-trait`) |
+//! | `key` | on | BIP-39/BIP-32/SLIP-0010 key derivation (`tinywallet::key`) |
+//! | `asset` | on | network and token reference data (`tinywallet::asset`) |
+//! | `client` | on | chain queries over the seam (`tinywallet::client`) |
+//! | `tx` | on | transaction building and signing (`tinywallet::tx`) |
 
 mod error;
 
 pub mod address;
+#[cfg(feature = "asset")]
+pub mod asset;
 pub mod chain;
+#[cfg(feature = "client")]
+pub mod client;
+#[cfg(feature = "key")]
+pub mod key;
+#[cfg(feature = "net")]
+pub mod rpc;
+#[cfg(feature = "tx")]
+pub mod tx;
 
 pub use chain::Chain;
 pub use error::{Error, Result};
