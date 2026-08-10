@@ -9,31 +9,50 @@ use serde::{Deserialize, Serialize};
 // Constants
 // ---------------------------------------------------------------------------
 
+/// The protocol version this module implements.
 pub const X402_VERSION: u8 = 2;
 
+/// Response header carrying the v2 402 challenge.
 pub const HEADER_PAYMENT_REQUIRED: &str = "PAYMENT-REQUIRED";
+/// The v1 spelling of the challenge header, still sent by some servers.
 pub const HEADER_PAYMENT_REQUIRED_V1: &str = "X-PAYMENT-REQUIRED";
+/// Request header carrying the v2 payment proof.
 pub const HEADER_PAYMENT_SIGNATURE: &str = "PAYMENT-SIGNATURE";
+/// The v1 spelling of the payment-proof header.
 pub const HEADER_PAYMENT_SIGNATURE_V1: &str = "X-PAYMENT";
+/// Response header carrying the settlement result.
 pub const HEADER_PAYMENT_RESPONSE: &str = "PAYMENT-RESPONSE";
 
+/// CAIP-2 identifier for Solana mainnet-beta.
 pub const SOLANA_MAINNET_CAIP2: &str = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+/// CAIP-2 identifier for Solana devnet.
 pub const SOLANA_DEVNET_CAIP2: &str = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
 
+/// USDC SPL mint on Solana mainnet-beta.
 pub const USDC_MINT_MAINNET: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+/// USDC SPL mint on Solana devnet. Differs from mainnet.
 pub const USDC_MINT_DEVNET: &str = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 
+/// The SPL Token program id.
 pub const SPL_TOKEN_PROGRAM: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+/// The SPL Memo program id, used for payment uniqueness.
 pub const SPL_MEMO_PROGRAM: &str = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
+/// The Compute Budget program id.
 pub const COMPUTE_BUDGET_PROGRAM: &str = "ComputeBudget111111111111111111111111111111";
 
 // EVM / Base chain constants (CAIP-2 format: eip155:<chain_id>)
+/// CAIP-2 identifier for Base mainnet.
 pub const BASE_MAINNET_CAIP2: &str = "eip155:8453";
+/// CAIP-2 identifier for Base Sepolia.
 pub const BASE_SEPOLIA_CAIP2: &str = "eip155:84532";
+/// CAIP-2 identifier for Ethereum mainnet.
 pub const ETHEREUM_MAINNET_CAIP2: &str = "eip155:1";
 
+/// USDC contract on Base mainnet.
 pub const USDC_BASE_MAINNET: &str = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+/// USDC contract on Base Sepolia.
 pub const USDC_BASE_SEPOLIA: &str = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+/// USDC contract on Ethereum mainnet.
 pub const USDC_ETHEREUM_MAINNET: &str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 
 // ---------------------------------------------------------------------------
@@ -77,7 +96,9 @@ pub struct PaymentRequirements {
     pub scheme: String,
     /// See the x402 v2 specification.
     pub network: String,
-    /// Amount in atomic token units (e.g. 1 USDC = 1_000_000).
+    /// Amount in atomic token units, as a decimal string (1 USDC = `1000000`).
+    ///
+    /// A string rather than a number — see the module docs.
     /// See the x402 v2 specification.
     pub amount: String,
     /// Token mint address (Solana) or contract address (EVM).
