@@ -2,8 +2,8 @@
 //!
 //! Each submodule owns one chain's address format and exposes the same core
 //! shape: a `validate` returning the trimmed address, plus whatever
-//! chain-specific conversions are genuinely useful ([`solana::decode`],
-//! [`tron::to_hex`], [`btc::validate_sender`]).
+//! chain-specific conversions are genuinely useful (`solana::decode`,
+//! `tron::to_hex`, `btc::validate_sender`).
 //!
 //! [`validate`] dispatches across all of them for chain-generic callers.
 //!
@@ -23,7 +23,7 @@
 //! | EVM | optional (EIP-55, only if mixed-case) | usually *not* caught |
 //! | Solana | none | *not reliably* caught |
 //!
-//! For EVM, [`evm::is_checksum_valid`] recovers the typo protection when the
+//! For EVM, `evm::is_checksum_valid` recovers the typo protection when the
 //! caller has a mixed-case address. For Solana there is nothing to recover:
 //! confirm the address out of band.
 
@@ -43,7 +43,7 @@ pub mod tron;
 ///
 /// Dispatches to the chain's own module. For Bitcoin this is the
 /// **recipient** rule — any well-formed mainnet address; call
-/// [`btc::validate_sender`] directly when validating a sender, since the
+/// `btc::validate_sender` directly when validating a sender, since the
 /// distinction has no equivalent on the other chains and cannot be expressed
 /// through this entry point.
 ///
