@@ -167,6 +167,21 @@ fn an_invalid_secret_key_is_rejected_without_echoing_it() {
 }
 
 #[test]
+fn an_eip155_chain_id_that_overflows_v_is_rejected() {
+    let tx = LegacyTransaction {
+        chain_id: u64::MAX,
+        ..eip155_vector()
+    };
+    assert!(matches!(
+        tx.sign(&VECTOR_KEY),
+        Err(Error::InvalidField {
+            field: "chain_id",
+            ..
+        })
+    ));
+}
+
+#[test]
 fn an_invalid_recipient_is_rejected_before_signing() {
     let tx = LegacyTransaction {
         to: Some("not-an-address".to_string()),

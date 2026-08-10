@@ -199,6 +199,17 @@ fn a_solana_path_not_starting_at_m_is_rejected() {
 }
 
 #[test]
+fn a_solana_path_with_a_non_numeric_segment_is_rejected() {
+    match derive(Chain::Solana, VECTOR, "m/44'/not-an-index'/0'").unwrap_err() {
+        Error::InvalidPath { path, reason } => {
+            assert_eq!(path, "m/44'/not-an-index'/0'");
+            assert!(reason.contains("not-an-index"), "{reason}");
+        }
+        other => panic!("expected InvalidPath, got {other:?}"),
+    }
+}
+
+#[test]
 fn debug_never_prints_key_material() {
     // A derived Debug here would put a private key into every panic message
     // and every log line that formats a struct containing one.
