@@ -83,7 +83,12 @@ pub fn validate(chain: Chain, address: &str) -> Result<String> {
         Chain::Solana => solana::validate(address),
         #[cfg(feature = "tron")]
         Chain::Tron => tron::validate(address),
-        #[allow(unreachable_patterns)]
+        #[cfg(not(all(
+            feature = "btc",
+            feature = "evm",
+            feature = "solana",
+            feature = "tron"
+        )))]
         other => Err(crate::Error::ChainNotCompiled { chain: other }),
     }
 }
