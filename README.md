@@ -41,11 +41,13 @@ because it is easy to assume otherwise:
 | Bitcoin | yes (base58check / bech32) | caught |
 | Tron | yes (base58check) | caught |
 | EVM | optional (EIP-55, only if mixed-case) | usually **not** caught |
-| Solana | none | **not** caught — it names another valid address |
+| Solana | none | **not reliably** caught |
 
 For EVM, `address::evm::is_checksum_valid` recovers the typo protection when
 the caller has a mixed-case address. For Solana there is nothing to recover:
-confirm the address out of band.
+a Base58 substitution can also fail the fixed 32-byte length outright, so a
+typo often errors rather than naming another valid address — but when a typo
+stays on-curve it is undetectable here, so confirm the address out of band.
 
 ## Bitcoin has two rules, not one
 
