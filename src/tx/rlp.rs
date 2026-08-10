@@ -156,7 +156,11 @@ mod test {
         let mut padded = [0u8; 32];
         padded[31] = 1;
         assert_eq!(encode_uint_bytes(&padded), vec![0x01]);
-        assert_eq!(encode_uint_bytes(&[0u8; 32]), vec![0x80], "all-zero is empty");
+        assert_eq!(
+            encode_uint_bytes(&[0u8; 32]),
+            vec![0x80],
+            "all-zero is empty"
+        );
     }
 
     #[test]

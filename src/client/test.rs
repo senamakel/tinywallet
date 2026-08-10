@@ -403,7 +403,11 @@ async fn send_evm_broadcasts_and_returns_the_hash() {
     .unwrap();
 
     assert_eq!(hash, TX_HASH);
-    assert!(transport.methods().contains(&"eth_sendRawTransaction".to_string()));
+    assert!(
+        transport
+            .methods()
+            .contains(&"eth_sendRawTransaction".to_string())
+    );
 }
 
 #[tokio::test]
@@ -437,7 +441,9 @@ async fn send_evm_verifies_the_chain_id_before_signing_anything() {
         other => panic!("expected ChainIdMismatch, got {other:?}"),
     }
     assert!(
-        !transport.methods().contains(&"eth_sendRawTransaction".to_string()),
+        !transport
+            .methods()
+            .contains(&"eth_sendRawTransaction".to_string()),
         "must not broadcast after a chain id mismatch"
     );
 }

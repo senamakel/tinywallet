@@ -206,8 +206,8 @@ fn a_zero_value_transfer_encodes_as_an_empty_string() {
 
 #[test]
 fn erc20_transfer_encodes_the_selector_and_two_padded_words() {
-    let data = encode_erc20_transfer("0x3535353535353535353535353535353535353535", 1_000_000)
-        .unwrap();
+    let data =
+        encode_erc20_transfer("0x3535353535353535353535353535353535353535", 1_000_000).unwrap();
 
     assert_eq!(data.len(), 4 + 32 + 32, "selector + two words");
     // keccak256("transfer(address,uint256)")[..4]
@@ -232,8 +232,7 @@ fn a_token_transfer_carries_calldata_and_zero_value() {
     // The shape of an ERC-20 transfer: value 0, `to` is the contract, and the
     // real recipient lives in the calldata. Sending value here would move the
     // native asset to the token contract instead.
-    let data =
-        encode_erc20_transfer("0x3535353535353535353535353535353535353535", 42).unwrap();
+    let data = encode_erc20_transfer("0x3535353535353535353535353535353535353535", 42).unwrap();
     let tx = LegacyTransaction {
         to: Some("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".to_string()),
         value: 0,
@@ -242,7 +241,10 @@ fn a_token_transfer_carries_calldata_and_zero_value() {
     };
     let signed = tx.sign(&VECTOR_KEY).unwrap();
     let rendered = hex(&signed);
-    assert!(rendered.contains("a9059cbb"), "calldata must reach the wire");
+    assert!(
+        rendered.contains("a9059cbb"),
+        "calldata must reach the wire"
+    );
 }
 
 #[test]
