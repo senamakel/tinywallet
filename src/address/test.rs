@@ -3,7 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::validate;
-use crate::Chain;
+use crate::{Chain, Error};
 
 /// One valid mainnet address per chain.
 const FIXTURES: [(Chain, &str); 4] = [
@@ -13,14 +13,42 @@ const FIXTURES: [(Chain, &str); 4] = [
     (Chain::Tron, "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"),
 ];
 
+/// Whether the feature gate behind `chain` is on in this build.
+///
+/// The dispatch assertions have to reflect the gated contract: a chain whose
+/// gate is off is *supposed* to answer `ChainNotCompiled`, so the tests expect
+/// success exactly for the chains that are compiled in.
+const fn chain_enabled(chain: Chain) -> bool {
+    match chain {
+        #[cfg(feature = "btc")]
+        Chain::Btc => true,
+        #[cfg(feature = "evm")]
+        Chain::Evm => true,
+        #[cfg(feature = "solana")]
+        Chain::Solana => true,
+        #[cfg(feature = "tron")]
+        Chain::Tron => true,
+        #[allow(unreachable_patterns)]
+        _ => false,
+    }
+}
+
 #[test]
 fn dispatches_every_chain_to_its_own_validator() {
     for (chain, address) in FIXTURES {
-        assert_eq!(
-            validate(chain, address).unwrap(),
-            address,
-            "{chain} dispatch failed"
-        );
+        if chain_enabled(chain) {
+            assert_eq!(
+                validate(chain, address).unwrap(),
+                address,
+                "{chain} dispatch failed"
+            );
+        } else {
+            assert!(
+                matches!(validate(chain, address), Err(Error::ChainNotCompiled { .. })),
+                "{chain} gate is off in this build, so validation must report \
+                 ChainNotCompiled, not validate"
+            );
+        }
     }
 }
 
