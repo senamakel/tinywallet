@@ -221,7 +221,7 @@ fn explorer_urls_end_with_the_transaction_hash() {
 fn networks_are_distinct_and_cover_every_chain() {
     let all = networks(SolanaCluster::Mainnet);
     let mut seen = all.clone();
-    seen.sort_by_key(|n| n.to_string());
+    seen.sort_by_key(std::string::ToString::to_string);
     seen.dedup();
     assert_eq!(seen.len(), all.len(), "duplicate network");
 
