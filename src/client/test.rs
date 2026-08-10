@@ -142,9 +142,13 @@ async fn solana_unwraps_the_context_envelope() {
     // Solana wraps results in {context, value}; reading the envelope instead
     // of `value` would yield nonsense.
     let transport = Scripted::json(json!({ "context": { "slot": 1 }, "value": 2_500_000_000u64 }));
-    let lamports = balance(&transport, Network::Solana(SolanaCluster::Mainnet), SOL_ADDR)
-        .await
-        .unwrap();
+    let lamports = balance(
+        &transport,
+        Network::Solana(SolanaCluster::Mainnet),
+        SOL_ADDR,
+    )
+    .await
+    .unwrap();
     assert_eq!(lamports, 2_500_000_000);
     assert!(transport.calls()[0].contains("getBalance"));
 }
@@ -160,7 +164,10 @@ async fn btc_sums_confirmed_and_mempool_activity() {
     let sats = balance(&transport, Network::Btc, BTC_ADDR).await.unwrap();
 
     assert_eq!(sats, 60_000 + 9_000);
-    assert_eq!(transport.calls(), vec![format!("btc GET address/{BTC_ADDR}")]);
+    assert_eq!(
+        transport.calls(),
+        vec![format!("btc GET address/{BTC_ADDR}")]
+    );
 }
 
 #[tokio::test]
@@ -172,14 +179,19 @@ async fn btc_clamps_rather_than_underflowing_on_a_nonsensical_response() {
         "chain_stats":   { "funded_txo_sum": 1u64, "spent_txo_sum": 999u64 },
         "mempool_stats": { "funded_txo_sum": 0u64, "spent_txo_sum": 0u64 },
     }));
-    assert_eq!(balance(&transport, Network::Btc, BTC_ADDR).await.unwrap(), 0);
+    assert_eq!(
+        balance(&transport, Network::Btc, BTC_ADDR).await.unwrap(),
+        0
+    );
 }
 
 #[tokio::test]
 async fn btc_rejects_a_response_that_is_not_esplora() {
     let transport = Scripted::raw("<html>captive portal</html>");
     assert!(matches!(
-        balance(&transport, Network::Btc, BTC_ADDR).await.unwrap_err(),
+        balance(&transport, Network::Btc, BTC_ADDR)
+            .await
+            .unwrap_err(),
         Error::MalformedResponse { .. }
     ));
 }
@@ -207,7 +219,10 @@ async fn tron_treats_an_empty_account_as_zero() {
     // Unlike the other chains, TronGrid returns `{}` for an account that has
     // never been funded rather than a balance of 0. That is not malformed.
     let transport = Scripted::json(json!({}));
-    assert_eq!(balance(&transport, Network::Tron, TRON_ADDR).await.unwrap(), 0);
+    assert_eq!(
+        balance(&transport, Network::Tron, TRON_ADDR).await.unwrap(),
+        0
+    );
 }
 
 #[tokio::test]
@@ -274,12 +289,12 @@ async fn a_transport_failure_surfaces_with_its_retryability_intact() {
 #[tokio::test]
 async fn every_chain_issues_exactly_one_request_for_a_balance() {
     for (network, address, body) in [
+        (Network::Evm(EvmNetwork::Ethereum), EVM_ADDR, json!("0x1")),
         (
-            Network::Evm(EvmNetwork::Ethereum),
-            EVM_ADDR,
-            json!("0x1"),
+            Network::Solana(SolanaCluster::Devnet),
+            SOL_ADDR,
+            json!({"value": 1u64}),
         ),
-        (Network::Solana(SolanaCluster::Devnet), SOL_ADDR, json!({"value": 1u64})),
         (Network::Tron, TRON_ADDR, json!({"balance": 1u64})),
         (
             Network::Btc,

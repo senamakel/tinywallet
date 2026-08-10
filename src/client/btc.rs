@@ -38,11 +38,10 @@ pub(super) async fn balance(transport: &dyn Transport, address: &str) -> Result<
     let body = transport
         .rest_get(id, &format!("address/{address}"))
         .await?;
-    let info: AddressInfo =
-        serde_json::from_str(&body).map_err(|e| Error::MalformedResponse {
-            network: id,
-            operation: "address",
-            detail: format!("not an Esplora address response: {e}"),
-        })?;
+    let info: AddressInfo = serde_json::from_str(&body).map_err(|e| Error::MalformedResponse {
+        network: id,
+        operation: "address",
+        detail: format!("not an Esplora address response: {e}"),
+    })?;
     Ok(u128::from(info.chain_stats.net()) + u128::from(info.mempool_stats.net()))
 }

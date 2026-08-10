@@ -104,11 +104,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// # Ok(())
 /// # }
 /// ```
-pub async fn balance(
-    transport: &dyn Transport,
-    network: Network,
-    address: &str,
-) -> Result<u128> {
+pub async fn balance(transport: &dyn Transport, network: Network, address: &str) -> Result<u128> {
     // Validate before spending a round trip — and before a node can answer a
     // malformed address with something that reads like "zero".
     let address = crate::address::validate(network.chain(), address)?;
