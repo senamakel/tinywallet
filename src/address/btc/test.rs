@@ -258,9 +258,7 @@ fn rejects_a_base58_address_whose_hash_is_the_wrong_length() {
 #[test]
 fn rejects_an_empty_base58check_payload() {
     // Checksum over nothing at all: there is no version byte to read.
-    let empty = bs58::encode(Vec::<u8>::new())
-        .with_check()
-        .into_string();
+    let empty = bs58::encode(Vec::<u8>::new()).with_check().into_string();
     assert!(validate(&empty).is_err());
 }
 

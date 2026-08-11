@@ -159,12 +159,10 @@ pub(crate) fn encode_p2wpkh(pubkey_hash: &[u8; 20]) -> Result<String> {
     // `hrp::BC` rather than parsing `MAINNET_HRP`: the parse could not fail for
     // a two-letter constant, and an error arm that cannot fire is one nothing
     // can test.
-    bech32::segwit::encode_v0(bech32::hrp::BC, pubkey_hash).map_err(|e| {
-        Error::InvalidAddress {
-            chain: Chain::Btc,
-            address: String::new(),
-            reason: e.to_string(),
-        }
+    bech32::segwit::encode_v0(bech32::hrp::BC, pubkey_hash).map_err(|e| Error::InvalidAddress {
+        chain: Chain::Btc,
+        address: String::new(),
+        reason: e.to_string(),
     })
 }
 
