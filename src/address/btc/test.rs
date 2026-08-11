@@ -117,3 +117,105 @@ fn sender_validation_still_reports_the_underlying_failure_first() {
         Error::EmptyAddress { .. }
     ));
 }
+
+// ---------------------------------------------------------------------------
+// Branch coverage for the hand-rolled parser.
+//
+// These are the paths that only exist because this module stopped delegating
+// to the `bitcoin` crate. Each one is a rejection, and a rejection that never
+// fires is indistinguishable from one that is wrong — so every arm gets a
+// vector, drawn from BIP-173 and BIP-350 where they publish one.
+// ---------------------------------------------------------------------------
+
+/// P2TR — taproot, witness v1, bech32m. A valid recipient, not a sender.
+const P2TR: &str = "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0";
+
+#[test]
+fn accepts_taproot_as_a_recipient_but_not_as_a_sender() {
+    // Witness v1 uses bech32m rather than bech32; accepting it proves the
+    // checksum variant is selected by version rather than assumed.
+    assert_eq!(validate(P2TR).unwrap(), P2TR);
+    assert!(matches!(
+        validate_sender(P2TR).unwrap_err(),
+        Error::UnsupportedAddressType { .. }
+    ));
+}
+
+#[test]
+fn rejects_a_v0_address_carrying_a_bech32m_checksum() {
+    // BIP-350's central rule. Both strings below are well-formed bech32-ish;
+    // what separates them is which checksum constant they were built with, and
+    // accepting the wrong one would accept addresses no other wallet does.
+    let v0_with_bech32m = "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kemeawh";
+    assert!(validate(v0_with_bech32m).is_err());
+}
+
+#[test]
+fn rejects_a_taproot_address_carrying_a_bech32_checksum() {
+    // The mirror of the case above: v1 must be bech32m.
+    let v1_with_bech32 = "bc1p38j9r5y49hruaue7wxjce0updqjuyyx0kh56v8s25huc6995vvpql3jow4";
+    assert!(validate(v1_with_bech32).is_err());
+}
+
+#[test]
+fn rejects_a_witness_program_of_the_wrong_length_for_version_zero() {
+    // BIP-173: a v0 program is 20 or 32 bytes and nothing else.
+    let v0_16_bytes = "bc1rw5uspcuh";
+    assert!(validate(v0_16_bytes).is_err());
+}
+
+#[test]
+fn rejects_a_mixed_case_bech32_address() {
+    // Mixed case is invalid per BIP-173 because it breaks the checksum's
+    // case-folding guarantee.
+    let mixed = "bc1QW508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4";
+    assert!(validate(mixed).is_err());
+}
+
+#[test]
+fn reports_a_testnet_base58_address_as_the_wrong_network_not_as_malformed() {
+    // A testnet P2PKH is perfectly well-formed; naming it correctly is the
+    // difference between a user fixing their address and thinking it is broken.
+    let testnet_p2pkh = "mipcBbFg9gMiCh81Kj8tqqdgoZub1ZJRfn";
+    assert!(matches!(
+        validate(testnet_p2pkh).unwrap_err(),
+        Error::WrongNetwork { .. }
+    ));
+}
+
+#[test]
+fn reports_a_regtest_bech32_address_as_the_wrong_network() {
+    let regtest = "bcrt1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080";
+    assert!(matches!(
+        validate(regtest).unwrap_err(),
+        Error::WrongNetwork { .. }
+    ));
+}
+
+#[test]
+fn rejects_a_base58_address_with_an_unknown_version_byte() {
+    // Valid base58check, valid length, but a version byte that is neither
+    // P2PKH nor P2SH on mainnet — a namecoin address, for instance.
+    let unknown_version = "NCXn6ZQTr8GN5T4bB1oSHnLRcNPQXswcpv";
+    match validate(unknown_version) {
+        Err(Error::InvalidAddress { .. } | Error::WrongNetwork { .. }) => {}
+        other => panic!("expected a rejection, got {other:?}"),
+    }
+}
+
+#[test]
+fn rejects_a_bech32_address_for_another_coin() {
+    // Well-formed bech32 with a human-readable part that is not Bitcoin's.
+    let not_bitcoin = "ltc1qw508d6qejxtdg4y5r3zarvary0c5xw7kgmn4n9";
+    assert!(validate(not_bitcoin).is_err());
+}
+
+#[test]
+fn encodes_a_p2wpkh_address_its_own_validator_accepts() {
+    // Closes the loop: what `key::btc` produces must parse back here, and the
+    // encoder is the only part of this module the validators do not exercise.
+    let pubkey_hash = [0x75u8; 20];
+    let encoded = super::encode_p2wpkh(&pubkey_hash).unwrap();
+    assert!(encoded.starts_with("bc1q"));
+    assert_eq!(validate_sender(&encoded).unwrap(), encoded);
+}
