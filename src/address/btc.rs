@@ -48,8 +48,6 @@
 //! that are valid today and spendable by their owners, purely because a future
 //! output type had not been invented when it was written.
 
-use bech32::Hrp;
-
 use crate::chain::Chain;
 use crate::{Error, Result};
 
@@ -61,13 +59,6 @@ const P2PKH_VERSION: u8 = 0x00;
 
 /// Base58check version byte for P2SH.
 const P2SH_VERSION: u8 = 0x05;
-
-/// Human-readable parts belonging to Bitcoin test networks.
-///
-/// Recognised only so a testnet address can be reported as
-/// [`Error::WrongNetwork`] rather than as malformed — the failure a caller is
-/// most likely to want to handle rather than merely report.
-const TEST_HRPS: [&str; 3] = ["tb", "bcrt", "sb"];
 
 /// Base58check version bytes belonging to Bitcoin test networks.
 const TEST_VERSIONS: [u8; 2] = [0x6f, 0xc4];
@@ -165,15 +156,15 @@ pub fn validate_sender(address: &str) -> Result<String> {
 /// [`Error::InvalidAddress`] only if bech32 encoding fails, which for a
 /// fixed-length v0 program and a constant HRP it cannot.
 pub(crate) fn encode_p2wpkh(pubkey_hash: &[u8; 20]) -> Result<String> {
-    let hrp = Hrp::parse(MAINNET_HRP).map_err(|e| Error::InvalidAddress {
-        chain: Chain::Btc,
-        address: String::new(),
-        reason: e.to_string(),
-    })?;
-    bech32::segwit::encode_v0(hrp, pubkey_hash).map_err(|e| Error::InvalidAddress {
-        chain: Chain::Btc,
-        address: String::new(),
-        reason: e.to_string(),
+    // `hrp::BC` rather than parsing `MAINNET_HRP`: the parse could not fail for
+    // a two-letter constant, and an error arm that cannot fire is one nothing
+    // can test.
+    bech32::segwit::encode_v0(bech32::hrp::BC, pubkey_hash).map_err(|e| {
+        Error::InvalidAddress {
+            chain: Chain::Btc,
+            address: String::new(),
+            reason: e.to_string(),
+        }
     })
 }
 
@@ -187,18 +178,23 @@ fn trimmed_non_empty(address: &str) -> Result<&str> {
 }
 
 /// Identify a mainnet address, or say why it is not one.
+///
+/// Dispatch is on *shape*, not on a list of known prefixes. A bech32 string is
+/// an all-letter human-readable part, a `1` separator, then a data part drawn
+/// from an alphabet that excludes `1` — so the last `1` is the separator, and
+/// what precedes it is the HRP.
+///
+/// Routing every bech32-shaped string to [`parse_bech32`], rather than only
+/// those starting `bc1`, is what lets a testnet or foreign-chain address be
+/// reported as the wrong network instead of as malformed base58. Matching on a
+/// hardcoded prefix list left that check unreachable and gave a Litecoin
+/// address a base58 error message.
 fn parse(address: &str) -> Result<Kind> {
-    // A bech32 address always contains the '1' separator after its HRP, and no
-    // base58 alphabet contains '1'... except that base58 for Bitcoin *does*
-    // exclude '1' only as a leading ambiguity guard, not entirely. So dispatch
-    // on the HRP prefix rather than on the presence of a separator.
     let lower = address.to_ascii_lowercase();
-    if lower.starts_with("bc1") {
-        return parse_bech32(address);
-    }
-    for hrp in TEST_HRPS {
-        if lower.starts_with(&format!("{hrp}1")) {
-            return Err(wrong_network(address, "a test network bech32 address"));
+    if let Some(separator) = lower.rfind('1') {
+        let hrp = &lower[..separator];
+        if !hrp.is_empty() && hrp.chars().all(|c| c.is_ascii_lowercase()) {
+            return parse_bech32(address);
         }
     }
     parse_base58(address)
