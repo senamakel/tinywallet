@@ -111,8 +111,19 @@ jobs:
           NEXT_VERSION: ${{ steps.version.outputs.next_version }}
         run: |
           set -euo pipefail
-          perl -0pi -e 's/(\[package\][\s\S]*?\nversion = ")[^"]+(")/$1$ENV{NEXT_VERSION}$2/' Cargo.toml
-          cargo update -p "$CRATE_NAME" --precise "$NEXT_VERSION"
+          bump() {
+            perl -0pi -e 's/(\[package\][\s\S]*?\nversion = ")[^"]+(")/$1$ENV{NEXT_VERSION}$2/' "$1"
+          }
+          bump Cargo.toml
+          # The module crate is bumped in lockstep, not left behind. Its
+          # `cdylib` ships in an archive named for the *root* crate's version,
+          # so a drift here would publish `tinywallet-module-0.2.0-*.tar.gz`
+          # containing a library that reports 0.1.0 — with nothing to catch it.
+          bump crates/tinywallet-module/Cargo.toml
+          # Refreshes both workspace members in the lockfile. `cargo update -p`
+          # cannot do this: these are path dependencies, and the later
+          # `--locked` steps fail against a stale lock.
+          cargo update --workspace
 
       - name: Commit version bump and tag
         env:
@@ -121,7 +132,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Cargo.toml Cargo.lock
+          git add Cargo.toml Cargo.lock crates/tinywallet-module/Cargo.toml
           git commit -m "Release ${RELEASE_TAG}"
           git tag -a "${RELEASE_TAG}" -m "Release ${RELEASE_TAG}"
 
