@@ -54,3 +54,7 @@ serde_json = "1"
 # The service tests sign the way a host does — with the recoverable secp256k1
 # API directly — so they exercise the real boundary rather than a helper.
 bitcoin = { version = "0.32", default-features = false, features = ["std", "secp-recovery"] }
+# The E2E signs a Solana transfer the way a host would, with its own ed25519 key.
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+# The E2E drives a real broker and a real loader.
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
