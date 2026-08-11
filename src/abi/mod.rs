@@ -12,8 +12,6 @@
 //! round trip for keccak over 68 bytes, or link the chain library it just spent
 //! the effort removing.
 
-use sha3::{Digest, Keccak256};
-
 use crate::eip712::u256_from_decimal;
 
 /// `keccak256("transfer(address,uint256)")[..4]`.
@@ -141,15 +139,14 @@ fn push_hex(out: &mut String, byte: u8) {
 }
 
 /// Keccak-256, used only by the selector test.
+///
+/// Scoped to tests because production code uses the pinned
+/// [`TRANSFER_SELECTOR`] rather than hashing the signature on every call.
 #[cfg(test)]
 fn keccak(bytes: &[u8]) -> [u8; 32] {
+    use sha3::{Digest as _, Keccak256};
     Keccak256::digest(bytes).into()
 }
-
-// Silences the unused-import warning in non-test builds, where the selector is
-// the pinned constant and nothing hashes anything.
-#[cfg(not(test))]
-use Keccak256 as _Unused;
 
 #[cfg(test)]
 mod test;
