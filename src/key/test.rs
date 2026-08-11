@@ -211,34 +211,47 @@ fn a_solana_path_with_a_non_numeric_segment_is_rejected() {
 
 #[test]
 fn derivation_backend_failures_remain_specific_without_leaking_inputs() {
-    let bip32 = super::bip32::map_derivation::<()>(
-        Err(bitcoin::bip32::Error::MaximumDepthExceeded),
-        "BIP-32 child key",
-    )
-    .unwrap_err();
-    assert_eq!(
-        bip32,
-        Error::Derivation {
-            step: "BIP-32 child key"
+    // Drives the real derivation path rather than the backend's error mapper.
+    // The previous version of this test called two private helpers with a
+    // hand-built `bitcoin::bip32::Error`; both are gone, and one of them —
+    // the uncompressed-public-key mapper — no longer has a reachable failure
+    // mode at all, because the address is now encoded from the compressed
+    // SEC1 point directly. Asserting on behaviour instead means this test
+    // survives the next backend swap the way it did not survive this one.
+    //
+    // BIP-32 depth is a single byte, so a path past 255 levels cannot be
+    // walked. This must be a clean refusal: the `coins-bip32` backend
+    // increments its depth counter unguarded, so without tinywallet's own
+    // bound this input panics in debug and — far worse — silently wraps in
+    // release, deriving a real key at the wrong depth.
+    let too_deep = format!("m/{}", vec!["0"; 256].join("/"));
+    let error = derive(Chain::Btc, VECTOR, &too_deep).unwrap_err();
+
+    match &error {
+        Error::InvalidPath { path, reason } => {
+            assert_eq!(path, &too_deep);
+            assert!(reason.contains("255"), "{reason}");
         }
+        other => panic!("expected InvalidPath for an over-deep path, got {other:?}"),
+    }
+
+    // The depth just under the limit must still derive, so the bound is a
+    // guard rather than an off-by-one that rejects legitimate paths.
+    let deepest = format!("m/{}", vec!["0"; 255].join("/"));
+    assert!(
+        derive(Chain::Btc, VECTOR, &deepest).is_ok(),
+        "255 levels is the documented maximum and must still derive"
     );
 
-    let private = bitcoin::key::PrivateKey::new_uncompressed(
-        bitcoin::secp256k1::SecretKey::from_slice(&[1; 32]).unwrap(),
-        bitcoin::Network::Bitcoin,
-    );
-    let compressed =
-        super::btc::map_compressed_public_key(bitcoin::key::CompressedPublicKey::from_private_key(
-            &bitcoin::secp256k1::Secp256k1::new(),
-            &private,
-        ))
-        .unwrap_err();
-    assert_eq!(
-        compressed,
-        Error::Derivation {
-            step: "BTC compressed public key"
-        }
-    );
+    // The whole point of collapsing backend errors into a fixed `step` string:
+    // the mnemonic and the path must not ride out inside the message.
+    let rendered = error.to_string();
+    for secret in VECTOR.split_whitespace() {
+        assert!(
+            !rendered.contains(secret),
+            "derivation error leaked mnemonic word '{secret}': {rendered}"
+        );
+    }
 }
 
 #[test]

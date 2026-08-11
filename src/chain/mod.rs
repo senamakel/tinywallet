@@ -14,7 +14,16 @@ use std::fmt;
 use std::str::FromStr;
 
 /// A blockchain this crate has address support for.
+///
+/// Serde support is conditional so the enum stays dependency-free in builds
+/// that do not need it. The representation is the lowercase variant name
+/// (`"btc"`, `"evm"`, …), matching [`FromStr`] and [`fmt::Display`] below, so a
+/// value written by one and read by the other agrees — this type crosses a
+/// host/backend boundary in [`crate::wire`], where a mismatch between the text
+/// and JSON forms would be a runtime deserialization failure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 #[non_exhaustive]
 pub enum Chain {
     /// Bitcoin (mainnet).

@@ -289,3 +289,92 @@ fn results_propagate_as_the_module_result_type() {
     }
     assert!(build().is_ok());
 }
+
+// ---------------------------------------------------------------------------
+// Split signing: build here, sign elsewhere, reassemble here.
+//
+// The whole point of the split path is that a host can hold the key while this
+// crate holds the format knowledge. That is only safe if the two paths agree
+// byte-for-byte, so each test below signs the same transaction both ways and
+// compares the raw result. An equivalence test is the right shape here: a
+// wrong split would still produce a well-formed signed transaction, so nothing
+// short of comparing against the known-good path would notice.
+// ---------------------------------------------------------------------------
+
+/// Sign a prehashed digest the way a host would, returning `(r||s, recovery)`.
+///
+/// Deliberately uses the recoverable API directly rather than any helper from
+/// this crate, so the test exercises the same boundary a real host does.
+fn host_sign_secp256k1(digest: [u8; 32], key: &[u8; 32]) -> ([u8; 64], u8) {
+    use bitcoin::secp256k1::{Message, Secp256k1, SecretKey};
+    let secret = SecretKey::from_slice(key).unwrap();
+    let secp = Secp256k1::signing_only();
+    let recoverable = secp.sign_ecdsa_recoverable(&Message::from_digest(digest), &secret);
+    let (recovery_id, compact) = recoverable.serialize_compact();
+    (compact, u8::try_from(recovery_id.to_i32()).unwrap())
+}
+
+#[test]
+fn evm_split_signing_matches_one_shot_signing() {
+    let tx = eip155_vector();
+
+    let one_shot = tx.sign(&VECTOR_KEY).unwrap();
+
+    let (rs, recovery) = host_sign_secp256k1(tx.digest().unwrap(), &VECTOR_KEY);
+    let split = tx.attach_signature(&rs, recovery).unwrap();
+
+    assert_eq!(hex(&split), hex(&one_shot));
+}
+
+#[test]
+fn the_evm_digest_is_the_keccak_of_the_signing_payload_not_the_payload() {
+    // Guards the most likely misuse: a host that signs `signing_payload()`
+    // directly, or hashes `digest()` a second time, produces a valid signature
+    // over the wrong thing.
+    use sha3::{Digest as _, Keccak256};
+    let tx = eip155_vector();
+    let expected: [u8; 32] = Keccak256::digest(tx.signing_payload().unwrap()).into();
+    assert_eq!(tx.digest().unwrap(), expected);
+    assert_ne!(tx.digest().unwrap().to_vec(), tx.signing_payload().unwrap());
+}
+
+#[test]
+fn an_out_of_range_evm_recovery_id_is_refused() {
+    let tx = eip155_vector();
+    let error = tx.attach_signature(&[0x11; 64], 4).unwrap_err();
+    assert!(matches!(error, Error::Signing { .. }), "{error:?}");
+}
+
+#[test]
+fn tron_split_signing_matches_one_shot_signing() {
+    // A `raw_data` blob is opaque to this crate — it only ever hashes it — so
+    // an arbitrary well-formed hex string exercises the path faithfully.
+    let raw = "0a02b1f12208".to_string() + &"ab".repeat(64);
+
+    let one_shot = super::tron::sign(&raw, &VECTOR_KEY).unwrap();
+
+    let (rs, recovery) = host_sign_secp256k1(super::tron::digest(&raw).unwrap(), &VECTOR_KEY);
+    let split = super::tron::attach_signature(&rs, recovery).unwrap();
+
+    assert_eq!(
+        super::tron::signature_hex(&split),
+        super::tron::signature_hex(&one_shot)
+    );
+}
+
+#[test]
+fn the_tron_digest_equals_its_recomputed_txid() {
+    // The two are the same value by construction, which is what lets a caller
+    // verify the node's `txID` against the bytes it is about to sign.
+    let raw = "0a02b1f12208".to_string() + &"cd".repeat(64);
+    assert_eq!(
+        hex(&super::tron::digest(&raw).unwrap()),
+        super::tron::recompute_txid(&raw).unwrap()
+    );
+}
+
+#[test]
+fn an_out_of_range_tron_recovery_id_is_refused() {
+    let error = super::tron::attach_signature(&[0x11; 64], 9).unwrap_err();
+    assert!(matches!(error, Error::Signing { .. }), "{error:?}");
+}

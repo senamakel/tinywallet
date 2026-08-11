@@ -15,13 +15,77 @@
 //! time, after a transaction has been assembled. The two are separate
 //! functions rather than a boolean flag so that mistake reads wrong at the
 //! call site.
+//!
+//! # Why this does not use the `bitcoin` crate
+//!
+//! It used to. The crate is excellent and this module is a strictly smaller
+//! thing than what it offers — but it carries `secp256k1`, and therefore a
+//! native C build, into every consumer that only ever wanted to check whether a
+//! string is a well-formed address. That cost is invisible in a full wallet and
+//! dominant in a host that has moved signing elsewhere.
+//!
+//! Address *parsing* is a safe thing to own directly, unlike the BIP-32 walk in
+//! [`crate::key`], which deliberately still delegates. The distinction is
+//! failure mode, not difficulty: a parser that is wrong rejects a good address
+//! or accepts a malformed one, and both are caught immediately by the vectors
+//! below. A derivation that is wrong returns a *valid key for the wrong
+//! account* — silently, and unrecoverably. So this module is hand-rolled
+//! against the published BIP-173 and BIP-350 vectors, and key derivation is
+//! not.
+//!
+//! The four mainnet forms, in full:
+//!
+//! | Type | Encoding | Prefix / witness version | Program length |
+//! | --- | --- | --- | --- |
+//! | P2PKH | base58check | version byte `0x00` | 20 |
+//! | P2SH | base58check | version byte `0x05` | 20 |
+//! | P2WPKH | bech32 | `bc`, v0 | 20 |
+//! | P2WSH | bech32 | `bc`, v0 | 32 |
+//! | P2TR | bech32m | `bc`, v1 | 32 |
+//!
+//! Witness versions 2..=16 are accepted as recipients with a 2..=40 byte
+//! program, per BIP-350. Refusing them would make this crate reject addresses
+//! that are valid today and spendable by their owners, purely because a future
+//! output type had not been invented when it was written.
 
-use std::str::FromStr;
-
-use bitcoin::{Address, Network};
+use bech32::Hrp;
 
 use crate::chain::Chain;
 use crate::{Error, Result};
+
+/// Human-readable part of a Bitcoin **mainnet** bech32 address.
+const MAINNET_HRP: &str = "bc";
+
+/// Base58check version byte for P2PKH.
+const P2PKH_VERSION: u8 = 0x00;
+
+/// Base58check version byte for P2SH.
+const P2SH_VERSION: u8 = 0x05;
+
+/// Human-readable parts belonging to Bitcoin test networks.
+///
+/// Recognised only so a testnet address can be reported as
+/// [`Error::WrongNetwork`] rather than as malformed — the failure a caller is
+/// most likely to want to handle rather than merely report.
+const TEST_HRPS: [&str; 3] = ["tb", "bcrt", "sb"];
+
+/// Base58check version bytes belonging to Bitcoin test networks.
+const TEST_VERSIONS: [u8; 2] = [0x6f, 0xc4];
+
+/// What a well-formed mainnet address turned out to be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    /// Pay to public key hash — legacy, base58.
+    P2pkh,
+    /// Pay to script hash — base58.
+    P2sh,
+    /// Pay to witness public key hash — the only spendable-from type here.
+    P2wpkh,
+    /// Pay to witness script hash.
+    P2wsh,
+    /// A segwit output that is none of the above: taproot, or a future version.
+    OtherWitness,
+}
 
 /// Validate a Bitcoin **mainnet** address of any type, returning it trimmed.
 ///
@@ -47,25 +111,8 @@ use crate::{Error, Result};
 /// assert!(btc::validate("tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx").is_err());
 /// ```
 pub fn validate(address: &str) -> Result<String> {
-    let trimmed = address.trim();
-    if trimmed.is_empty() {
-        return Err(Error::EmptyAddress { chain: Chain::Btc });
-    }
-
-    Address::from_str(trimmed)
-        .map_err(|e| Error::InvalidAddress {
-            chain: Chain::Btc,
-            address: trimmed.to_string(),
-            reason: e.to_string(),
-        })?
-        .require_network(Network::Bitcoin)
-        .map_err(|e| Error::WrongNetwork {
-            chain: Chain::Btc,
-            address: trimmed.to_string(),
-            expected: "mainnet".to_string(),
-            reason: e.to_string(),
-        })?;
-
+    let trimmed = trimmed_non_empty(address)?;
+    parse(trimmed)?;
     Ok(trimmed.to_string())
 }
 
@@ -94,26 +141,10 @@ pub fn validate(address: &str) -> Result<String> {
 /// assert!(btc::validate_sender("1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2").is_err());
 /// ```
 pub fn validate_sender(address: &str) -> Result<String> {
-    let trimmed = address.trim();
-    if trimmed.is_empty() {
-        return Err(Error::EmptyAddress { chain: Chain::Btc });
-    }
-
-    let parsed = Address::from_str(trimmed)
-        .map_err(|e| Error::InvalidAddress {
-            chain: Chain::Btc,
-            address: trimmed.to_string(),
-            reason: e.to_string(),
-        })?
-        .require_network(Network::Bitcoin)
-        .map_err(|e| Error::WrongNetwork {
-            chain: Chain::Btc,
-            address: trimmed.to_string(),
-            expected: "mainnet".to_string(),
-            reason: e.to_string(),
-        })?;
-
-    if !parsed.script_pubkey().is_p2wpkh() {
+    let trimmed = trimmed_non_empty(address)?;
+    // Deliberately ordered: a malformed or wrong-network address is reported as
+    // such, never as an unsupported *type*, which would point at the wrong fix.
+    if parse(trimmed)? != Kind::P2wpkh {
         return Err(Error::UnsupportedAddressType {
             chain: Chain::Btc,
             address: trimmed.to_string(),
@@ -121,6 +152,146 @@ pub fn validate_sender(address: &str) -> Result<String> {
         });
     }
     Ok(trimmed.to_string())
+}
+
+/// Encode a 20-byte public key hash as a mainnet P2WPKH (`bc1q…`) address.
+///
+/// The counterpart to parsing: [`crate::key`] derives a public key and needs
+/// its address, and doing that here keeps the bech32 encoding in the module
+/// that also decodes it.
+///
+/// # Errors
+///
+/// [`Error::InvalidAddress`] only if bech32 encoding fails, which for a
+/// fixed-length v0 program and a constant HRP it cannot.
+pub(crate) fn encode_p2wpkh(pubkey_hash: &[u8; 20]) -> Result<String> {
+    let hrp = Hrp::parse(MAINNET_HRP).map_err(|e| Error::InvalidAddress {
+        chain: Chain::Btc,
+        address: String::new(),
+        reason: e.to_string(),
+    })?;
+    bech32::segwit::encode_v0(hrp, pubkey_hash).map_err(|e| Error::InvalidAddress {
+        chain: Chain::Btc,
+        address: String::new(),
+        reason: e.to_string(),
+    })
+}
+
+/// Trim `address` and reject it if nothing is left.
+fn trimmed_non_empty(address: &str) -> Result<&str> {
+    let trimmed = address.trim();
+    if trimmed.is_empty() {
+        return Err(Error::EmptyAddress { chain: Chain::Btc });
+    }
+    Ok(trimmed)
+}
+
+/// Identify a mainnet address, or say why it is not one.
+fn parse(address: &str) -> Result<Kind> {
+    // A bech32 address always contains the '1' separator after its HRP, and no
+    // base58 alphabet contains '1'... except that base58 for Bitcoin *does*
+    // exclude '1' only as a leading ambiguity guard, not entirely. So dispatch
+    // on the HRP prefix rather than on the presence of a separator.
+    let lower = address.to_ascii_lowercase();
+    if lower.starts_with("bc1") {
+        return parse_bech32(address);
+    }
+    for hrp in TEST_HRPS {
+        if lower.starts_with(&format!("{hrp}1")) {
+            return Err(wrong_network(address, "a test network bech32 address"));
+        }
+    }
+    parse_base58(address)
+}
+
+/// Decode a bech32 or bech32m segwit address.
+///
+/// One call does the whole job: `bech32::segwit::decode` rejects a witness
+/// version above 16, selects the checksum algorithm the version requires
+/// (bech32 for v0, bech32m for v1+, per BIP-350), rejects mixed case, and
+/// enforces the program-length rules — 20 or 32 bytes at v0, 2..=40 above it.
+/// Re-checking any of that here would be a second, drifting implementation of
+/// rules the crate already owns.
+fn parse_bech32(address: &str) -> Result<Kind> {
+    let (hrp, version, program) =
+        bech32::segwit::decode(address).map_err(|e| Error::InvalidAddress {
+            chain: Chain::Btc,
+            address: address.to_string(),
+            reason: e.to_string(),
+        })?;
+
+    if hrp.as_str() != MAINNET_HRP {
+        return Err(wrong_network(address, "a non-mainnet human-readable part"));
+    }
+
+    // Only v0 needs discriminating, because only P2WPKH is spendable here.
+    // Taproot and every future version are payable recipients and nothing more,
+    // so they share one arm rather than each earning a variant that no caller
+    // would branch on.
+    if version.to_u8() != 0 {
+        return Ok(Kind::OtherWitness);
+    }
+    match program.len() {
+        20 => Ok(Kind::P2wpkh),
+        // Guaranteed 32 by the length validation above; spelled out rather than
+        // wildcarded so a future relaxation upstream cannot silently land here
+        // as "P2WSH".
+        32 => Ok(Kind::P2wsh),
+        other => Err(Error::InvalidAddress {
+            chain: Chain::Btc,
+            address: address.to_string(),
+            reason: format!("witness v0 program must be 20 or 32 bytes, got {other}"),
+        }),
+    }
+}
+
+/// Decode a base58check P2PKH or P2SH address.
+fn parse_base58(address: &str) -> Result<Kind> {
+    let decoded = bs58::decode(address)
+        .with_check(None)
+        .into_vec()
+        .map_err(|e| Error::InvalidAddress {
+            chain: Chain::Btc,
+            address: address.to_string(),
+            reason: e.to_string(),
+        })?;
+
+    // base58check strips the 4-byte checksum, leaving version || payload.
+    let (version, payload) = decoded.split_first().ok_or_else(|| Error::InvalidAddress {
+        chain: Chain::Btc,
+        address: address.to_string(),
+        reason: "empty base58check payload".to_string(),
+    })?;
+
+    if TEST_VERSIONS.contains(version) {
+        return Err(wrong_network(address, "a test network version byte"));
+    }
+    if payload.len() != 20 {
+        return Err(Error::InvalidAddress {
+            chain: Chain::Btc,
+            address: address.to_string(),
+            reason: format!("hash must be 20 bytes, got {}", payload.len()),
+        });
+    }
+    match *version {
+        P2PKH_VERSION => Ok(Kind::P2pkh),
+        P2SH_VERSION => Ok(Kind::P2sh),
+        other => Err(Error::InvalidAddress {
+            chain: Chain::Btc,
+            address: address.to_string(),
+            reason: format!("unknown base58check version byte {other:#04x}"),
+        }),
+    }
+}
+
+/// A well-formed address that belongs to another network.
+fn wrong_network(address: &str, reason: &str) -> Error {
+    Error::WrongNetwork {
+        chain: Chain::Btc,
+        address: address.to_string(),
+        expected: "mainnet".to_string(),
+        reason: reason.to_string(),
+    }
 }
 
 #[cfg(test)]

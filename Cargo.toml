@@ -30,10 +30,25 @@ thiserror = "2"
 bs58 = { version = "0.5", features = ["check"], optional = true }
 # Hex codec for the Tron hex-address form the TronGrid API speaks.
 hex = { version = "0.4", optional = true }
-# Full Bitcoin address parsing — base58check, bech32, and the script-type
-# introspection that distinguishes a P2WPKH sender from any other address
-# type. Not worth hand-rolling; `no-std` off, `std` on.
+# PSBT construction and signing for Bitcoin (`src/tx/btc.rs`) — the one place
+# a full Bitcoin implementation is still worth its weight. Deliberately NOT
+# used for address parsing or key derivation any more: it carries `secp256k1`
+# and therefore a native C build, which every consumer paid for even when all
+# it wanted was to check an address. See `src/address/btc.rs` for why parsing
+# is now owned directly and derivation still is not.
 bitcoin = { version = "0.32", default-features = false, features = ["std", "secp-recovery"], optional = true }
+# bech32/bech32m segwit address encoding and decoding, checksum variant
+# selection and witness-program length rules included. Replaces the parsing
+# half of what `bitcoin` used to do here.
+bech32 = { version = "0.11", optional = true }
+# RIPEMD-160, the second half of Bitcoin's HASH160. Only needed to turn a
+# public key into a P2WPKH witness program.
+ripemd = { version = "0.1", optional = true }
+# BIP-32 on secp256k1, backed by the pure-Rust `k256` rather than the
+# `secp256k1` C library. Deriving a key wrong is silent and unrecoverable, so
+# this stays delegated to a vetted implementation — see `src/key/bip32.rs`.
+# Already in the graph beneath `coins-bip39`, so it costs nothing.
+coins-bip32 = { version = "0.8", optional = true }
 # Keccak-256, the hash EIP-55 checksums are defined over. Only needed for the
 # EVM checksum helpers, so it rides its own gate rather than `evm`'s — the
 # common case (validate an address) stays dependency-free.
@@ -80,9 +95,17 @@ name = "public_api"
 required-features = ["btc", "evm", "solana", "tron", "keccak"]
 
 [features]
-default = ["btc", "evm", "solana", "tron", "keccak", "net", "key", "asset", "client", "tx", "x402"]
-# Bitcoin address parsing and validation.
-btc = ["dep:bitcoin"]
+default = ["btc", "evm", "solana", "tron", "keccak", "net", "key", "asset", "client", "tx", "x402", "wire", "eip712"]
+# Bitcoin address parsing and validation. Dependency-light on purpose: base58
+# via `bs58` (already here for Solana and Tron) and segwit via `bech32`. The
+# `bitcoin` crate is deliberately NOT pulled in by this gate — only by `tx`,
+# which needs a full PSBT implementation. That split is what lets a host
+# validate addresses and derive keys without a native secp256k1 C build.
+btc = ["dep:bs58", "dep:bech32", "dep:ripemd", "dep:sha2"]
+# Serde derives on the crate's core types (today `Chain`). A named gate rather
+# than relying on `dep:serde` being implied, because `#[cfg(feature = "serde")]`
+# on the enum has to name something that actually exists.
+serde = ["dep:serde"]
 # EVM (Ethereum and compatible chains) address validation. Dependency-free:
 # an EVM address is 20 hex-encoded bytes, so the whole format is spelled out
 # in `src/address/evm.rs` rather than pulling in a chain client for it.
@@ -104,16 +127,44 @@ asset = ["btc", "evm", "solana", "tron"]
 # Chain queries over the `Transport` seam (`tinywallet::client`). Needs the
 # seam plus the reference data that names the networks.
 client = ["net", "asset", "tx", "serde/derive"]
-# Transaction building and signing (`tinywallet::tx`). Needs secp256k1
-# recoverable signing (via `bitcoin`) and Keccak-256 (via `keccak`).
-x402 = ["dep:serde", "dep:serde_json", "serde/derive"]
-tx = ["btc", "evm", "keccak", "solana", "tron", "key", "dep:ed25519-dalek", "dep:bs58", "dep:sha2", "dep:hex"]
+# EIP-712 typed-data hashing (`tinywallet::eip712`) and the EIP-3009
+# authorization x402 signs. Pure keccak over a fixed byte layout — no chain
+# client, no bignum, no signer — so the payment path costs `sha3` and nothing
+# else. This is the gate that lets a host drop `ethers-core` entirely.
+eip712 = ["dep:sha3"]
+x402 = ["dep:serde", "dep:serde_json", "serde/derive", "eip712"]
+# The host/backend wire contract (`tinywallet::wire`). Deliberately outside
+# every chain gate and dependency-free beyond serde, so a host that has moved
+# transaction building into a loadable module can take this crate with
+# `default-features = false`, share one definition of the contract, and link no
+# chain library at all. Same carve-out `tinydocs::spec` makes.
+wire = ["serde", "serde/derive"]
+# Transaction building and signing (`tinywallet::tx`). This is the only gate
+# that pulls the `bitcoin` crate, for PSBT construction and secp256k1
+# recoverable signing. Everything else — addresses, derivation, reference data
+# — is deliberately reachable without it, so a host that has moved signing into
+# a loadable module sheds `bitcoin` and its native build entirely.
+tx = [
+    "btc",
+    "evm",
+    "keccak",
+    "solana",
+    "tron",
+    "key",
+    "dep:bitcoin",
+    "dep:ed25519-dalek",
+    "dep:bs58",
+    "dep:sha2",
+    "dep:hex",
+]
 # Deterministic key derivation from a BIP-39 mnemonic (`tinywallet::key`).
 # Needs every chain gate it derives for; `keccak` covers the EVM/Tron address
-# hash and `btc` brings the secp256k1 BIP-32 walk the three curve-sharing
-# chains use.
+# hash and `coins-bip32` the secp256k1 BIP-32 walk the three curve-sharing
+# chains share. `btc` is here for the P2WPKH address encoding, which is now
+# bech32 rather than the `bitcoin` crate.
 key = [
     "dep:coins-bip39",
+    "dep:coins-bip32",
     "dep:hmac",
     "dep:sha2",
     "dep:ed25519-dalek",

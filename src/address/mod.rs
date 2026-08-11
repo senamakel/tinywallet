@@ -60,10 +60,12 @@ pub mod tron;
 /// # Examples
 ///
 /// ```
+/// # #[cfg(feature = "solana")] {
 /// use tinywallet::{address, chain::Chain};
 ///
 /// let addr = address::validate(Chain::Solana, "11111111111111111111111111111111")?;
 /// assert_eq!(addr, "11111111111111111111111111111111");
+/// # }
 /// # Ok::<(), tinywallet::Error>(())
 /// ```
 // With every chain gate off, only the `ChainNotCompiled` arm survives and

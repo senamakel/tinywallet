@@ -848,12 +848,15 @@ name = "tinywallet"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bech32 0.11.1",
  "bitcoin",
  "bs58",
+ "coins-bip32",
  "coins-bip39",
  "ed25519-dalek",
  "hex",
  "hmac",
+ "ripemd",
  "serde",
  "serde_json",
  "sha2",
