@@ -218,13 +218,51 @@ impl Transfer {
             });
         }
 
+        let compressed = public.to_bytes();
+        let signatures = self
+            .sighashes(utxos, &compressed)?
+            .1
+            .into_iter()
+            .map(|sighash| {
+                let message = Message::from_digest(sighash);
+                secp.sign_ecdsa(&message, &private.inner)
+                    .serialize_compact()
+            })
+            .collect::<Vec<_>>();
+
+        // Routed through the same reassembly the split-signing path uses, so
+        // witness layout and input ordering have exactly one implementation.
+        self.attach_signatures(utxos, &compressed, &signatures)
+    }
+
+    /// The per-input digests to sign, without needing the key.
+    ///
+    /// Returns the coin selection alongside them because the caller needs to
+    /// know how many signatures to produce and in which order: **one per
+    /// selected input, in input order**. Bitcoin is the only chain here that
+    /// needs more than one signature for a single transaction.
+    ///
+    /// Each digest is a BIP-143 P2WPKH sighash, already hashed — sign it with a
+    /// "prehash" entry point.
+    ///
+    /// # Errors
+    ///
+    /// As [`Transfer::build`], plus [`Error::Signing`] if `public_key` does not
+    /// control `from`.
+    pub fn sighashes(
+        &self,
+        utxos: &[Utxo],
+        public_key: &[u8; 33],
+    ) -> Result<(Selection, Vec<[u8; 32]>)> {
+        self.check_controls_from(public_key)?;
+
         let (mut tx, selection) = self.build(utxos)?;
         let from_spk = script_pubkey(
             &crate::address::btc::validate_sender(&self.from).map_err(Error::Address)?,
         )?;
 
         let mut cache = SighashCache::new(&mut tx);
-        let mut witnesses = Vec::with_capacity(selection.inputs.len());
+        let mut digests = Vec::with_capacity(selection.inputs.len());
         for (index, utxo) in selection.inputs.iter().enumerate() {
             // BIP-143 commits to this input's value — see the module docs.
             let sighash = cache
@@ -237,21 +275,79 @@ impl Transfer {
                 .map_err(|e| Error::Signing {
                     reason: format!("sighash failed: {e}"),
                 })?;
-            let message = Message::from_digest(sighash.to_byte_array());
-            let signature = secp.sign_ecdsa(&message, &private.inner);
+            digests.push(sighash.to_byte_array());
+        }
+        Ok((selection, digests))
+    }
+
+    /// Assemble the raw transaction from signatures over [`Self::sighashes`].
+    ///
+    /// `signatures` must hold one 64-byte compact signature per selected input,
+    /// in the same order [`Self::sighashes`] returned the digests.
+    ///
+    /// # Errors
+    ///
+    /// As [`Transfer::build`], plus [`Error::Signing`] if `public_key` does not
+    /// control `from`, if the signature count does not match the input count,
+    /// or if a signature is not a valid secp256k1 `(r, s)` pair.
+    pub fn attach_signatures(
+        &self,
+        utxos: &[Utxo],
+        public_key: &[u8; 33],
+        signatures: &[[u8; 64]],
+    ) -> Result<String> {
+        self.check_controls_from(public_key)?;
+
+        let (mut tx, selection) = self.build(utxos)?;
+        if signatures.len() != selection.inputs.len() {
+            return Err(Error::Signing {
+                reason: format!(
+                    "expected {} signatures for {} inputs, got {}",
+                    selection.inputs.len(),
+                    selection.inputs.len(),
+                    signatures.len()
+                ),
+            });
+        }
+
+        for (input, compact) in tx.input.iter_mut().zip(signatures) {
+            let mut signature = bitcoin::secp256k1::ecdsa::Signature::from_compact(compact)
+                .map_err(|_| Error::Signing {
+                    reason: "signature is not a valid secp256k1 (r, s) pair".to_string(),
+                })?;
+            // Bitcoin enforces low-`s` as a relay policy rule (BIP-146), so a
+            // high-`s` signature yields a transaction nodes refuse to relay.
+            // Normalizing here means a caller that signed with a library which
+            // does not normalize still produces a broadcastable transaction,
+            // and one that does is unaffected — the operation is idempotent.
+            signature.normalize_s();
 
             let mut witness = Witness::new();
             let mut der = signature.serialize_der().to_vec();
             der.push(EcdsaSighashType::All as u8);
             witness.push(der);
-            witness.push(public.to_bytes());
-            witnesses.push(witness);
-        }
-        for (input, witness) in tx.input.iter_mut().zip(witnesses) {
+            witness.push(public_key);
             input.witness = witness;
         }
 
         Ok(bitcoin::consensus::encode::serialize_hex(&tx))
+    }
+
+    /// Refuse early if `public_key` does not control `from`.
+    ///
+    /// Caught here rather than after broadcasting an unspendable transaction —
+    /// which is unrecoverable, because the fee is paid either way.
+    fn check_controls_from(&self, public_key: &[u8; 33]) -> Result<()> {
+        let public = CompressedPublicKey::from_slice(public_key).map_err(|_| Error::Signing {
+            reason: "not a valid compressed secp256k1 public key".to_string(),
+        })?;
+        let derived = Address::p2wpkh(&public, Network::Bitcoin).to_string();
+        if derived != self.from.trim() {
+            return Err(Error::Signing {
+                reason: "public key does not control the `from` address".to_string(),
+            });
+        }
+        Ok(())
     }
 }
 
@@ -475,5 +571,82 @@ mod test {
         let a = t.sign(&[utxo(50_000, 0)], &key()).unwrap();
         let b = t.sign(&[utxo(60_000, 0)], &key()).unwrap();
         assert_ne!(a, b, "the input value must reach the sighash");
+    }
+
+    /// The compressed public key for the test mnemonic's P2WPKH account.
+    fn public_key() -> [u8; 33] {
+        use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey};
+        let secret = SecretKey::from_slice(&key()).unwrap();
+        PublicKey::from_secret_key(&Secp256k1::new(), &secret).serialize()
+    }
+
+    #[test]
+    fn split_signing_matches_one_shot_signing_across_several_inputs() {
+        // Several inputs on purpose: Bitcoin is the only chain here needing
+        // more than one signature, and the split contract is that they come
+        // back in input order. A transposition would still produce a
+        // well-formed transaction — just an unspendable one — so the two
+        // paths are compared byte-for-byte.
+        use bitcoin::secp256k1::{Message, Secp256k1, SecretKey};
+
+        let utxos = [utxo(60_000, 0), utxo(70_000, 1), utxo(80_000, 2)];
+        let transfer = transfer(150_000, 2_000);
+        let public = public_key();
+
+        let one_shot = transfer.sign(&utxos, &key()).unwrap();
+
+        let (selection, digests) = transfer.sighashes(&utxos, &public).unwrap();
+        assert!(
+            digests.len() > 1,
+            "the fixture must actually select several inputs"
+        );
+        assert_eq!(digests.len(), selection.inputs.len());
+
+        let secret = SecretKey::from_slice(&key()).unwrap();
+        let secp = Secp256k1::signing_only();
+        let signatures: Vec<[u8; 64]> = digests
+            .into_iter()
+            .map(|digest| {
+                secp.sign_ecdsa(&Message::from_digest(digest), &secret)
+                    .serialize_compact()
+            })
+            .collect();
+
+        let split = transfer
+            .attach_signatures(&utxos, &public, &signatures)
+            .unwrap();
+
+        assert_eq!(split, one_shot);
+    }
+
+    #[test]
+    fn a_public_key_that_does_not_control_the_sender_is_refused() {
+        // Both halves must refuse, not just the first: a host could call
+        // `attach_signatures` without ever calling `sighashes`.
+        let utxos = [utxo(100_000, 0)];
+        let transfer = transfer(50_000, 1_000);
+        let wrong = [0x02u8; 33];
+
+        assert!(matches!(
+            transfer.sighashes(&utxos, &wrong),
+            Err(Error::Signing { .. })
+        ));
+        assert!(matches!(
+            transfer.attach_signatures(&utxos, &wrong, &[[0u8; 64]]),
+            Err(Error::Signing { .. })
+        ));
+    }
+
+    #[test]
+    fn a_signature_count_that_does_not_match_the_inputs_is_refused() {
+        // Silently zipping would leave later inputs with an empty witness and
+        // broadcast an unspendable transaction, paying the fee for nothing.
+        let utxos = [utxo(60_000, 0), utxo(70_000, 1), utxo(80_000, 2)];
+        let transfer = transfer(150_000, 2_000);
+
+        let error = transfer
+            .attach_signatures(&utxos, &public_key(), &[[0x11; 64]])
+            .unwrap_err();
+        assert!(matches!(error, Error::Signing { .. }), "{error:?}");
     }
 }

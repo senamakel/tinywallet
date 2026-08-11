@@ -89,20 +89,49 @@ pub fn sign(raw_data_hex: &str, secret_key: &[u8]) -> Result<Signature> {
     let secret = SecretKey::from_slice(secret_key).map_err(|_| Error::Signing {
         reason: "not a valid secp256k1 secret key".to_string(),
     })?;
-    let raw = decode_hex(raw_data_hex)?;
-    let digest: [u8; 32] = Sha256::digest(&raw).into();
-    let message = Message::from_digest(digest);
+    let message = Message::from_digest(digest(raw_data_hex)?);
 
     let secp = Secp256k1::signing_only();
     let recoverable = secp.sign_ecdsa_recoverable(&message, &secret);
     let (recovery_id, compact) = recoverable.serialize_compact();
 
-    let mut out = [0u8; 65];
-    out[..64].copy_from_slice(&compact);
-    // A bare recovery id, not EIP-155's v.
-    out[64] = u8::try_from(recovery_id.to_i32()).map_err(|_| Error::Signing {
+    let recovery = u8::try_from(recovery_id.to_i32()).map_err(|_| Error::Signing {
         reason: "unexpected recovery id".to_string(),
     })?;
+    attach_signature(&compact, recovery)
+}
+
+/// The 32-byte digest a Tron transaction is signed over.
+///
+/// `sha256(raw_data)` — the same value as the `txID`, which is what makes
+/// [`recompute_txid`] a meaningful check on the bytes about to be signed.
+///
+/// Already hashed: a caller holding the key elsewhere must sign this with a
+/// "prehash" entry point rather than hashing it again.
+///
+/// # Errors
+///
+/// [`Error::InvalidField`] if `raw_data_hex` is not valid hex.
+pub fn digest(raw_data_hex: &str) -> Result<[u8; 32]> {
+    let raw = decode_hex(raw_data_hex)?;
+    Ok(Sha256::digest(&raw).into())
+}
+
+/// Build the 65-byte Tron signature from a signature over [`digest`].
+///
+/// # Errors
+///
+/// [`Error::Signing`] if `recovery_id` is not 0..=3.
+pub fn attach_signature(rs: &[u8; 64], recovery_id: u8) -> Result<Signature> {
+    if recovery_id > 3 {
+        return Err(Error::Signing {
+            reason: format!("recovery id must be 0..=3, got {recovery_id}"),
+        });
+    }
+    let mut out = [0u8; 65];
+    out[..64].copy_from_slice(rs);
+    // A bare recovery id, not EIP-155's v.
+    out[64] = recovery_id;
     Ok(out)
 }
 

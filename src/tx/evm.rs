@@ -108,8 +108,7 @@ impl LegacyTransaction {
             reason: "not a valid secp256k1 secret key".to_string(),
         })?;
 
-        let digest = Keccak256::digest(self.signing_payload()?);
-        let message = Message::from_digest(digest.into());
+        let message = Message::from_digest(self.digest()?);
 
         let secp = Secp256k1::signing_only();
         // Recoverable, because an Ethereum signature carries the recovery id
@@ -117,15 +116,53 @@ impl LegacyTransaction {
         let signature = secp.sign_ecdsa_recoverable(&message, &secret);
         let (recovery_id, bytes) = signature.serialize_compact();
 
-        // The second half of EIP-155: v = recovery + chain_id * 2 + 35.
-        // `RecoveryId` is 0..=3, so the conversion cannot lose information.
-        let recovery = recovery_as_u64(recovery_id.to_i32())?;
+        // Deliberately routed through the same reassembly the split-signing
+        // path uses. Two copies of the EIP-155 `v` computation and the RLP
+        // field order would be free to drift, and the failure mode of that
+        // drift is a perfectly valid signature over a transaction other than
+        // the one the caller asked for.
+        let recovery = u8::try_from(recovery_id.to_i32()).map_err(|_| Error::Signing {
+            reason: "negative recovery id".to_string(),
+        })?;
+        self.attach_signature(&bytes, recovery)
+    }
+
+    /// The 32-byte digest to sign, for a caller that holds the key elsewhere.
+    ///
+    /// Keccak-256 of [`Self::signing_payload`]. Already hashed: sign it with a
+    /// "prehash" entry point, never by hashing again.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Address`] if `to` is invalid.
+    pub fn digest(&self) -> Result<[u8; 32]> {
+        Ok(Keccak256::digest(self.signing_payload()?).into())
+    }
+
+    /// Reassemble the raw transaction from a signature over [`Self::digest`].
+    ///
+    /// The half of [`Self::sign`] that follows signing, exposed so the key can
+    /// live somewhere this crate does not. `rs` is the 64-byte compact
+    /// signature and `recovery_id` its 0..=3 recovery id.
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::Address`] if `to` is invalid.
+    /// - [`Error::Signing`] if `recovery_id` is out of range.
+    /// - [`Error::InvalidField`] if `chain_id` overflows the EIP-155 `v`.
+    pub fn attach_signature(&self, rs: &[u8; 64], recovery_id: u8) -> Result<Vec<u8>> {
+        if recovery_id > 3 {
+            return Err(Error::Signing {
+                reason: format!("recovery id must be 0..=3, got {recovery_id}"),
+            });
+        }
+        let recovery = recovery_as_u64(i32::from(recovery_id))?;
         let v = checked_v(recovery, self.chain_id)?;
 
         let mut items = self.base_items()?;
         items.push(rlp::encode_uint(u128::from(v)));
-        items.push(rlp::encode_uint_bytes(&bytes[..32]));
-        items.push(rlp::encode_uint_bytes(&bytes[32..]));
+        items.push(rlp::encode_uint_bytes(&rs[..32]));
+        items.push(rlp::encode_uint_bytes(&rs[32..]));
         Ok(rlp::encode_list(&items))
     }
 

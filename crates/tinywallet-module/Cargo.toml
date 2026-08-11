@@ -1,0 +1,60 @@
+[package]
+name = "tinywallet-module"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "GPL-3.0-only"
+description = "Trusted TinyBus module adapter for TinyWallet."
+repository = "https://github.com/tinyhumansai/tinywallet"
+publish = false
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+# The pure wallet library stays independently publishable and bus-agnostic.
+# Every chain feature is on here: carrying them is the entire point of the
+# module, since it is what lets the host drop them.
+tinywallet = { path = "../..", default-features = false, features = [
+    "btc",
+    "evm",
+    "solana",
+    "tron",
+    "keccak",
+    "key",
+    "tx",
+    "wire",
+    "eip712",
+] }
+# TinyBus provides the typed service interface and the dynamic module host ABI.
+tinybus = { version = "0.1.0", path = "../../vendor/tinybus/crates/tinybus", default-features = false, features = [
+    "macros",
+    "modules",
+] }
+# The module-side SDK owns its runtime and exports the stable C entrypoints.
+tinybus-module = { version = "0.1.0", path = "../../vendor/tinybus/crates/tinybus-module" }
+# The interface macro requires every method to be `async fn`, so a runtime has
+# to exist even though nothing here awaits I/O.
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# Method arguments and returns are the `tinywallet::wire` contract, decoded from
+# and encoded to JSON frames.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Base58 for a Solana transaction id, which is its 64-byte signature. The
+# library's own encoder takes a 32-byte address, so it does not fit here.
+bs58 = "0.5"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+# The loader E2E builds request documents directly rather than through the wire
+# types, so a rename on either side shows up as the contract change it is.
+serde_json = "1"
+# The service tests sign the way a host does — with the recoverable secp256k1
+# API directly — so they exercise the real boundary rather than a helper.
+bitcoin = { version = "0.32", default-features = false, features = ["std", "secp-recovery"] }
+# The E2E signs a Solana transfer the way a host would, with its own ed25519 key.
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+# The E2E drives a real broker and a real loader.
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }

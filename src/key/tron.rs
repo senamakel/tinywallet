@@ -20,7 +20,7 @@ pub(super) fn derive(mnemonic: &str, path: &str) -> Result<DerivedKey> {
     Ok(DerivedKey::new(
         Chain::Tron,
         address,
-        key.secret.secret_bytes().to_vec(),
+        key.secret_bytes().to_vec(),
     ))
 }
 

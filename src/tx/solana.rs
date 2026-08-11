@@ -129,10 +129,25 @@ impl NativeTransfer {
 
         let message = self.message()?;
         let signature = signing.sign(&message);
+        // Shares the assembly below rather than repeating it: see the note on
+        // the EVM path for why a second copy of a wire encoding is a hazard.
+        self.attach_signature(&signature.to_bytes())
+    }
 
+    /// Assemble the wire transaction from a signature over [`Self::message`].
+    ///
+    /// For a caller that holds the ed25519 key elsewhere. Note the signature is
+    /// over the **whole message**, not a digest — ed25519 hashes internally, so
+    /// there is nothing to pre-hash and a caller must not.
+    ///
+    /// # Errors
+    ///
+    /// As [`NativeTransfer::message`].
+    pub fn attach_signature(&self, signature: &[u8; 64]) -> Result<Vec<u8>> {
+        let message = self.message()?;
         let mut out = Vec::with_capacity(1 + 64 + message.len());
         out.extend(encode_shortvec(1));
-        out.extend_from_slice(&signature.to_bytes());
+        out.extend_from_slice(signature);
         out.extend_from_slice(&message);
         Ok(out)
     }
@@ -330,6 +345,38 @@ mod test {
         assert_eq!(
             transfer().sign(&key()).unwrap(),
             transfer().sign(&key()).unwrap()
+        );
+    }
+
+    #[test]
+    fn split_signing_matches_one_shot_signing() {
+        // The host holds the ed25519 key and signs the message; this crate
+        // assembles. Both paths must produce identical wire bytes, or the
+        // split has silently changed what gets broadcast.
+        use ed25519_dalek::{Signer as _, SigningKey};
+
+        let transfer = transfer();
+        let secret = key();
+        let one_shot = transfer.sign(&secret).unwrap();
+
+        let bytes: [u8; 32] = secret.as_slice().try_into().unwrap();
+        let signing = SigningKey::from_bytes(&bytes);
+        let signature = signing.sign(&transfer.message().unwrap()).to_bytes();
+        let split = transfer.attach_signature(&signature).unwrap();
+
+        assert_eq!(split, one_shot);
+    }
+
+    #[test]
+    fn the_signed_payload_is_the_message_itself_not_a_digest() {
+        // ed25519 hashes internally. A host that pre-hashes the message and
+        // signs the digest produces a signature the network rejects, so the
+        // distinction is worth pinning.
+        let transfer = transfer();
+        let message = transfer.message().unwrap();
+        assert!(
+            message.len() > 32,
+            "a Solana message is the full serialized transaction, not a 32-byte digest"
         );
     }
 }

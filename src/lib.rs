@@ -21,6 +21,7 @@
 //! # Example
 //!
 //! ```
+//! # #[cfg(all(feature = "btc", feature = "tron"))] {
 //! use tinywallet::{address, chain::Chain};
 //!
 //! // Chain-generic dispatch.
@@ -29,6 +30,7 @@
 //! // Or reach for a chain's own module when you need more than validation.
 //! let hex = address::tron::to_hex("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t")?;
 //! assert!(hex.starts_with("41"));
+//! # }
 //! # Ok::<(), tinywallet::Error>(())
 //! ```
 //!
@@ -53,18 +55,24 @@
 
 mod error;
 
+#[cfg(feature = "abi")]
+pub mod abi;
 pub mod address;
 #[cfg(feature = "asset")]
 pub mod asset;
 pub mod chain;
 #[cfg(feature = "client")]
 pub mod client;
+#[cfg(feature = "eip712")]
+pub mod eip712;
 #[cfg(feature = "key")]
 pub mod key;
 #[cfg(feature = "net")]
 pub mod rpc;
 #[cfg(feature = "tx")]
 pub mod tx;
+#[cfg(feature = "wire")]
+pub mod wire;
 #[cfg(feature = "x402")]
 pub mod x402;
 
