@@ -51,3 +51,6 @@ workspace = true
 # The loader E2E builds request documents directly rather than through the wire
 # types, so a rename on either side shows up as the contract change it is.
 serde_json = "1"
+# The service tests sign the way a host does — with the recoverable secp256k1
+# API directly — so they exercise the real boundary rather than a helper.
+bitcoin = { version = "0.32", default-features = false, features = ["std", "secp-recovery"] }
