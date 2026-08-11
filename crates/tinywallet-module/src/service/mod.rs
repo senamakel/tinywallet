@@ -439,7 +439,9 @@ fn solana_transfer(spec: &TransactionSpec) -> Result<tx::solana::NativeTransfer,
 /// and the RLP encoder is written against it.
 fn decimal_u128(value: &str, field: &str) -> Result<u128, Failure> {
     value.trim().parse().map_err(|_| {
-        Failure::InvalidInput(format!("{field} is not a base-10 integer that fits in 128 bits"))
+        Failure::InvalidInput(format!(
+            "{field} is not a base-10 integer that fits in 128 bits"
+        ))
     })
 }
 

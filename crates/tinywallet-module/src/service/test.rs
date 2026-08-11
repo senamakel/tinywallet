@@ -58,8 +58,8 @@ fn host_sign(digest_hex: &str, key: &[u8]) -> Signature {
         *slot = u8::from_str_radix(&digest_hex[index * 2..index * 2 + 2], 16).unwrap();
     }
     let secret = SecretKey::from_slice(key).unwrap();
-    let recoverable = Secp256k1::signing_only()
-        .sign_ecdsa_recoverable(&Message::from_digest(digest), &secret);
+    let recoverable =
+        Secp256k1::signing_only().sign_ecdsa_recoverable(&Message::from_digest(digest), &secret);
     let (recovery_id, compact) = recoverable.serialize_compact();
     Signature::Secp256k1 {
         rs_hex: hex(&compact),

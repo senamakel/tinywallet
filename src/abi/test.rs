@@ -51,8 +51,7 @@ fn the_recipient_is_right_aligned_in_its_word() {
 fn an_amount_beyond_u64_encodes_exactly() {
     // The reason the amount is a string: an 18-decimal token puts ordinary
     // balances past u64, and truncating would silently transfer the wrong sum.
-    let data =
-        encode_erc20_transfer(RECIPIENT, "340282366920938463463374607431768211456").unwrap();
+    let data = encode_erc20_transfer(RECIPIENT, "340282366920938463463374607431768211456").unwrap();
     assert!(data.ends_with("0000000000000000000000000000000100000000000000000000000000000000"));
 }
 
@@ -83,7 +82,13 @@ fn a_checksummed_recipient_encodes_the_same_as_a_lowercase_one() {
 
 #[test]
 fn an_invalid_recipient_is_refused() {
-    for bad in ["", "0x", "not-an-address", "0x111", &format!("0x{}", "1".repeat(41))] {
+    for bad in [
+        "",
+        "0x",
+        "not-an-address",
+        "0x111",
+        &format!("0x{}", "1".repeat(41)),
+    ] {
         assert!(
             matches!(
                 encode_erc20_transfer(bad, "1"),
