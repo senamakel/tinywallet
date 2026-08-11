@@ -210,8 +210,10 @@ fn attach_signature(request: &AttachRequest) -> Result<SignedTransaction, Failur
                 .attach_signature(&signature)
                 .map_err(build_failed)?;
             Ok(SignedTransaction {
-                // Solana's signature *is* its id, base58-encoded.
-                txid: Some(tinywallet::address::solana::encode(&signature)),
+                // Solana's signature *is* its id, base58-encoded. Encoded
+                // here rather than through `address::solana::encode`, which
+                // takes a 32-byte address — a signature is 64.
+                txid: Some(bs58::encode(signature).into_string()),
                 raw: base64(&signed),
             })
         }
@@ -246,6 +248,14 @@ fn mismatched(spec: &TransactionSpec, chain: Chain) -> Failure {
         TransactionSpec::Evm { .. } => Chain::Evm,
         TransactionSpec::Solana { .. } => Chain::Solana,
         TransactionSpec::Tron { .. } => Chain::Tron,
+        // `TransactionSpec` is `#[non_exhaustive]`, so a variant added later
+        // must land here rather than failing to compile in a crate that cannot
+        // see it. Refusing is the safe direction: never sign an unknown shape.
+        _ => {
+            return Failure::InvalidInput(
+                "this build does not understand that transaction kind".to_string(),
+            );
+        }
     };
     if named == chain {
         // Same chain on both sides, so the pairing failed for the only other
@@ -289,6 +299,12 @@ fn secp256k1_rs(signature: &Signature) -> Result<[u8; 64], Failure> {
         Signature::Ed25519 { .. } => Err(Failure::InvalidInput(
             "expected a secp256k1 signature, got an ed25519 one".to_string(),
         )),
+        // `Signature` is `#[non_exhaustive]`: a scheme this build has never
+        // heard of cannot be reassembled, and guessing would produce a
+        // well-formed transaction carrying nonsense.
+        _ => Err(Failure::InvalidInput(
+            "unrecognised signature scheme".to_string(),
+        )),
     }
 }
 
@@ -299,7 +315,7 @@ fn secp256k1_rs(signature: &Signature) -> Result<[u8; 64], Failure> {
 fn recovery_of(signature: &Signature) -> u8 {
     match signature {
         Signature::Secp256k1 { recovery_id, .. } => *recovery_id,
-        Signature::Ed25519 { .. } => 0,
+        Signature::Ed25519 { .. } | _ => 0,
     }
 }
 
@@ -378,9 +394,9 @@ fn evm_transaction(spec: &TransactionSpec) -> Result<tx::evm::LegacyTransaction,
     };
 
     Ok(tx::evm::LegacyTransaction {
-        nonce: *nonce,
+        nonce: u128::from(*nonce),
         gas_price: decimal_u128(gas_price_wei, "gas_price_wei")?,
-        gas_limit: *gas_limit,
+        gas_limit: u128::from(*gas_limit),
         // An empty recipient is contract creation, which a wallet transfer
         // never is — but the field models it, so an empty string maps to it
         // rather than being silently treated as an address.
