@@ -64,6 +64,10 @@ jobs:
           below_threshold="$(jq -r '
             .data[0].files[]
             | select(.filename | contains("/src/"))
+            # Vendored submodules are somebody else's code and their coverage
+            # is not this repository's to enforce. They only entered the report
+            # when the module crate made tinybus part of the build graph.
+            | select(.filename | contains("/vendor/") | not)
             | select(.summary.lines.percent < 90)
             | "\(.filename): \(.summary.lines.percent)%"
           ' "$report")"
