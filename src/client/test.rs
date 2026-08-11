@@ -883,7 +883,7 @@ async fn send_tron_verifies_the_node_built_transaction_before_signing() {
     // A node that returns a transaction paying someone else must not get a
     // signature — the whole reason Tron verifies before signing.
     let to_hex = crate::address::tron::to_hex(TRON_ADDR).unwrap();
-    let raw = format!("0a02b1f42208{to_hex}5a0f");
+    let raw = format!("0a02b1f42208{to_hex}5a01");
     let txid = crate::tx::tron::recompute_txid(&raw).unwrap();
 
     let elsewhere = "TLyqzVGLV1srkB7dToTAEqgDSfPtXRJZYH";
@@ -910,7 +910,7 @@ async fn send_tron_treats_a_result_false_body_as_a_rejection() {
     // TronGrid answers HTTP 200 with {"result": false} on a rejection, so a
     // successful status is not a successful broadcast.
     let to_hex = crate::address::tron::to_hex(TRON_ADDR).unwrap();
-    let raw = format!("0a02b1f42208{to_hex}5a0f");
+    let raw = format!("0a02b1f42208{to_hex}5a01");
     let txid = crate::tx::tron::recompute_txid(&raw).unwrap();
 
     let transport = RestScript::new(&[
@@ -964,7 +964,7 @@ async fn tron_rejects_malformed_account_and_transaction_responses() {
 #[tokio::test]
 async fn send_tron_returns_the_txid_after_a_successful_broadcast() {
     let to_hex = crate::address::tron::to_hex(TRON_ADDR).unwrap();
-    let raw = format!("0a02b1f42208{to_hex}5a0f");
+    let raw = format!("0a02b1f42208{to_hex}5a01");
     let txid = crate::tx::tron::recompute_txid(&raw).unwrap();
     let transport = RestScript::new(&[
         (
@@ -988,7 +988,7 @@ async fn send_tron_returns_the_txid_after_a_successful_broadcast() {
 #[tokio::test]
 async fn send_tron_rejects_missing_txid_and_a_malformed_broadcast_body() {
     let to_hex = crate::address::tron::to_hex(TRON_ADDR).unwrap();
-    let raw = format!("0a02b1f42208{to_hex}5a0f");
+    let raw = format!("0a02b1f42208{to_hex}5a01");
     let txid = crate::tx::tron::recompute_txid(&raw).unwrap();
 
     let missing_txid = RestScript::new(&[(

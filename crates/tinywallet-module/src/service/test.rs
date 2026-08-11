@@ -223,6 +223,7 @@ fn the_chain_comes_from_the_transaction_rather_than_a_separate_field() {
                 raw_data_hex: String::new(),
                 expected_to: String::new(),
                 expected_txid: String::new(),
+                transfer: tinywallet::wire::TronTransfer::Native { amount_sun: 0 },
             },
             Chain::Tron,
         ),
@@ -274,6 +275,7 @@ fn a_tron_transaction_whose_txid_does_not_match_its_bytes_is_refused() {
             raw_data_hex: "0a02b1f12208".to_string() + &"ab".repeat(64),
             expected_to: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t".to_string(),
             expected_txid: "00".repeat(32),
+            transfer: tinywallet::wire::TronTransfer::Native { amount_sun: 0 },
         },
         public_key: PublicKey {
             key_hex: compressed_public(&evm_key()),
