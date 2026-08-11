@@ -119,3 +119,24 @@ fn a_non_numeric_or_overflowing_amount_is_refused() {
         );
     }
 }
+
+#[test]
+fn the_address_decoder_refuses_malformed_input_rather_than_panicking() {
+    // `encode_erc20_transfer` validates before calling this, so these arms are
+    // defensive — but defensive code that is never exercised is code nobody
+    // knows works, and the failure mode it guards against is a panic inside a
+    // wallet. Tested directly because the public path cannot reach it.
+    use super::decode_evm_address;
+
+    assert!(matches!(
+        decode_evm_address("0x1111"),
+        Err(Error::InvalidRecipient { .. })
+    ));
+    assert!(matches!(
+        decode_evm_address(&format!("0x{}", "zz".repeat(20))),
+        Err(Error::InvalidRecipient { .. })
+    ));
+
+    // The happy path, unprefixed, to pin that the `0x` is optional here.
+    assert_eq!(decode_evm_address(&"11".repeat(20)).unwrap(), [0x11u8; 20]);
+}
