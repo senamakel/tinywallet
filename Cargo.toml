@@ -95,7 +95,7 @@ name = "public_api"
 required-features = ["btc", "evm", "solana", "tron", "keccak"]
 
 [features]
-default = ["btc", "evm", "solana", "tron", "keccak", "net", "key", "asset", "client", "tx", "x402", "wire", "eip712"]
+default = ["btc", "evm", "solana", "tron", "keccak", "net", "key", "asset", "client", "tx", "x402", "wire", "eip712", "abi"]
 # Bitcoin address parsing and validation. Dependency-light on purpose: base58
 # via `bs58` (already here for Solana and Tron) and segwit via `bech32`. The
 # `bitcoin` crate is deliberately NOT pulled in by this gate — only by `tx`,
@@ -132,6 +132,10 @@ client = ["net", "asset", "tx", "serde/derive"]
 # client, no bignum, no signer — so the payment path costs `sha3` and nothing
 # else. This is the gate that lets a host drop `ethers-core` entirely.
 eip712 = ["dep:sha3"]
+# ERC-20 `transfer` calldata (`tinywallet::abi`). Outside `tx` because calldata
+# is an input to building a transaction, so a host that builds elsewhere still
+# needs it — and should not pay a bus round trip for keccak over 68 bytes.
+abi = ["evm", "keccak", "eip712"]
 x402 = ["dep:serde", "dep:serde_json", "serde/derive", "eip712"]
 # The host/backend wire contract (`tinywallet::wire`). Deliberately outside
 # every chain gate and dependency-free beyond serde, so a host that has moved

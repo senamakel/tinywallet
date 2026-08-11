@@ -55,6 +55,8 @@
 
 mod error;
 
+#[cfg(feature = "abi")]
+pub mod abi;
 pub mod address;
 #[cfg(feature = "asset")]
 pub mod asset;
