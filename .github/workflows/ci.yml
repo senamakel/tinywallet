@@ -148,8 +148,13 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # Scoped to the published library on purpose. `tinywallet-module` is
+      # `publish = false` and depends on tinybus, whose macros use let-chains
+      # and so need a newer compiler than this crate promises its consumers.
+      # Holding the module to the library's MSRV would either fail here or
+      # force the library's MSRV up for a crate nobody depends on.
       - name: Build with the declared MSRV
-        run: cargo build --all-targets --all-features
+        run: cargo build --package tinywallet --all-targets --all-features
 
   supply-chain:
     name: Supply chain
