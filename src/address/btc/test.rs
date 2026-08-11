@@ -219,3 +219,72 @@ fn encodes_a_p2wpkh_address_its_own_validator_accepts() {
     assert!(encoded.starts_with("bc1q"));
     assert_eq!(validate_sender(&encoded).unwrap(), encoded);
 }
+
+/// Encode `version || payload` as base58check, the way a real address is built.
+///
+/// Constructed rather than copied from a block explorer because these vectors
+/// have to be *valid* base58check that is wrong in one specific way — a
+/// hand-typed string would fail its checksum first and never reach the rule
+/// under test.
+fn base58check(version: u8, payload: &[u8]) -> String {
+    let mut body = Vec::with_capacity(1 + payload.len());
+    body.push(version);
+    body.extend_from_slice(payload);
+    bs58::encode(body).with_check().into_string()
+}
+
+#[test]
+fn rejects_a_base58_address_with_an_unrecognised_version_byte() {
+    // Valid checksum, 20-byte hash, but a version that is neither P2PKH (0x00)
+    // nor P2SH (0x05) on mainnet — a Litecoin P2PKH, for instance.
+    let litecoin = base58check(0x30, &[0x11; 20]);
+    match validate(&litecoin).unwrap_err() {
+        Error::InvalidAddress { reason, .. } => assert!(reason.contains("version"), "{reason}"),
+        other => panic!("expected InvalidAddress, got {other:?}"),
+    }
+}
+
+#[test]
+fn rejects_a_base58_address_whose_hash_is_the_wrong_length() {
+    // A well-formed base58check envelope around a 19-byte hash. Accepting it
+    // would build a transaction paying a script nobody can spend.
+    let short = base58check(0x00, &[0x11; 19]);
+    match validate(&short).unwrap_err() {
+        Error::InvalidAddress { reason, .. } => assert!(reason.contains("20 bytes"), "{reason}"),
+        other => panic!("expected InvalidAddress, got {other:?}"),
+    }
+}
+
+#[test]
+fn rejects_an_empty_base58check_payload() {
+    // Checksum over nothing at all: there is no version byte to read.
+    let empty = bs58::encode(Vec::<u8>::new())
+        .with_check()
+        .into_string();
+    assert!(validate(&empty).is_err());
+}
+
+#[test]
+fn reports_a_testnet_p2sh_version_as_the_wrong_network() {
+    // 0xc4 is testnet P2SH. The sibling 0x6f (testnet P2PKH) is covered above
+    // by a real address; this one completes the pair.
+    let testnet_p2sh = base58check(0xc4, &[0x11; 20]);
+    assert!(matches!(
+        validate(&testnet_p2sh).unwrap_err(),
+        Error::WrongNetwork { .. }
+    ));
+}
+
+#[test]
+fn reports_a_foreign_bech32_chain_as_the_wrong_network_not_as_bad_base58() {
+    // The check this exercises was unreachable when dispatch matched on a
+    // hardcoded `bc1` prefix: a Litecoin bech32 address fell through to the
+    // base58 parser and came back with a nonsensical error.
+    let litecoin = "ltc1qw508d6qejxtdg4y5r3zarvary0c5xw7kgmn4n9";
+    match validate(litecoin).unwrap_err() {
+        Error::WrongNetwork { reason, .. } => {
+            assert!(reason.contains("human-readable part"), "{reason}");
+        }
+        other => panic!("expected WrongNetwork, got {other:?}"),
+    }
+}
