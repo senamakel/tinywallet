@@ -124,19 +124,23 @@ fn build_unsigned(request: &SigningRequest) -> Result<UnsignedTransaction, Failu
             let public = compressed_public_key(&request.public_key.key_hex)?;
             let (_, digests) = transfer
                 .sighashes(&btc_utxos(utxos), &public)
-                .map_err(build_failed)?;
+                .map_err(|e| build_failed(&e))?;
             digests.into_iter().map(secp256k1_payload).collect()
         }
         (spec @ TransactionSpec::Evm { .. }, Chain::Evm) => {
             vec![secp256k1_payload(
-                evm_transaction(spec)?.digest().map_err(build_failed)?,
+                evm_transaction(spec)?
+                    .digest()
+                    .map_err(|e| build_failed(&e))?,
             )]
         }
         (spec @ TransactionSpec::Solana { .. }, Chain::Solana) => {
             // ed25519 signs the message itself — there is nothing to pre-hash,
             // so this payload is the whole serialized message, not a digest.
             vec![SigningPayload {
-                bytes_hex: hex(&solana_transfer(spec)?.message().map_err(build_failed)?),
+                bytes_hex: hex(&solana_transfer(spec)?
+                    .message()
+                    .map_err(|e| build_failed(&e))?),
                 scheme: Scheme::Ed25519,
             }]
         }
@@ -154,7 +158,7 @@ fn build_unsigned(request: &SigningRequest) -> Result<UnsignedTransaction, Failu
             tx::tron::verify_transfer(raw_data_hex, expected_to, expected_txid)
                 .map_err(|e| Failure::InvalidInput(e.to_string()))?;
             vec![secp256k1_payload(
-                tx::tron::digest(raw_data_hex).map_err(build_failed)?,
+                tx::tron::digest(raw_data_hex).map_err(|e| build_failed(&e))?,
             )]
         }
         (spec, chain) => return Err(mismatched(spec, chain)),
@@ -184,7 +188,7 @@ fn attach_signature(request: &AttachRequest) -> Result<SignedTransaction, Failur
                 .collect::<Result<Vec<_>, _>>()?;
             let raw = transfer
                 .attach_signatures(&btc_utxos(utxos), &public, &signatures)
-                .map_err(build_failed)?;
+                .map_err(|e| build_failed(&e))?;
             Ok(SignedTransaction {
                 // A Bitcoin txid is the hash of the serialized transaction, but
                 // reporting it would mean hashing here and in the host; the
@@ -198,7 +202,7 @@ fn attach_signature(request: &AttachRequest) -> Result<SignedTransaction, Failur
             let (rs, recovery) = single_secp256k1(&request.signatures)?;
             let signed = evm_transaction(spec)?
                 .attach_signature(&rs, recovery)
-                .map_err(build_failed)?;
+                .map_err(|e| build_failed(&e))?;
             Ok(SignedTransaction {
                 txid: Some(tx::evm::LegacyTransaction::hash_of(&signed)),
                 raw: format!("0x{}", hex(&signed)),
@@ -208,7 +212,7 @@ fn attach_signature(request: &AttachRequest) -> Result<SignedTransaction, Failur
             let signature = single_ed25519(&request.signatures)?;
             let signed = solana_transfer(spec)?
                 .attach_signature(&signature)
-                .map_err(build_failed)?;
+                .map_err(|e| build_failed(&e))?;
             Ok(SignedTransaction {
                 // Solana's signature *is* its id, base58-encoded. Encoded
                 // here rather than through `address::solana::encode`, which
@@ -231,7 +235,8 @@ fn attach_signature(request: &AttachRequest) -> Result<SignedTransaction, Failur
             tx::tron::verify_transfer(raw_data_hex, expected_to, expected_txid)
                 .map_err(|e| Failure::InvalidInput(e.to_string()))?;
             let (rs, recovery) = single_secp256k1(&request.signatures)?;
-            let signature = tx::tron::attach_signature(&rs, recovery).map_err(build_failed)?;
+            let signature =
+                tx::tron::attach_signature(&rs, recovery).map_err(|e| build_failed(&e))?;
             Ok(SignedTransaction {
                 txid: Some(expected_txid.clone()),
                 raw: tx::tron::signature_hex(&signature),
@@ -269,7 +274,7 @@ fn mismatched(spec: &TransactionSpec, chain: Chain) -> Failure {
 
 /// Collapse a `tinywallet` build error, which is never the caller's fault by
 /// the time it is reached — inputs are checked before building.
-fn build_failed(error: tx::Error) -> Failure {
+fn build_failed(error: &tx::Error) -> Failure {
     Failure::BuildFailed(error.to_string())
 }
 
