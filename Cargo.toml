@@ -21,6 +21,14 @@ exclude = [
     "deny.toml",
 ]
 
+[workspace]
+members = ["crates/tinywallet-module"]
+default-members = [".", "crates/tinywallet-module"]
+# The vendored bus is a submodule with its own workspace; it must not be pulled
+# into this one.
+exclude = ["vendor/tinybus"]
+resolver = "3"
+
 [dependencies]
 # Derive macros for the crate-wide error type in `src/error/mod.rs`. Every
 # dependency entry should carry a comment like this one saying why it is here.
