@@ -67,7 +67,7 @@ sha3 = { version = "0.10", optional = true }
 async-trait = { version = "0.1", optional = true }
 # BIP-39 mnemonic -> seed. Pinned to the same 0.8 line OpenHuman used before
 # this extraction, so a wallet derived by the old code derives identically here.
-coins-bip39 = { version = "0.8", optional = true }
+coins-bip39 = { version = "0.13", optional = true }
 # HMAC-SHA512, the whole of SLIP-0010's ed25519 derivation.
 hmac = { version = "0.12", optional = true }
 sha2 = { version = "0.10", optional = true }
