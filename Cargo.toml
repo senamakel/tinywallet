@@ -185,16 +185,20 @@ key = [
     "keccak",
 ]
 
-# Lints apply to the whole crate and to every target. CI runs clippy with
-# `-D warnings`, so anything set to "warn" here fails the build in CI.
-[lints.rust]
+# Lints are defined at the workspace level and inherited by every member, so
+# the module crate is held to exactly the same bar as the library. CI runs
+# clippy with `-D warnings`, so anything set to "warn" here fails the build.
+[lints]
+workspace = true
+
+[workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"
 rust_2018_idioms = { level = "warn", priority = -1 }
 
-[lints.clippy]
+[workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 # Library code must not panic on its own; tests and examples may.
@@ -211,7 +215,7 @@ doc_markdown = "warn"
 # `#[must_use]` on pure public functions.
 must_use_candidate = "warn"
 
-[lints.rustdoc]
+[workspace.lints.rustdoc]
 broken_intra_doc_links = "warn"
 private_intra_doc_links = "warn"
 
