@@ -60,7 +60,7 @@ coins-bip32 = { version = "0.8", optional = true }
 # Keccak-256, the hash EIP-55 checksums are defined over. Only needed for the
 # EVM checksum helpers, so it rides its own gate rather than `evm`'s — the
 # common case (validate an address) stays dependency-free.
-sha3 = { version = "0.10", optional = true }
+sha3 = { version = "0.12", optional = true }
 # Async trait methods for the `Transport` seam in `src/rpc/`. Rust cannot yet
 # express an object-safe async trait natively, and `Transport` must be
 # `dyn`-compatible because chain code takes `&dyn Transport`.
