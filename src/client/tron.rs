@@ -92,7 +92,13 @@ pub(super) async fn send(
             })?;
 
     // Verify before signing — the node built this, not us.
-    crate::tx::tron::verify_transfer(raw_data_hex, to, txid).map_err(Error::Tx)?;
+    crate::tx::tron::verify_transfer(
+        raw_data_hex,
+        to,
+        txid,
+        &crate::wire::TronTransfer::Native { amount_sun: amount },
+    )
+    .map_err(Error::Tx)?;
 
     let signature = crate::tx::tron::sign(raw_data_hex, secret_key).map_err(Error::Tx)?;
     let mut signed = built.clone();
