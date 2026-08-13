@@ -143,11 +143,12 @@ fn build_unsigned(request: &SigningRequest) -> Result<UnsignedTransaction, Failu
             raw_data_hex,
             expected_to,
             expected_txid,
+            transfer,
         } => {
             // Tron's node builds the transaction, so the only defence against a
             // compromised endpoint is checking that what came back is what was
             // asked for — before signing it, which is here.
-            tx::tron::verify_transfer(raw_data_hex, expected_to, expected_txid)
+            tx::tron::verify_transfer(raw_data_hex, expected_to, expected_txid, transfer)
                 .map_err(|e| Failure::InvalidInput(e.to_string()))?;
             vec![secp256k1_payload(
                 tx::tron::digest(raw_data_hex).map_err(|e| build_failed(&e))?,
@@ -216,11 +217,12 @@ fn attach_signature(request: &AttachRequest) -> Result<SignedTransaction, Failur
             raw_data_hex,
             expected_to,
             expected_txid,
+            transfer,
         } => {
             // Verified again rather than trusted from the first call: the two
             // requests are independent, and a host could reach this one with
             // different bytes than the digest was computed over.
-            tx::tron::verify_transfer(raw_data_hex, expected_to, expected_txid)
+            tx::tron::verify_transfer(raw_data_hex, expected_to, expected_txid, transfer)
                 .map_err(|e| Failure::InvalidInput(e.to_string()))?;
             let (rs, recovery) = single_secp256k1(&request.signatures)?;
             let signature =

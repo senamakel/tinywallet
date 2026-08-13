@@ -271,6 +271,7 @@ async fn refuses_a_request_the_module_cannot_build(proxy: &tinybus::Proxy) {
                     raw_data_hex: "0a02b1f12208".to_string() + &"ab".repeat(64),
                     expected_to: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t".to_string(),
                     expected_txid: "00".repeat(32),
+                    transfer: tinywallet::wire::TronTransfer::Native { amount_sun: 0 },
                 },
                 public_key: PublicKey {
                     key_hex: "02".repeat(33),

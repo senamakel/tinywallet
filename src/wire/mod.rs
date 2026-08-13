@@ -238,6 +238,25 @@ pub enum TransactionSpec {
         expected_to: String,
         /// The txid the node reported, to be recomputed and compared.
         expected_txid: String,
+        /// Transfer-specific fields that must be present in the node-built
+        /// transaction before it is signed.
+        transfer: TronTransfer,
+    },
+}
+
+/// Transfer-specific verification for a node-built Tron transaction.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind", deny_unknown_fields)]
+pub enum TronTransfer {
+    /// A native TRX transfer; the amount is encoded as a protobuf varint.
+    Native {
+        /// Requested amount in sun.
+        amount_sun: u64,
+    },
+    /// A TRC20 transfer; the ABI parameter binds both recipient and amount.
+    Trc20 {
+        /// Unprefixed ABI-encoded transfer arguments.
+        parameter_hex: String,
     },
 }
 

@@ -221,6 +221,7 @@ fn every_transaction_names_its_own_chain() {
                 raw_data_hex: String::new(),
                 expected_to: String::new(),
                 expected_txid: String::new(),
+                transfer: super::TronTransfer::Native { amount_sun: 0 },
             },
             Chain::Tron,
         ),

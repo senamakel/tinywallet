@@ -26,6 +26,7 @@ use bitcoin::secp256k1::{Message, Secp256k1, SecretKey};
 use sha2::{Digest, Sha256};
 
 use super::{Error, Result};
+use crate::wire::TronTransfer;
 
 /// The 65-byte signature Tron expects: `r || s || recovery_id`.
 ///
@@ -57,7 +58,12 @@ pub fn recompute_txid(raw_data_hex: &str) -> Result<String> {
 ///
 /// [`Error::Address`] if `to` is not a valid Tron address, or
 /// [`Error::UntrustedResponse`] if the recipient does not appear in the bytes.
-pub fn verify_transfer(raw_data_hex: &str, to: &str, txid: &str) -> Result<()> {
+pub fn verify_transfer(
+    raw_data_hex: &str,
+    to: &str,
+    txid: &str,
+    transfer: &TronTransfer,
+) -> Result<()> {
     let expected_id = recompute_txid(raw_data_hex)?;
     if !expected_id.eq_ignore_ascii_case(txid.trim()) {
         return Err(Error::UntrustedResponse {
@@ -74,7 +80,37 @@ pub fn verify_transfer(raw_data_hex: &str, to: &str, txid: &str) -> Result<()> {
             reason: "the node's transaction does not pay the requested recipient".to_string(),
         });
     }
+
+    let raw = decode_hex(raw_data_hex)?;
+    let expected = match transfer {
+        TronTransfer::Native { amount_sun } => encode_varint(*amount_sun),
+        TronTransfer::Trc20 { parameter_hex } => decode_hex(parameter_hex)?,
+    };
+    if expected.is_empty() || !raw.windows(expected.len()).any(|window| window == expected) {
+        let field = match transfer {
+            TronTransfer::Native { .. } => "amount",
+            TronTransfer::Trc20 { .. } => "TRC20 transfer parameter",
+        };
+        return Err(Error::UntrustedResponse {
+            reason: format!("the node's transaction does not contain the requested {field}"),
+        });
+    }
     Ok(())
+}
+
+fn encode_varint(mut value: u64) -> Vec<u8> {
+    let mut encoded = Vec::new();
+    loop {
+        let mut byte = (value & 0x7f) as u8;
+        value >>= 7;
+        if value != 0 {
+            byte |= 0x80;
+        }
+        encoded.push(byte);
+        if value == 0 {
+            return encoded;
+        }
+    }
 }
 
 /// Sign a Tron `raw_data` payload.
@@ -174,6 +210,7 @@ mod test {
 
     use super::{recompute_txid, sign, signature_hex, verify_transfer};
     use crate::tx::Error;
+    use crate::wire::TronTransfer;
 
     const VECTOR: &str = "abandon abandon abandon abandon abandon abandon \
                           abandon abandon abandon abandon abandon about";
@@ -213,7 +250,9 @@ mod test {
         let tampered = raw.replace("0a02", "0a03");
         assert_ne!(tampered, raw);
 
-        match verify_transfer(&tampered, TO, &id).unwrap_err() {
+        match verify_transfer(&tampered, TO, &id, &TronTransfer::Native { amount_sun: 15 })
+            .unwrap_err()
+        {
             Error::UntrustedResponse { reason } => assert!(reason.contains("altered")),
             other => panic!("expected UntrustedResponse, got {other:?}"),
         }
@@ -225,7 +264,9 @@ mod test {
         let raw = raw_data();
         let id = recompute_txid(&raw).unwrap();
         let other = "TLyqzVGLV1srkB7dToTAEqgDSfPtXRJZYH";
-        match verify_transfer(&raw, other, &id).unwrap_err() {
+        match verify_transfer(&raw, other, &id, &TronTransfer::Native { amount_sun: 15 })
+            .unwrap_err()
+        {
             Error::UntrustedResponse { reason } => {
                 assert!(reason.contains("does not pay the requested recipient"));
             }
@@ -237,7 +278,45 @@ mod test {
     fn a_well_formed_transaction_verifies() {
         let raw = raw_data();
         let id = recompute_txid(&raw).unwrap();
-        assert!(verify_transfer(&raw, TO, &id).is_ok());
+        assert!(verify_transfer(&raw, TO, &id, &TronTransfer::Native { amount_sun: 15 }).is_ok());
+    }
+
+    #[test]
+    fn a_native_transfer_with_the_wrong_amount_is_rejected() {
+        let raw = raw_data();
+        let id = recompute_txid(&raw).unwrap();
+        let error =
+            verify_transfer(&raw, TO, &id, &TronTransfer::Native { amount_sun: 16 }).unwrap_err();
+        assert!(format!("{error:?}").contains("requested amount"));
+    }
+
+    #[test]
+    fn a_trc20_transfer_must_contain_the_exact_parameter() {
+        let to_hex = crate::address::tron::to_hex(TO).unwrap();
+        let parameter = format!("{}{}", "00".repeat(11), &to_hex[2..]);
+        let raw = format!("0a02b1f42208{to_hex}5a{parameter}");
+        let id = recompute_txid(&raw).unwrap();
+        assert!(
+            verify_transfer(
+                &raw,
+                TO,
+                &id,
+                &TronTransfer::Trc20 {
+                    parameter_hex: parameter.clone(),
+                }
+            )
+            .is_ok()
+        );
+        let error = verify_transfer(
+            &raw,
+            TO,
+            &id,
+            &TronTransfer::Trc20 {
+                parameter_hex: format!("{parameter}00"),
+            },
+        )
+        .unwrap_err();
+        assert!(format!("{error:?}").contains("TRC20 transfer parameter"));
     }
 
     #[test]
