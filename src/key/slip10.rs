@@ -9,7 +9,7 @@
 //! Solana wallets standardise on `m/44'/501'/N'/0'`, which is fully hardened,
 //! so the restriction costs nothing in practice.
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha512;
 use zeroize::Zeroizing;
 
