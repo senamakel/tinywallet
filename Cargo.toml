@@ -50,8 +50,14 @@ bitcoin = { version = "0.32", default-features = false, features = ["std", "secp
 # half of what `bitcoin` used to do here.
 bech32 = { version = "0.11", optional = true }
 # RIPEMD-160, the second half of Bitcoin's HASH160. Only needed to turn a
-# public key into a P2WPKH witness program. On `digest` 0.11 so it chains with
-# `sha2` (also 0.11) in `hash160` — mixing `digest` lines fails to type-check.
+# public key into a P2WPKH witness program.
+#
+# On 0.2, and not 0.1, because `src/key/btc.rs`'s `hash160` feeds a `Sha256`
+# (sha2 0.11) output straight into `Ripemd160::digest`, so the two must sit on
+# the same `digest` line. That means a second copy — `coins-core` still pulls
+# ripemd 0.1 (digest 0.10) — which is the same unavoidable duplicate the sha2
+# 0.11 bump already adds elsewhere. Settle back to 0.1 when `coins-core` (or
+# sha2) moves, and only when the shared `digest` reunifies.
 ripemd = { version = "0.2", optional = true }
 # BIP-32 on secp256k1, backed by the pure-Rust `k256` rather than the
 # `secp256k1` C library. Deriving a key wrong is silent and unrecoverable, so
@@ -80,10 +86,14 @@ async-trait = { version = "0.1", optional = true }
 # BIP-39 mnemonic -> seed. Pinned to the same 0.8 line OpenHuman used before
 # this extraction, so a wallet derived by the old code derives identically here.
 coins-bip39 = { version = "0.13", optional = true }
-# HMAC-SHA512, the whole of SLIP-0010's ed25519 derivation. `hmac` 0.13 moved
-# onto `digest` 0.11, so `sha2` must sit on the same `digest` line: `Hmac<Sha512>`
-# fails to type-check when the two mix `digest` 0.10 and 0.11. (`coins-bip39`
-# 0.13 keeps its own separate hmac 0.12 / sha2 0.10 closure in the graph.)
+# HMAC-SHA512, the whole of SLIP-0010's ed25519 derivation.
+#
+# On 0.13 because `src/key/slip10.rs` builds `Hmac<Sha512>` and `Sha512` now
+# comes from sha2 0.11 (digest 0.11): hmac must sit on the same `digest` line
+# or `new_from_slice` refuses to unify. `coins-bip32`/`coins-bip39`/`pbkdf2`
+# still pull hmac 0.12 (digest 0.10) into the graph, so 0.13 sits alongside it
+# as a second copy — the same price this bump already pays for sha2. Fold back
+# to 0.12 when the ecosystem moves to digest 0.11 and the two unify.
 hmac = { version = "0.13", optional = true }
 sha2 = { version = "0.11", optional = true }
 # ed25519 signing keys for Solana.
