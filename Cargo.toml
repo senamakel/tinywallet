@@ -60,7 +60,18 @@ coins-bip32 = { version = "0.8", optional = true }
 # Keccak-256, the hash EIP-55 checksums are defined over. Only needed for the
 # EVM checksum helpers, so it rides its own gate rather than `evm`'s — the
 # common case (validate an address) stays dependency-free.
-sha3 = { version = "0.12", optional = true }
+#
+# PINNED TO 0.10, and not by accident — do not let dependabot move it.
+# `coins-bip32` 0.8 (via `coins-core`) depends on `sha3` 0.10 and is not going
+# to move, so 0.10 is already in the graph of every consumer that enables
+# `key`. Asking for 0.12 here does not replace it, it ADDS a second copy: cargo
+# cannot unify across a major, so a host ends up compiling `sha3` twice plus
+# the `keccak` and `sponge-cursor` tail that 0.12 pulls. Measured on
+# tinyhumansai/openhuman: +3 packages for no functional change, since all this
+# crate asks of sha3 is `Keccak256::digest`, identical in both.
+#
+# Revisit when `coins-bip32` moves, and only then.
+sha3 = { version = "0.10", optional = true }
 # Async trait methods for the `Transport` seam in `src/rpc/`. Rust cannot yet
 # express an object-safe async trait natively, and `Transport` must be
 # `dyn`-compatible because chain code takes `&dyn Transport`.
