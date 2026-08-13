@@ -199,9 +199,10 @@ pub fn verify_contract(
             if let (Some(expected), Some(actual)) = (
                 fee_limit_sun,
                 proto::optional_varint(&raw_fields, 18, "Transaction.raw.fee_limit")?,
-            ) && actual != expected
-            {
-                return Err(untrusted("the transaction has a different fee_limit"));
+            ) {
+                if actual != expected {
+                    return Err(untrusted("the transaction has a different fee_limit"));
+                }
             }
 
             let mut expected_data = decode_hex(TRC20_TRANSFER_SELECTOR_HEX)?;
