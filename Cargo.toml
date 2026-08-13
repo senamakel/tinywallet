@@ -81,7 +81,7 @@ async-trait = { version = "0.1", optional = true }
 coins-bip39 = { version = "0.13", optional = true }
 # HMAC-SHA512, the whole of SLIP-0010's ed25519 derivation.
 hmac = { version = "0.12", optional = true }
-sha2 = { version = "0.10", optional = true }
+sha2 = { version = "0.11", optional = true }
 # ed25519 signing keys for Solana.
 ed25519-dalek = { version = "2", default-features = false, features = ["std"], optional = true }
 # Wipes derived key material on drop rather than leaving it in freed memory.
