@@ -60,8 +60,8 @@ fn invalid(reason: impl Into<String>) -> Error {
 
 /// Encode a `u64` as a base-128 varint.
 ///
-/// The inverse of [`take_varint`], and the only writer here: it is needed to
-/// re-encode a field when checking a node's transaction byte-for-byte.
+/// The inverse of the parser's varint decoder, and the only writer here: it is
+/// needed to re-encode a field when checking a node's transaction byte-for-byte.
 #[must_use]
 pub fn encode_varint(mut value: u64) -> Vec<u8> {
     let mut encoded = Vec::new();
