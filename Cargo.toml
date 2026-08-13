@@ -87,7 +87,14 @@ async-trait = { version = "0.1", optional = true }
 # this extraction, so a wallet derived by the old code derives identically here.
 coins-bip39 = { version = "0.13", optional = true }
 # HMAC-SHA512, the whole of SLIP-0010's ed25519 derivation.
-hmac = { version = "0.12", optional = true }
+#
+# On 0.13 because `src/key/slip10.rs` builds `Hmac<Sha512>` and `Sha512` now
+# comes from sha2 0.11 (digest 0.11): hmac must sit on the same `digest` line
+# or `new_from_slice` refuses to unify. `coins-bip32`/`coins-bip39`/`pbkdf2`
+# still pull hmac 0.12 (digest 0.10) into the graph, so 0.13 sits alongside it
+# as a second copy — the same price this bump already pays for sha2. Fold back
+# to 0.12 when the ecosystem moves to digest 0.11 and the two unify.
+hmac = { version = "0.13", optional = true }
 sha2 = { version = "0.11", optional = true }
 # ed25519 signing keys for Solana.
 ed25519-dalek = { version = "2", default-features = false, features = ["std"], optional = true }
