@@ -229,12 +229,12 @@ dependencies = [
 
 [[package]]
 name = "coins-bip32"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "591a62657d4485007d6498be7922a5ef2415dceabb649456c813a8b521c4ba14"
+checksum = "c1fc16cf8742cbecd285d3465532affa37e23e8120a0ac813f613923c730cd9b"
 dependencies = [
  "bs58",
- "coins-core 0.13.0",
+ "coins-core 0.13.1",
  "digest 0.10.7",
  "getrandom 0.2.17",
  "getrandom 0.3.4",
@@ -252,7 +252,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57a98df2f583fadfaba6b093112a7f1220ff810ea65e41d2fb7ebbee7c265d33"
 dependencies = [
  "bitvec",
- "coins-bip32 0.13.0",
+ "coins-bip32 0.13.1",
  "getrandom 0.2.17",
  "getrandom 0.3.4",
  "hmac",
@@ -284,9 +284,9 @@ dependencies = [
 
 [[package]]
 name = "coins-core"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0ecf5df86590cea40cf9f7dcacaf60c5407f6d4d3fcc6f1284efab1cbea4771"
+checksum = "42d0aa7cd518496c76ecce929ae0df4e1a40ae84d0bf44bc719b4012daaa0453"
 dependencies = [
  "base64 0.21.7",
  "bech32 0.9.1",
@@ -599,21 +599,21 @@ checksum = "e6d5a32815ae3f33302d95fdcb2ce17862f8c65363dcfd29360480ba1001fc9c"
 
 [[package]]
 name = "futures-core"
-version = "0.3.33"
+version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cd50c473c80f6d7c3670a752354b8e569b1a7cbfdc0419ec88e5edad85e0dc7"
+checksum = "92d699e522242e69e3003b94ecc1f960f3a5e015aa7c5d7486e65ad01dd94f5e"
 
 [[package]]
 name = "futures-task"
-version = "0.3.33"
+version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b231ed28831efb4a61a08580c4bc233ec56bc009f4cd8f52da2c3cb97df0c109"
+checksum = "cd417de3d1d015fc3bfd2b1ea46dfc7bab72ef86f1cc7cc9c78e728b34a6d1fd"
 
 [[package]]
 name = "futures-util"
-version = "0.3.33"
+version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a77a90a256fce34da66415271e30f94ee91c57b04b8a2c042d9cf3220179deaa"
+checksum = "0d50a92467f8ba5dd6e3ee5d4bd04d73ab2e4e1c44474a0674821dfce14b79bc"
 dependencies = [
  "futures-core",
  "futures-task",
