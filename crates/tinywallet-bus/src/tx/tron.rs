@@ -454,7 +454,10 @@ mod test {
         // `digest` and `recompute_txid` must not drift: the id a caller checks
         // against the node's answer is exactly the value it then signs.
         let raw = raw_data();
-        assert_eq!(hex_lower(&digest(&raw).unwrap()), recompute_txid(&raw).unwrap());
+        assert_eq!(
+            hex_lower(&digest(&raw).unwrap()),
+            recompute_txid(&raw).unwrap()
+        );
         assert!(matches!(
             digest("abc").unwrap_err(),
             Error::InvalidField { .. }

@@ -28,7 +28,11 @@ fn the_method_list_is_sorted_complete_and_free_of_duplicates() {
     let mut sorted = METHODS.to_vec();
     sorted.sort_unstable();
     sorted.dedup();
-    assert_eq!(sorted.as_slice(), METHODS, "sorted dispatch order, no repeats");
+    assert_eq!(
+        sorted.as_slice(),
+        METHODS,
+        "sorted dispatch order, no repeats"
+    );
     assert_eq!(METHODS.len(), 6);
     for member in [
         names::methods::ATTACH_SIGNATURE,
@@ -38,7 +42,10 @@ fn the_method_list_is_sorted_complete_and_free_of_duplicates() {
         names::methods::SIGN_MESSAGE,
         names::methods::SIGN_TRANSACTION,
     ] {
-        assert!(METHODS.contains(&member), "{member} is missing from METHODS");
+        assert!(
+            METHODS.contains(&member),
+            "{member} is missing from METHODS"
+        );
     }
 }
 
