@@ -162,7 +162,7 @@ pub type TransportResult<T> = std::result::Result<T, TransportError>;
 /// ```
 /// use async_trait::async_trait;
 /// use serde_json::Value;
-/// use tinywallet::rpc::{NetworkId, Transport, TransportError, TransportResult};
+/// use tinywallet_bus::rpc::{NetworkId, Transport, TransportError, TransportResult};
 ///
 /// struct MyTransport;
 ///
