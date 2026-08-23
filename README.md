@@ -71,7 +71,7 @@ not pay for the others' parsers.
 
 | Feature | Default | Gates | Pulls |
 | --- | --- | --- | --- |
-| `btc` | on | Bitcoin addresses | `bitcoin` |
+| `btc` | on | Bitcoin addresses | `bs58`, `bech32`, `ripemd`, `sha2` |
 | `evm` | on | EVM addresses | — (dependency-free) |
 | `solana` | on | Solana addresses | `bs58` |
 | `tron` | on | Tron addresses | `bs58`, `hex` |
