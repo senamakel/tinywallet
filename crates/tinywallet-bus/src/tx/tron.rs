@@ -22,8 +22,6 @@
 //! prove the *contents* match the request — [`verify_transfer`] does that, by
 //! checking the recipient and amount appear in the returned bytes.
 
-#[cfg(feature = "tx")]
-use bitcoin::secp256k1::{Message, Secp256k1, SecretKey};
 use sha2::{Digest, Sha256};
 
 use super::{Error, Result, proto};
@@ -249,31 +247,6 @@ fn parse_single_contract<'a>(raw_fields: &[proto::Field<'a>]) -> Result<ParsedCo
         type_url,
         payload,
     })
-}
-
-#[cfg(feature = "tx")]
-/// Sign a Tron `raw_data` payload.
-///
-/// Signs `sha256(raw_data)` — the same value as the `txID`.
-///
-/// # Errors
-///
-/// [`Error::InvalidField`] for malformed hex, [`Error::Signing`] for an
-/// invalid key.
-pub fn sign(raw_data_hex: &str, secret_key: &[u8]) -> Result<Signature> {
-    let secret = SecretKey::from_slice(secret_key).map_err(|_| Error::Signing {
-        reason: "not a valid secp256k1 secret key".to_string(),
-    })?;
-    let message = Message::from_digest(digest(raw_data_hex)?);
-
-    let secp = Secp256k1::signing_only();
-    let recoverable = secp.sign_ecdsa_recoverable(&message, &secret);
-    let (recovery_id, compact) = recoverable.serialize_compact();
-
-    let recovery = u8::try_from(recovery_id.to_i32()).map_err(|_| Error::Signing {
-        reason: "unexpected recovery id".to_string(),
-    })?;
-    attach_signature(&compact, recovery)
 }
 
 /// The 32-byte digest a Tron transaction is signed over.
