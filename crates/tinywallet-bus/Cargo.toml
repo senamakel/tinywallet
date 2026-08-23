@@ -41,7 +41,7 @@ sha2 = { version = "0.11", optional = true }
 # crate's `coins-bip32` line depends on `sha3` 0.10 and is not going to move, so
 # 0.10 is already in the graph of any consumer that also takes the root crate
 # with `key`. Asking for 0.12 here does not replace it, it ADDS a second copy.
-sha3 = { version = "0.10", optional = true }
+sha3 = { version = "0.12", optional = true }
 # Async trait methods for the `Transport` seam in `src/rpc/`. Rust cannot yet
 # express an object-safe async trait natively, and `Transport` must be
 # `dyn`-compatible because chain code takes `&dyn Transport`.
