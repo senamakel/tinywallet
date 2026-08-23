@@ -38,6 +38,12 @@ confidence-threshold = 0.9
 # Duplicate versions bloat build times; review them rather than ignoring them.
 multiple-versions = "warn"
 wildcards = "deny"
+# ...except a path dependency on a sibling in this workspace. Both members are
+# `publish = false`, so there is no registry copy a version requirement could
+# ever select, and pinning one would only give the release workflow's version
+# bump a second manifest to keep in step — a minor bump against a stale
+# `version = "0.4.0"` fails resolution rather than resolving to the sibling.
+allow-wildcard-paths = true
 # Crates that must never enter the dependency graph.
 deny = []
 
