@@ -1454,13 +1454,11 @@ name = "tinywallet"
 version = "0.4.0"
 dependencies = [
  "async-trait",
- "bech32 0.11.1",
  "bitcoin",
  "bs58",
  "coins-bip32 0.8.7",
  "coins-bip39",
  "ed25519-dalek",
- "hex",
  "hmac 0.13.0",
  "ripemd 0.2.0",
  "serde",
@@ -1468,8 +1466,26 @@ dependencies = [
  "sha2 0.11.0",
  "sha3",
  "thiserror 2.0.20",
+ "tinywallet-bus",
  "tokio",
  "zeroize",
+]
+
+[[package]]
+name = "tinywallet-bus"
+version = "0.4.0"
+dependencies = [
+ "async-trait",
+ "bech32 0.11.1",
+ "bs58",
+ "hex",
+ "ripemd 0.2.0",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "sha3",
+ "thiserror 2.0.20",
+ "tokio",
 ]
 
 [[package]]
