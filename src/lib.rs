@@ -52,29 +52,44 @@
 //! | `client` | on | chain queries over the seam (`tinywallet::client`) |
 //! | `tx` | on | transaction building and signing (`tinywallet::tx`) |
 //! | `x402` | on | x402 machine-payment wire types (`tinywallet::x402`) |
+//!
+//! # Where half of this crate lives
+//!
+//! The wire contract, the address rules, the ABI and EIP-712 encoders, the
+//! reference data, the [`rpc::Transport`] seam and the transaction *verification*
+//! codec are [`tinywallet_bus`]'s, and are re-exported below so every
+//! `tinywallet::…` path still resolves. What stays here is what needs a key or a
+//! chain library: derivation ([`key`]), building and signing ([`tx`]), the chain
+//! queries ([`client`]) and the x402 payment types ([`x402`]).
+//!
+//! The split exists so a host that has moved signing into the `tinywallet`
+//! `TinyBus` module can depend on `tinywallet-bus` alone and link no `bitcoin`
+//! crate, no native `secp256k1` build, and no BIP-39 implementation — while
+//! still validating an address before it sends a spec and verifying what a Tron
+//! node handed back before it signs.
 
-mod error;
-
-#[cfg(feature = "abi")]
-pub mod abi;
-pub mod address;
-#[cfg(feature = "asset")]
-pub mod asset;
-pub mod chain;
 #[cfg(feature = "client")]
 pub mod client;
-#[cfg(feature = "eip712")]
-pub mod eip712;
 #[cfg(feature = "key")]
 pub mod key;
-#[cfg(feature = "net")]
-pub mod rpc;
 #[cfg(feature = "tx-codec")]
 pub mod tx;
-#[cfg(feature = "wire")]
-pub mod wire;
 #[cfg(feature = "x402")]
 pub mod x402;
 
-pub use chain::Chain;
-pub use error::{Error, Result};
+// Re-exported rather than re-declared: `tinywallet-bus` owns these modules now,
+// and pointing this crate's paths at them keeps one definition of every type
+// that crosses the bus. A second copy here would make the host's `wire::Signature`
+// a different type from the module's, which is exactly the failure the split
+// was made to prevent.
+#[cfg(feature = "abi")]
+pub use tinywallet_bus::abi;
+#[cfg(feature = "asset")]
+pub use tinywallet_bus::asset;
+#[cfg(feature = "eip712")]
+pub use tinywallet_bus::eip712;
+#[cfg(feature = "net")]
+pub use tinywallet_bus::rpc;
+#[cfg(feature = "wire")]
+pub use tinywallet_bus::wire;
+pub use tinywallet_bus::{Chain, Error, Result, address, chain};

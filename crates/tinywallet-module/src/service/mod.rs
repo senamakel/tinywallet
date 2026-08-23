@@ -73,11 +73,12 @@ use tinywallet::wire::{
 };
 use tinywallet::{Chain, key, tx};
 
-/// Well-known name and interface exported by the `TinyWallet` module.
-pub const BUS_NAME: &str = "ai.tinyhumans.tinywallet.Wallet";
-
-/// Object path exported by the `TinyWallet` module.
-pub const OBJECT_PATH: &str = "/ai/tinyhumans/tinywallet/Wallet";
+/// Well-known name and object path exported by the `TinyWallet` module.
+///
+/// Re-exported from the contract crate rather than declared here: a host reads
+/// them from `tinywallet-bus`, and two independent spellings of the same string
+/// fail as a `NameHasNoOwner` at call time rather than as a compile error.
+pub use tinywallet_bus::{BUS_NAME, OBJECT_PATH};
 
 /// The request was malformed or internally inconsistent. A caller can fix it.
 const INVALID_INPUT_ERROR: &str = "ai.tinyhumans.tinywallet.Error.InvalidInput";
@@ -96,6 +97,7 @@ struct Wallet;
 // module performs no I/O at all.
 #[allow(
     clippy::unused_async,
+    clippy::unused_async_trait_impl,
     reason = "tinybus::interface requires every method to be `async fn`"
 )]
 #[tinybus::interface(name = "ai.tinyhumans.tinywallet.Wallet")]

@@ -144,6 +144,12 @@ jobs:
           # so a drift here would publish `tinywallet-module-0.2.0-*.tar.gz`
           # containing a library that reports 0.1.0 — with nothing to catch it.
           bump crates/tinywallet-module/Cargo.toml
+          # And the contract crate, for the same reason and one more: every
+          # bundle job builds `--locked`, so a manifest this step misses leaves
+          # `Cargo.lock` disagreeing with the tree at the tag and *every*
+          # platform job fails to resolve. That produces a tagged release with
+          # zero artifacts, which is exactly what happened on tinyvoice v0.1.4.
+          bump crates/tinywallet-bus/Cargo.toml
           # Refreshes both workspace members in the lockfile. `cargo update -p`
           # cannot do this: these are path dependencies, and the later
           # `--locked` steps fail against a stale lock.
@@ -156,16 +162,21 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Cargo.toml Cargo.lock crates/tinywallet-module/Cargo.toml
+          git add Cargo.toml Cargo.lock \
+            crates/tinywallet-bus/Cargo.toml crates/tinywallet-module/Cargo.toml
           git commit -m "Release ${RELEASE_TAG}"
           git tag -a "${RELEASE_TAG}" -m "Release ${RELEASE_TAG}"
 
-      # Scoped to the library. Unscoped, `cargo package` also verifies
-      # `tinywallet-module`, whose path dependency on this crate carries no
-      # version — correct for a crate that is `publish = false` and shipped as
-      # a release artifact, but fatal to a workspace-wide package step.
+      # Scoped to the contract crate, which is the only member with no path
+      # dependency of its own. `cargo package` rewrites a path dependency to a
+      # registry lookup, so packaging `tinywallet` (which now takes
+      # `tinywallet-bus` by path) or `tinywallet-module` fails with "no matching
+      # package named `tinywallet-bus` found, location searched: crates.io
+      # index" — a crate that is `publish = false` will never be there. Nothing
+      # is uploaded either way; this step exists to catch a manifest that could
+      # not be packaged at all.
       - name: Package crate
-        run: cargo package --locked --package tinywallet
+        run: cargo package --locked --package tinywallet-bus
 
       - name: Push release commit and tag
         env:

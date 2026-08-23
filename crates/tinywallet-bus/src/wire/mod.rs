@@ -334,7 +334,7 @@ mod test;
 /// derived one would put a live recovery phrase into every log line, panic
 /// message and error report that ever formatted a request — which is the
 /// failure this whole module is arranged to prevent, arriving through the back
-/// door. `DerivedKey` in `crate::key` redacts for the same reason.
+/// door. `DerivedKey` in `tinywallet::key` redacts for the same reason.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SecretMaterial {

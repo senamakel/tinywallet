@@ -66,7 +66,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 ///
 /// ```
 /// # #[cfg(all(feature = "evm", feature = "keccak", feature = "eip712"))] {
-/// use tinywallet::abi;
+/// use tinywallet_bus::abi;
 ///
 /// let data = abi::encode_erc20_transfer(
 ///     "0x1111111111111111111111111111111111111111",
@@ -76,7 +76,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// // Selector plus two 32-byte words, hex-encoded, plus the `0x`.
 /// assert_eq!(data.len(), 2 + 8 + 128);
 /// # }
-/// # Ok::<(), tinywallet::abi::Error>(())
+/// # Ok::<(), tinywallet_bus::abi::Error>(())
 /// ```
 pub fn encode_erc20_transfer(to: &str, amount: &str) -> Result<String> {
     let recipient = crate::address::evm::validate(to).map_err(|e| Error::InvalidRecipient {
