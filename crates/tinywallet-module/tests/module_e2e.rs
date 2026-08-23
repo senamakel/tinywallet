@@ -101,6 +101,18 @@ fn admit_module() -> (
         "manifest methods drifted from the interface"
     );
 
+    // And that the manifest is the contract a host compiles against. The three
+    // lists — the `#[tinybus::interface]` block, the `module_export!` manifest,
+    // and `tinywallet_bus::METHODS` — are independent, and only a host reading
+    // the third would notice the first two agreeing on a name it does not know.
+    let mut sorted = declared.clone();
+    sorted.sort_unstable();
+    assert_eq!(
+        sorted,
+        tinywallet_bus::METHODS,
+        "the manifest and the published contract name different members"
+    );
+
     let connect = async move {
         Connection::connect(bus.connect().await.unwrap())
             .await

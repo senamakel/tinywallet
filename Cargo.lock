@@ -1500,6 +1500,7 @@ dependencies = [
  "tinybus",
  "tinybus-module",
  "tinywallet",
+ "tinywallet-bus",
  "tokio",
  "zeroize",
 ]
