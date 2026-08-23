@@ -322,7 +322,7 @@ mod test {
 
     use super::{
         CONTRACT_TYPE_TRANSFER, CONTRACT_TYPE_TRIGGER_SMART_CONTRACT, TRC20_TRANSFER_SELECTOR_HEX,
-        hex_lower, recompute_txid, verify_transfer,
+        attach_signature, digest, hex_lower, recompute_txid, signature_hex, verify_transfer,
     };
     use crate::tx::Error;
     use crate::wire::TronTransfer;
@@ -432,6 +432,35 @@ mod test {
             Error::InvalidField { .. }
         ));
     }
+    #[test]
+    fn a_signature_is_r_s_and_a_bare_recovery_id() {
+        // The assembly half of signing lives here even though producing the
+        // 64 bytes does not: a host that signs elsewhere still has to put the
+        // 65-byte value together, and getting the trailing byte wrong yields a
+        // signature Tron rejects rather than one that fails to build.
+        let signature = attach_signature(&[7u8; 64], 1).unwrap();
+        assert_eq!(signature.len(), 65);
+        assert_eq!(signature[64], 1, "a bare recovery id, not EIP-155's v");
+        assert_eq!(signature_hex(&signature).len(), 130);
+
+        assert!(matches!(
+            attach_signature(&[7u8; 64], 4).unwrap_err(),
+            Error::Signing { .. }
+        ));
+    }
+
+    #[test]
+    fn the_digest_is_the_txid_bytes() {
+        // `digest` and `recompute_txid` must not drift: the id a caller checks
+        // against the node's answer is exactly the value it then signs.
+        let raw = raw_data();
+        assert_eq!(hex_lower(&digest(&raw).unwrap()), recompute_txid(&raw).unwrap());
+        assert!(matches!(
+            digest("abc").unwrap_err(),
+            Error::InvalidField { .. }
+        ));
+    }
+
     // ---- verify_contract: the structural check -----------------------------
 
     use super::verify_contract;
