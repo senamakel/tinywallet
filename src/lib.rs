@@ -63,7 +63,7 @@
 //! queries ([`client`]) and the x402 payment types ([`x402`]).
 //!
 //! The split exists so a host that has moved signing into the `tinywallet`
-//! TinyBus module can depend on `tinywallet-bus` alone and link no `bitcoin`
+//! `TinyBus` module can depend on `tinywallet-bus` alone and link no `bitcoin`
 //! crate, no native `secp256k1` build, and no BIP-39 implementation — while
 //! still validating an address before it sends a spec and verifying what a Tron
 //! node handed back before it signs.
