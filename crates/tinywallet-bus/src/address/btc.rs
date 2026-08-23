@@ -147,15 +147,16 @@ pub fn validate_sender(address: &str) -> Result<String> {
 
 /// Encode a 20-byte public key hash as a mainnet P2WPKH (`bc1q…`) address.
 ///
-/// The counterpart to parsing: [`crate::key`] derives a public key and needs
+/// The counterpart to parsing: `tinywallet::key` derives a public key and needs
 /// its address, and doing that here keeps the bech32 encoding in the module
-/// that also decodes it.
+/// that also decodes it. Public rather than crate-private because that caller
+/// is in the root crate now, on the far side of the contract split.
 ///
 /// # Errors
 ///
 /// [`Error::InvalidAddress`] only if bech32 encoding fails, which for a
 /// fixed-length v0 program and a constant HRP it cannot.
-pub(crate) fn encode_p2wpkh(pubkey_hash: &[u8; 20]) -> Result<String> {
+pub fn encode_p2wpkh(pubkey_hash: &[u8; 20]) -> Result<String> {
     // `hrp::BC` rather than parsing `MAINNET_HRP`: the parse could not fail for
     // a two-letter constant, and an error arm that cannot fire is one nothing
     // can test.
