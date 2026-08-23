@@ -16,7 +16,7 @@ crate-type = ["rlib", "cdylib"]
 # `tinywallet`'s re-export so the module's identity and the host's come from one
 # definition: a host that spells `BUS_NAME` itself and a module that spells it
 # itself is exactly the drift this crate exists to remove.
-tinywallet-bus = { version = "0.4.0", path = "../tinywallet-bus" }
+tinywallet-bus = { path = "../tinywallet-bus" }
 # The pure wallet library stays independently publishable and bus-agnostic.
 # Every chain feature is on here: carrying them is the entire point of the
 # module, since it is what lets the host drop them.

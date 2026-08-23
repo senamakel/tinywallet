@@ -44,7 +44,13 @@ resolver = "3"
 # into the loadable module can take that crate alone and link none of what
 # follows; everything it owns is re-exported from this crate's own module
 # paths, so `tinywallet::address::…` and `tinywallet::wire::…` still resolve.
-tinywallet-bus = { version = "0.4.0", path = "crates/tinywallet-bus", default-features = false }
+#
+# No version requirement, deliberately, matching how `tinywallet-module` already
+# takes this crate: both are `publish = false`, so there is no registry copy a
+# requirement could select, and a stale `version = "0.4.0"` here would make the
+# release workflow's next minor bump fail resolution rather than resolve to the
+# sibling in this workspace.
+tinywallet-bus = { path = "crates/tinywallet-bus", default-features = false }
 # Derive macros for the transaction error type in `src/tx/mod.rs`.
 thiserror = "2"
 # Base58 for a Solana transaction's signature and account keys
