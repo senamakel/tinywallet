@@ -72,7 +72,7 @@ ripemd = { version = "0.2", optional = true }
 # BIP-32 on secp256k1, backed by the pure-Rust `k256` rather than the
 # `secp256k1` C library. Deriving a key wrong is silent and unrecoverable, so
 # this stays delegated to a vetted implementation — see `src/key/bip32.rs`.
-coins-bip32 = { version = "0.8", optional = true }
+coins-bip32 = { version = "0.13", optional = true }
 # Keccak-256 for the EVM and Tron addresses key derivation produces.
 #
 # PINNED TO 0.10, and not by accident — do not let dependabot move it.
