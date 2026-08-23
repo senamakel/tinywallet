@@ -60,7 +60,7 @@ pub enum Error {
 
     /// Signing failed.
     ///
-    /// Carries no key material — see [`crate::key`] for why an error string is
+    /// Carries no key material — see `tinywallet::key` for why an error string is
     /// the easiest way for a secret to escape.
     #[error("signing failed: {reason}")]
     Signing {
