@@ -25,7 +25,7 @@
 //! dominant in a host that has moved signing elsewhere.
 //!
 //! Address *parsing* is a safe thing to own directly, unlike the BIP-32 walk in
-//! [`crate::key`], which deliberately still delegates. The distinction is
+//! `tinywallet::key`, which deliberately still delegates. The distinction is
 //! failure mode, not difficulty: a parser that is wrong rejects a good address
 //! or accepts a malformed one, and both are caught immediately by the vectors
 //! below. A derivation that is wrong returns a *valid key for the wrong
