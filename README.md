@@ -81,19 +81,47 @@ With a chain's gate off, `address::validate` returns `Error::ChainNotCompiled`
 for it — a build fact reported honestly, rather than a wrong answer dressed up
 as a real one.
 
+## Two crates: the contract and the signer
+
+The repository builds two libraries and one loadable module.
+
+| Crate | Holds | Pulls |
+| --- | --- | --- |
+| `tinywallet-bus` | the wire contract, the bus member names, address validation, the ABI and EIP-712 encoders, reference data, the `rpc::Transport` seam, and the Tron protobuf reader and verification | hashes and codecs only — no native build |
+| `tinywallet` (root) | key derivation, transaction building and signing, chain queries, x402 payment types | `bitcoin` and its native `secp256k1` build, `coins-bip39`, `ed25519-dalek` |
+| `tinywallet-module` | the TinyBus adapter, built as a `cdylib` | both of the above |
+
+The split is what lets a host move signing into the module: it depends on
+`tinywallet-bus` alone, and still validates an address before it sends a spec
+and verifies what a Tron node handed back before it signs. Everything the
+contract crate owns is re-exported from the root crate under its historical
+path, so `tinywallet::address::validate` and `tinywallet::wire::SigningRequest`
+resolve exactly as they did.
+
 ## Layout
 
 ```text
-src/
-├── lib.rs              # crate docs + the entire public re-export surface
+crates/tinywallet-bus/src/
+├── lib.rs              # the contract crate's docs and re-export surface
+├── names/              # BUS_NAME, OBJECT_PATH, one constant per member
+├── version/            # CONTRACT_VERSION and its binding rule
 ├── error/              # crate-wide `Error` and `Result<T>`
 ├── chain/              # the `Chain` enum, ungated
-└── address/
-    ├── mod.rs          # chain-generic `validate` dispatch
-    ├── btc.rs          # + btc/test.rs
-    ├── evm.rs          # + evm/test.rs
-    ├── solana.rs       # + solana/test.rs
-    └── tron.rs         # + tron/test.rs
+├── address/            # per-chain validation + the generic `validate` dispatch
+├── abi/                # ERC-20 `transfer` calldata
+├── eip712/             # typed-data hashing and the EIP-3009 authorization
+├── asset/              # network and token reference data
+├── rpc/                # the `Transport` seam — models I/O, performs none
+├── wire/               # the host/module request and response types
+└── tx/                 # `Error`, the protobuf reader, Tron verification
+src/                    # the root crate: what needs a key or a chain library
+├── lib.rs
+├── key/                # BIP-39 / BIP-32 / SLIP-0010 derivation
+├── tx/                 # building and signing (btc, evm, solana, tron::sign)
+├── client/             # chain queries over the `Transport` seam
+└── x402/               # machine-payment wire types
+crates/tinywallet-module/
+└── src/service/        # the TinyBus interface, built as a cdylib
 tests/
 └── public_api.rs       # integration tests against the public API only
 examples/
