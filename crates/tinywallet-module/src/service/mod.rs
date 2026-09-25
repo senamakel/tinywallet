@@ -780,7 +780,7 @@ async fn setup(connection: Connection) -> BusResult<()> {
     reason = "generated C ABI symbols are documented by the TinyBus module SDK"
 )]
 mod exports {
-    tinybus_module::module_export! {
+    tinybus_module::module_export_optional_static! {
         setup = super::setup,
         worker_threads = 2,
         provides = ["ai.tinyhumans.tinywallet.Wallet"],
@@ -803,7 +803,7 @@ mod exports {
     }
 }
 
-#[cfg(feature = "linked")]
+#[cfg(feature = "static-link")]
 pub use exports::linked_module;
 
 #[cfg(test)]

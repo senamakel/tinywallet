@@ -12,7 +12,7 @@ publish = false
 crate-type = ["rlib", "cdylib"]
 
 [features]
-linked = []
+static-link = []
 
 [dependencies]
 # The wire contract both sides speak. Taken directly rather than through
