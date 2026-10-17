@@ -112,10 +112,7 @@ async fn ordinary_call_refuses_confidential_member_before_serializing_request() 
 #[tokio::test]
 async fn attested_call_refuses_public_member_before_module_access() {
     let result = client()
-        .call_attested::<_, serde_json::Value>(
-            methods::ENCODE_ERC20_TRANSFER,
-            MustNotSerialize,
-        )
+        .call_attested::<_, serde_json::Value>(methods::ENCODE_ERC20_TRANSFER, MustNotSerialize)
         .await;
     assert!(matches!(result, Err(ClientError::NotConfidential)));
 }

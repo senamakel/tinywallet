@@ -148,8 +148,14 @@ impl WalletClient {
         secret: SecretMaterial,
         transaction: TransactionSpec,
     ) -> Result<SignedTransaction, ClientError> {
-        self.call_attested(methods::SIGN_TRANSACTION, SignRequest { secret, transaction })
-            .await
+        self.call_attested(
+            methods::SIGN_TRANSACTION,
+            SignRequest {
+                secret,
+                transaction,
+            },
+        )
+        .await
     }
 
     /// Sign opaque bytes inside the attested wallet module.
@@ -166,7 +172,11 @@ impl WalletClient {
     ) -> Result<Signature, ClientError> {
         self.call_attested(
             methods::SIGN_MESSAGE,
-            SignMessageRequest { secret, message_hex, scheme },
+            SignMessageRequest {
+                secret,
+                message_hex,
+                scheme,
+            },
         )
         .await
     }
@@ -177,11 +187,9 @@ impl WalletClient {
     ///
     /// Returns an error if the module is unavailable, unattested, or rejects
     /// the request.
-    pub async fn export_key(
-        &self,
-        secret: SecretMaterial,
-    ) -> Result<ExportedKey, ClientError> {
-        self.call_attested(methods::EXPORT_KEY, ExportRequest { secret }).await
+    pub async fn export_key(&self, secret: SecretMaterial) -> Result<ExportedKey, ClientError> {
+        self.call_attested(methods::EXPORT_KEY, ExportRequest { secret })
+            .await
     }
 
     /// Generate a recovery phrase in the attested wallet module.
@@ -194,8 +202,11 @@ impl WalletClient {
         &self,
         word_count: u8,
     ) -> Result<GenerateMnemonicResponse, ClientError> {
-        self.call_attested(methods::GENERATE_MNEMONIC, GenerateMnemonicRequest { word_count })
-            .await
+        self.call_attested(
+            methods::GENERATE_MNEMONIC,
+            GenerateMnemonicRequest { word_count },
+        )
+        .await
     }
 
     /// Derive a BIP-39 seed through the attested wallet module.
@@ -208,8 +219,11 @@ impl WalletClient {
         &self,
         mnemonic: String,
     ) -> Result<DeriveMnemonicSeedResponse, ClientError> {
-        self.call_attested(methods::DERIVE_MNEMONIC_SEED, DeriveMnemonicSeedRequest { mnemonic })
-            .await
+        self.call_attested(
+            methods::DERIVE_MNEMONIC_SEED,
+            DeriveMnemonicSeedRequest { mnemonic },
+        )
+        .await
     }
 
     /// Encode ERC-20 transfer calldata with the module-owned ABI implementation.
@@ -225,7 +239,10 @@ impl WalletClient {
     ) -> Result<EncodeErc20TransferResponse, ClientError> {
         self.call(
             methods::ENCODE_ERC20_TRANSFER,
-            EncodeErc20TransferRequest { to_address, amount_raw },
+            EncodeErc20TransferRequest {
+                to_address,
+                amount_raw,
+            },
         )
         .await
     }
