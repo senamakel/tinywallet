@@ -136,15 +136,17 @@ fn confidential_wire_requests_keep_their_distinct_wrapper_shapes() {
 
 #[tokio::test]
 async fn ordinary_call_refuses_confidential_member_before_serializing_request() {
-    let serialized = Arc::new(AtomicBool::new(false));
-    let result = client()
-        .call::<_, serde_json::Value>(
-            methods::SIGN_TRANSACTION,
-            MustNotSerialize(serialized.clone()),
-        )
-        .await;
-    assert!(matches!(result, Err(ClientError::ConfidentialRequired)));
-    assert!(!serialized.load(Ordering::SeqCst));
+    for member in CONFIDENTIAL_METHODS {
+        let serialized = Arc::new(AtomicBool::new(false));
+        let result = client()
+            .call::<_, serde_json::Value>(member, MustNotSerialize(serialized.clone()))
+            .await;
+        assert!(
+            matches!(result, Err(ClientError::ConfidentialRequired)),
+            "{member}"
+        );
+        assert!(!serialized.load(Ordering::SeqCst), "{member}");
+    }
 }
 
 #[tokio::test]
