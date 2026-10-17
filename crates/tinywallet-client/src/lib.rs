@@ -1,9 +1,9 @@
-//! Typed host calls to the TinyWallet TinyBus module.
+//! Typed host calls to the `TinyWallet` `TinyBus` module.
 //!
-//! WalletClient is a transport facade over a host configured
-//! tinybus::module::ModuleClient. It owns no loader, endpoint policy, approval
+//! `WalletClient` is a transport facade over a host configured
+//! `tinybus::module::ModuleClient`. It owns no loader, endpoint policy, approval
 //! flow, provider configuration, or wallet implementation. Confidential calls
-//! use call_attested, which checks the host registry's archive and extracted
+//! use `call_attested`, which checks the host registry's archive and extracted
 //! library pins against the same unique peer before serializing a request.
 
 use std::fmt;
@@ -20,10 +20,10 @@ use tinywallet_bus::wire::{
 
 const MODULE_ID: &str = "tinywallet";
 
-/// Failure from a typed TinyWallet module call.
+/// Failure from a typed `TinyWallet` module call.
 ///
 /// Detailed remote prose is retained only for ordinary calls in Remote. Its
-/// Debug and Display renderings redact that prose through TinyBus. Attested
+/// Debug and Display renderings redact that prose through `TinyBus`. Attested
 /// calls expose only their sanitized failure kind.
 #[derive(Debug)]
 pub enum ClientError {
@@ -50,7 +50,7 @@ impl fmt::Display for ClientError {
 
 impl std::error::Error for ClientError {}
 
-/// Typed call facade over the host's configured TinyBus module client.
+/// Typed call facade over the host's configured `TinyBus` module client.
 #[derive(Clone)]
 pub struct WalletClient {
     client: ModuleClient,
@@ -76,7 +76,7 @@ impl WalletClient {
     ///
     /// # Errors
     ///
-    /// Returns ConfidentialRequired for a confidential member, or Remote for
+    /// Returns `ConfidentialRequired` for a confidential member, or `Remote` for
     /// a failed module call.
     pub async fn call<Request, Reply>(
         &self,
@@ -98,13 +98,13 @@ impl WalletClient {
 
     /// Make a typed call using strict peer and release-library attestation.
     ///
-    /// TinyBus validates archive and extracted-library pins in the host's
-    /// ReleaseRecord, then proves both against the same unique peer before it
+    /// `TinyBus` validates archive and extracted-library pins in the host's
+    /// `ReleaseRecord`, then proves both against the same unique peer before it
     /// serializes the request. There is no ordinary-delivery fallback.
     ///
     /// # Errors
     ///
-    /// Returns NotConfidential for a public member, or Attested if the strict
+    /// Returns `NotConfidential` for a public member, or `Attested` if the strict
     /// call fails.
     pub async fn call_attested<Request, Reply>(
         &self,

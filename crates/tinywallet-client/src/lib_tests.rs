@@ -2,6 +2,7 @@
 
 use super::*;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tinybus::module::{
     AccessFuture, FailureReporter, FailureSink, ModuleAccess, ProxyFailure, ReleaseRecord,
 };
@@ -57,14 +58,17 @@ fn client() -> WalletClient {
     }))
 }
 
-struct MustNotSerialize;
+struct MustNotSerialize(Arc<AtomicBool>);
 
 impl serde::Serialize for MustNotSerialize {
     fn serialize<S>(&self, _: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        panic!("request was serialized before routing validation")
+        self.0.store(true, Ordering::SeqCst);
+        Err(<S::Error as serde::ser::Error>::custom(
+            "request serialization was not expected",
+        ))
     }
 }
 
@@ -103,27 +107,42 @@ fn public_wallet_members_remain_ordinary_calls() {
 
 #[tokio::test]
 async fn ordinary_call_refuses_confidential_member_before_serializing_request() {
+    let serialized = Arc::new(AtomicBool::new(false));
     let result = client()
-        .call::<_, serde_json::Value>(methods::SIGN_TRANSACTION, MustNotSerialize)
+        .call::<_, serde_json::Value>(
+            methods::SIGN_TRANSACTION,
+            MustNotSerialize(serialized.clone()),
+        )
         .await;
     assert!(matches!(result, Err(ClientError::ConfidentialRequired)));
+    assert!(!serialized.load(Ordering::SeqCst));
 }
 
 #[tokio::test]
 async fn attested_call_refuses_public_member_before_module_access() {
+    let serialized = Arc::new(AtomicBool::new(false));
     let result = client()
-        .call_attested::<_, serde_json::Value>(methods::ENCODE_ERC20_TRANSFER, MustNotSerialize)
+        .call_attested::<_, serde_json::Value>(
+            methods::ENCODE_ERC20_TRANSFER,
+            MustNotSerialize(serialized.clone()),
+        )
         .await;
     assert!(matches!(result, Err(ClientError::NotConfidential)));
+    assert!(!serialized.load(Ordering::SeqCst));
 }
 
 #[tokio::test]
 async fn attested_call_with_no_release_library_pins_never_serializes_request() {
+    let serialized = Arc::new(AtomicBool::new(false));
     let result = client()
-        .call_attested::<_, serde_json::Value>(methods::SIGN_MESSAGE, MustNotSerialize)
+        .call_attested::<_, serde_json::Value>(
+            methods::SIGN_MESSAGE,
+            MustNotSerialize(serialized.clone()),
+        )
         .await;
     assert!(matches!(
         result,
         Err(ClientError::Attested(ModuleCallError::Unavailable))
     ));
+    assert!(!serialized.load(Ordering::SeqCst));
 }
