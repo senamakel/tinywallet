@@ -21,7 +21,11 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
         self.workflow = WORKFLOW.read_text()
 
     def test_reviewed_mode_is_opt_in_and_legacy_defaults_to_zero(self):
-        self.assertIn("mode:\n        description: Release path\n        type: choice", self.workflow)
+        self.assertIn(
+            "mode:\n        description: Ordinary tag release or reviewed OpenHuman epic release\n"
+            "        type: choice",
+            self.workflow,
+        )
         self.assertIn("default: standard", self.workflow)
         self.assertIn("reviewed_pr:\n        description: Positive canonical PR number", self.workflow)
         self.assertIn("default: '0'", self.workflow)
