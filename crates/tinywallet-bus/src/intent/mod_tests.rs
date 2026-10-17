@@ -356,10 +356,8 @@ fn web3_evm(
     }
 }
 
-#[test]
-fn web3_dapp_call_matches_only_the_same_quote_operation_and_exact_call_facts() {
-    let address = "0x1111111111111111111111111111111111111111";
-    let quote = web3_quote(
+fn dapp_quote(address: &str) -> Web3QuoteResponse {
+    web3_quote(
         Web3QuoteKind::DappCall,
         WalletChain::Evm,
         serde_json::json!({
@@ -368,84 +366,83 @@ fn web3_dapp_call_matches_only_the_same_quote_operation_and_exact_call_facts() {
             "calldata": "0xabcd",
             "valueRaw": "5"
         }),
-    );
+    )
+}
+
+fn dapp_request(
+    quote_id: &str,
+    operation: &str,
+    network: &str,
+    to: &str,
+    data: Option<&str>,
+    value: &str,
+    chain_id: u64,
+) -> AuthorizeWeb3ExecutionRequest {
+    web3_request(
+        quote_id,
+        operation,
+        web3_evm(network, to, data, value, chain_id),
+    )
+}
+
+#[test]
+fn web3_dapp_call_matches_case_insensitive_address_and_exact_call_facts() {
+    let address = "0x1111111111111111111111111111111111111111";
+    let quote = dapp_quote(address);
     assert!(super::web3_approval_matches_request(
         &quote,
-        &web3_request(
+        &dapp_request(
             "quote-1",
             "dapp_call",
-            web3_evm(
-                "polygon_mainnet",
-                &address.to_ascii_uppercase().replacen("0X", "0x", 1),
-                Some("0xabcd"),
-                "5",
-                137
-            ),
+            "polygon_mainnet",
+            &address.to_ascii_uppercase().replacen("0X", "0x", 1),
+            Some("0xabcd"),
+            "5",
+            137,
         )
     ));
+}
 
-    for (quote_id, operation, network, to, data, value, chain_id) in [
-        (
-            "other-quote",
-            "dapp_call",
-            "polygon_mainnet",
-            address,
-            Some("0xabcd"),
-            "5",
-            137,
-        ),
-        (
-            "quote-1",
-            "swap",
-            "polygon_mainnet",
-            address,
-            Some("0xabcd"),
-            "5",
-            137,
-        ),
-        (
-            "quote-1",
-            "dapp_call",
-            "polygon_mainnet",
-            address,
-            Some("0xabce"),
-            "5",
-            137,
-        ),
-        (
-            "quote-1",
-            "dapp_call",
-            "polygon_mainnet",
-            address,
-            Some("0xabcd"),
-            "6",
-            137,
-        ),
-        (
-            "quote-1",
-            "dapp_call",
-            "ethereum_mainnet",
-            address,
-            Some("0xabcd"),
-            "5",
-            137,
-        ),
-        (
-            "quote-1",
-            "dapp_call",
-            "polygon_mainnet",
-            address,
-            Some("0xabcd"),
-            "5",
-            1,
-        ),
+#[test]
+fn web3_dapp_call_rejects_a_different_quote_operation_or_network() {
+    let address = "0x1111111111111111111111111111111111111111";
+    let quote = dapp_quote(address);
+    for (quote_id, operation, network, chain_id) in [
+        ("other-quote", "dapp_call", "polygon_mainnet", 137),
+        ("quote-1", "swap", "polygon_mainnet", 137),
+        ("quote-1", "dapp_call", "ethereum_mainnet", 137),
+        ("quote-1", "dapp_call", "polygon_mainnet", 1),
     ] {
         assert!(!super::web3_approval_matches_request(
             &quote,
-            &web3_request(
+            &dapp_request(
                 quote_id,
                 operation,
-                web3_evm(network, to, data, value, chain_id)
+                network,
+                address,
+                Some("0xabcd"),
+                "5",
+                chain_id,
+            )
+        ));
+    }
+}
+
+#[test]
+fn web3_dapp_call_rejects_changed_call_facts_and_missing_quote_fields() {
+    let address = "0x1111111111111111111111111111111111111111";
+    let quote = dapp_quote(address);
+    for (data, value) in [(Some("0xabce"), "5"), (Some("0xabcd"), "6"), (None, "5")] {
+        assert!(!super::web3_approval_matches_request(
+            &quote,
+            &dapp_request(
+                "quote-1",
+                "dapp_call",
+                "polygon_mainnet",
+                address,
+                data,
+                value,
+                137,
             )
         ));
     }
@@ -462,10 +459,14 @@ fn web3_dapp_call_matches_only_the_same_quote_operation_and_exact_call_facts() {
     );
     assert!(!super::web3_approval_matches_request(
         &missing_calldata,
-        &web3_request(
+        &dapp_request(
             "quote-1",
             "dapp_call",
-            web3_evm("polygon_mainnet", address, None, "5", 137),
+            "polygon_mainnet",
+            address,
+            None,
+            "5",
+            137,
         )
     ));
 }

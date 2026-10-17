@@ -253,9 +253,7 @@ fn decimal_u256_word(decimal: &str) -> Option<String> {
 }
 
 fn valid_hex(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() % 2 == 0
-        && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+    !value.is_empty() && value.len() % 2 == 0 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 #[cfg(test)]
