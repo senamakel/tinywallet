@@ -14,6 +14,7 @@ use tinybus::module::{
 use tinybus::transport::memory::MemoryBus;
 use tinybus::{Connection, Proxy};
 use tinywallet_client::WalletClient;
+use tokio::sync::OnceCell;
 
 pub const VECTOR: &str = "abandon abandon abandon abandon abandon abandon \
                           abandon abandon abandon abandon abandon about";
