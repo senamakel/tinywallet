@@ -21,7 +21,10 @@ tinybus = { workspace = true, features = ["modules"] }
 
 [features]
 default = []
+# Exercises a locally built cdylib through the hash-verified TinyBus cache.
+# scripts/test-e2e.sh stages the required archive and distinct library pin.
 native-e2e = []
+# Deliberately pending the separately owned detailed-attested TinyBus API.
 pending-attested-errors = []
 
 [[test]]

@@ -172,6 +172,13 @@ cargo test --all-features
 cargo run --example basic
 ```
 
+`scripts/test-e2e.sh` (or `scripts/test-e2e.ps1`) also stages the built wallet
+module as a locally pinned archive and library, then runs the typed client's
+verified-peer and separate-process unattested tests. Running either native
+client test target directly requires the same `TINYWALLET_CLIENT_TEST_*`
+artifact variables; the target fails when they are missing. The
+`pending-attested-errors` target is held for TinyBus's detailed strict-call API.
+
 Run the gated builds too — they are the only thing that catches code that
 compiles only when a feature is on. The lib tests are feature-aware, so the
 same matrix also exercises the `ChainNotCompiled` contract (a disabled chain
