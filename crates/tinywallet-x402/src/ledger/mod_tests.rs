@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use chrono::{DateTime, Duration, TimeZone, Utc};
 
 use super::faulty::{append_raw, faulty_storage};
-use super::persist::{BUDGET_COLLECTION, HOLDS_ID, HoldsDoc, Persist};
+use super::persist::{BUDGET_COLLECTION, HOLDS_ID, HoldsDoc, PAYMENTS_STREAM, Persist};
 use super::*;
 use tinystoragedrivers_core::{Blocking, Version};
 
@@ -25,6 +25,20 @@ fn budget() -> SpendingBudget {
 
 fn now() -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 3, 15, 12, 0, 0).unwrap()
+}
+
+#[test]
+fn persistence_resource_names_match_the_bus_storage_declaration() {
+    let needs = tinywallet_bus::storage_needs();
+
+    assert_eq!(needs.collections.len(), 1);
+    assert_eq!(needs.collections[0].name, BUDGET_COLLECTION);
+    assert_eq!(needs.collections[0].indexes, Vec::new());
+    assert_eq!(needs.collections[0].ttl_field, None);
+    assert_eq!(needs.collections[0].search, None);
+    assert_eq!(needs.stream_prefixes, [PAYMENTS_STREAM]);
+    assert_eq!(needs.blob_prefixes, &[] as &[&str]);
+    assert_eq!(needs.secret_prefixes, &[] as &[&str]);
 }
 
 fn record(
@@ -262,6 +276,24 @@ fn records_survive_a_restart() {
     assert_eq!(recent.len(), 2);
     assert_eq!(recent[0].status, PaymentStatus::Failed);
     assert_eq!(recent[1].amount_atomic, 100_000);
+}
+
+#[test]
+fn memory_storage_reopens_payment_history_and_released_holds() {
+    let storage = LedgerStorage::memory();
+    {
+        let mut ledger = ledger_in(&storage);
+        ledger.record_payment(record(100_000, PaymentStatus::Settled, now(), SESSION));
+        let hold = ledger.reserve_at(now(), 50_000).unwrap().unwrap();
+        ledger.release(hold);
+        assert_eq!(ledger.reserved_atomic(), 0);
+    }
+
+    let reopened = ledger_in(&storage);
+    let payments = reopened.recent_payments(10);
+    assert_eq!(payments.len(), 1);
+    assert_eq!(payments[0].amount_atomic, 100_000);
+    assert_eq!(reopened.reserved_atomic(), 0);
 }
 
 #[test]

@@ -119,6 +119,21 @@ fn the_contract_accepts_its_own_version_and_newer_minors() {
 }
 
 #[test]
+fn storage_needs_publish_only_the_x402_ledger_resources() {
+    let needs = super::storage_needs();
+
+    assert_eq!(needs.collections.len(), 1);
+    let collection = &needs.collections[0];
+    assert_eq!(collection.name, "x402_budget");
+    assert_eq!(collection.indexes, Vec::new());
+    assert_eq!(collection.ttl_field, None);
+    assert_eq!(collection.search, None);
+    assert_eq!(needs.stream_prefixes, ["x402.payments"]);
+    assert_eq!(needs.blob_prefixes, &[] as &[&str]);
+    assert_eq!(needs.secret_prefixes, &[] as &[&str]);
+}
+
+#[test]
 fn the_identity_matches_the_path_the_module_serves() {
     // Both spellings appear in the module's `serve_at` / `request_name` pair,
     // and a host that guesses one of them gets `NameHasNoOwner` at call time.

@@ -42,6 +42,7 @@ jobs:
         run: |
           python3 scripts/check_bus_boundaries_tests.py
           python3 scripts/release_workflow_tests.py
+          python3 scripts/test_reviewed_release_workflow.py
           python3 scripts/check-bus-boundaries.py
       - name: Implementation crates pull no signing stack
         shell: bash
@@ -70,3 +71,21 @@ jobs:
             echo "quote/ and seams/ must stay free of crypto vocabulary" >&2
             exit 1
           fi
+
+  wallet-storage-needs-contract:
+    name: Wallet storage-needs contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # stable
+        with:
+          toolchain: '1.85.1'
+      - name: Compile the excluded canonical-type consumer
+        run: cargo test --locked --manifest-path proof-workspaces/storage-needs/Cargo.toml
+      - name: Keep the storage contract's normal/build graph data-only
+        run: |
+          python3 scripts/check_bus_boundaries_tests.py
+          python3 scripts/check-bus-boundaries.py
