@@ -56,6 +56,12 @@ pub struct WalletClient {
     client: ModuleClient,
 }
 
+impl fmt::Debug for WalletClient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("WalletClient").finish_non_exhaustive()
+    }
+}
+
 impl WalletClient {
     /// Create a wallet facade from host-owned module access and release pins.
     #[must_use]

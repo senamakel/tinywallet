@@ -16,9 +16,18 @@ struct NoModules {
     reporter: FailureReporter,
 }
 
+static RECORD: ReleaseRecord = ReleaseRecord {
+    id: "tinywallet",
+    bus_name: tinywallet_bus::BUS_NAME,
+    object_path: tinywallet_bus::OBJECT_PATH,
+    version: "0.25.0",
+    release_url: "https://example.invalid/tinywallet",
+    assets: &[],
+};
+
 impl ModuleAccess for NoModules {
-    fn find(&self, _: &str) -> Option<&'static ReleaseRecord> {
-        None
+    fn find(&self, id: &str) -> Option<&'static ReleaseRecord> {
+        (id == RECORD.id).then_some(&RECORD)
     }
 
     fn enabled(&self) -> bool {
@@ -109,4 +118,15 @@ async fn attested_call_refuses_public_member_before_module_access() {
         )
         .await;
     assert!(matches!(result, Err(ClientError::NotConfidential)));
+}
+
+#[tokio::test]
+async fn attested_call_with_no_release_library_pins_never_serializes_request() {
+    let result = client()
+        .call_attested::<_, serde_json::Value>(methods::SIGN_MESSAGE, MustNotSerialize)
+        .await;
+    assert!(matches!(
+        result,
+        Err(ClientError::Attested(ModuleCallError::Unavailable))
+    ));
 }
