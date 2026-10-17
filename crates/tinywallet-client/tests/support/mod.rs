@@ -339,6 +339,7 @@ pub fn shutdown(fixture: &Fixture) {
 pub fn expected_module_unavailable(error: tinywallet_client::ClientError) -> bool {
     matches!(
         error,
-        tinywallet_client::ClientError::Attested(ModuleCallError::Unavailable)
+        tinywallet_client::ClientError::Remote(failure)
+            if failure.kind == ModuleCallError::Unavailable
     )
 }
