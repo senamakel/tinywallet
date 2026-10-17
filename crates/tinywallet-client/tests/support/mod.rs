@@ -14,7 +14,6 @@ use tinybus::module::{
 use tinybus::transport::memory::MemoryBus;
 use tinybus::{Connection, Proxy};
 use tinywallet_client::WalletClient;
-use tokio::sync::OnceCell;
 
 pub const VECTOR: &str = "abandon abandon abandon abandon abandon abandon \
                           abandon abandon abandon abandon abandon about";
@@ -22,7 +21,6 @@ const RELEASE_URL: &str = "https://github.com/tinyhumansai/tinywallet/releases/t
 
 static RECORD: OnceLock<ReleaseRecord> = OnceLock::new();
 static WRONG_LIBRARY_RECORD: OnceLock<ReleaseRecord> = OnceLock::new();
-static FIXTURE: OnceCell<Fixture> = OnceCell::const_new();
 
 struct QuietSink;
 
@@ -180,9 +178,7 @@ impl ModuleAccess for SharedAccess {
     }
 }
 
-pub async fn fixture() -> &'static Fixture {
-    FIXTURE
-        .get_or_init(|| async {
+pub async fn fixture() -> Fixture {
             let admitted_record = record(false);
             let release = cached_release();
             let bus = MemoryBus::new();
@@ -219,14 +215,9 @@ pub async fn fixture() -> &'static Fixture {
                 access,
                 broker_task,
             }
-        })
-        .await
 }
 
-pub async fn unattested_fixture() -> &'static Fixture {
-    static UNATTESTED: OnceCell<Fixture> = OnceCell::const_new();
-    UNATTESTED
-        .get_or_init(|| async {
+pub async fn unattested_fixture() -> Fixture {
             let admitted_record = record(false);
             let release = cached_release();
             let bus = MemoryBus::new();
@@ -264,8 +255,6 @@ pub async fn unattested_fixture() -> &'static Fixture {
                 access,
                 broker_task,
             }
-        })
-        .await
 }
 
 pub fn record(wrong_library_pin: bool) -> &'static ReleaseRecord {

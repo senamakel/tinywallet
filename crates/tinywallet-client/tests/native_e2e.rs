@@ -37,8 +37,7 @@ fn hex(bytes: &[u8]) -> String {
     output
 }
 
-async fn assert_same_peer(expected: &tinybus::BusName) {
-    let fixture = support::fixture().await;
+async fn assert_same_peer(fixture: &support::Fixture, expected: &tinybus::BusName) {
     assert_eq!(&fixture.access.unique_peer().await, expected);
 }
 
@@ -62,7 +61,7 @@ async fn all_six_confidential_wrappers_use_the_verified_unique_peer() {
         .expect("DeriveAccount returns its typed public account response");
     assert!(account.address.starts_with("0x"));
     assert_eq!(account.public_key.key_hex.len(), 66);
-    assert_same_peer(&unique_peer).await;
+    assert_same_peer(fixture, &unique_peer).await;
 
     let signed = fixture
         .wallet
@@ -71,7 +70,7 @@ async fn all_six_confidential_wrappers_use_the_verified_unique_peer() {
         .expect("SignTransaction returns a module-signed transaction");
     assert!(signed.raw.starts_with("0x"));
     assert!(signed.raw.len() > 100);
-    assert_same_peer(&unique_peer).await;
+    assert_same_peer(fixture, &unique_peer).await;
 
     let signature = fixture
         .wallet
@@ -83,7 +82,7 @@ async fn all_six_confidential_wrappers_use_the_verified_unique_peer() {
         Signature::Secp256k1 { ref rs_hex, recovery_id }
             if rs_hex.len() == 128 && recovery_id <= 3
     ));
-    assert_same_peer(&unique_peer).await;
+    assert_same_peer(fixture, &unique_peer).await;
 
     let mut exported = fixture
         .wallet
@@ -93,7 +92,7 @@ async fn all_six_confidential_wrappers_use_the_verified_unique_peer() {
     assert_eq!(exported.secret_key_hex.len(), 64);
     assert_eq!(exported.address, account.address);
     exported.secret_key_hex.zeroize();
-    assert_same_peer(&unique_peer).await;
+    assert_same_peer(fixture, &unique_peer).await;
 
     let mut generated = fixture
         .wallet
@@ -103,7 +102,7 @@ async fn all_six_confidential_wrappers_use_the_verified_unique_peer() {
     assert_eq!(generated.word_count, 12);
     assert_eq!(generated.phrase.split_whitespace().count(), 12);
     generated.phrase.zeroize();
-    assert_same_peer(&unique_peer).await;
+    assert_same_peer(fixture, &unique_peer).await;
 
     let mut seed = fixture
         .wallet
@@ -116,7 +115,7 @@ async fn all_six_confidential_wrappers_use_the_verified_unique_peer() {
         "seed response must match the standard BIP-39 vector"
     );
     seed.seed.zeroize();
-    assert_same_peer(&unique_peer).await;
+    assert_same_peer(fixture, &unique_peer).await;
 }
 
 #[tokio::test]
@@ -131,7 +130,7 @@ async fn wrong_library_pin_prevents_business_delivery_for_all_confidential_metho
             .await
             .unwrap_err()
     ));
-    assert_same_peer(&unique_peer).await;
+    assert_same_peer(fixture, &unique_peer).await;
     assert!(support::expected_module_unavailable(
         fixture
             .wrong_pin_wallet
@@ -139,7 +138,7 @@ async fn wrong_library_pin_prevents_business_delivery_for_all_confidential_metho
             .await
             .unwrap_err()
     ));
-    assert_same_peer(&unique_peer).await;
+    assert_same_peer(fixture, &unique_peer).await;
     assert!(support::expected_module_unavailable(
         fixture
             .wrong_pin_wallet
@@ -147,7 +146,7 @@ async fn wrong_library_pin_prevents_business_delivery_for_all_confidential_metho
             .await
             .unwrap_err()
     ));
-    assert_same_peer(&unique_peer).await;
+    assert_same_peer(fixture, &unique_peer).await;
     assert!(support::expected_module_unavailable(
         fixture
             .wrong_pin_wallet
@@ -155,7 +154,7 @@ async fn wrong_library_pin_prevents_business_delivery_for_all_confidential_metho
             .await
             .unwrap_err()
     ));
-    assert_same_peer(&unique_peer).await;
+    assert_same_peer(fixture, &unique_peer).await;
     assert!(support::expected_module_unavailable(
         fixture
             .wrong_pin_wallet
@@ -163,7 +162,7 @@ async fn wrong_library_pin_prevents_business_delivery_for_all_confidential_metho
             .await
             .unwrap_err()
     ));
-    assert_same_peer(&unique_peer).await;
+    assert_same_peer(fixture, &unique_peer).await;
     assert!(support::expected_module_unavailable(
         fixture
             .wrong_pin_wallet
@@ -171,5 +170,5 @@ async fn wrong_library_pin_prevents_business_delivery_for_all_confidential_metho
             .await
             .unwrap_err()
     ));
-    assert_same_peer(&unique_peer).await;
+    assert_same_peer(fixture, &unique_peer).await;
 }
