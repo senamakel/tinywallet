@@ -1,0 +1,20 @@
+[package]
+name = "tinywallet-client"
+version = "0.25.0"
+edition = "2024"
+rust-version = "1.85"
+license = "GPL-3.0-only"
+description = "Typed TinyBus host client for the TinyWallet module."
+repository = "https://github.com/tinyhumansai/tinywallet"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+tinywallet-bus = { path = "../tinywallet-bus", default-features = false, features = ["wire"] }
+tinybus.workspace = true
+
+[dev-dependencies]
+serde_json = "1"
+
+[lints]
+workspace = true
