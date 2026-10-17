@@ -9,7 +9,7 @@
 use std::fmt;
 
 use serde::{Serialize, de::DeserializeOwned};
-use tinybus::module::{ModuleCallError, ModuleCallFailure, ModuleClient};
+use tinybus::module::{ModuleCallFailure, ModuleClient};
 pub use tinywallet_bus::Chain;
 use tinywallet_bus::names::CONFIDENTIAL_METHODS;
 pub use tinywallet_bus::names::methods;
@@ -25,9 +25,9 @@ const MODULE_ID: &str = "tinywallet";
 
 /// Failure from a typed `TinyWallet` module call.
 ///
-/// Detailed remote prose is retained only for ordinary calls in Remote. Its
-/// Debug and Display renderings redact that prose through `TinyBus`. Attested
-/// calls expose only their sanitized failure kind.
+/// Detailed remote failure data is available through `Remote`. Its `Debug` and
+/// `Display` renderings redact untrusted wire names and prose through `TinyBus`;
+/// callers that need those raw fields must apply their own redaction policy.
 #[derive(Debug)]
 pub enum ClientError {
     /// An ordinary call was attempted for a member declared confidential.
@@ -36,8 +36,6 @@ pub enum ClientError {
     NotConfidential,
     /// An ordinary module call failed.
     Remote(ModuleCallFailure),
-    /// Strict attestation or confidential delivery failed.
-    Attested(ModuleCallError),
 }
 
 impl fmt::Display for ClientError {
@@ -46,7 +44,6 @@ impl fmt::Display for ClientError {
             Self::ConfidentialRequired => f.write_str("wallet member requires attested delivery"),
             Self::NotConfidential => f.write_str("wallet member is not confidential"),
             Self::Remote(error) => fmt::Display::fmt(error, f),
-            Self::Attested(error) => fmt::Display::fmt(error, f),
         }
     }
 }
@@ -107,8 +104,8 @@ impl WalletClient {
     ///
     /// # Errors
     ///
-    /// Returns `NotConfidential` for a public member, or `Attested` if the strict
-    /// call fails.
+    /// Returns `NotConfidential` for a public member, or `Remote` with the
+    /// detailed failure if the strict call fails.
     pub async fn call_attested<Request, Reply>(
         &self,
         member: &str,
@@ -122,9 +119,9 @@ impl WalletClient {
             return Err(ClientError::NotConfidential);
         }
         self.client
-            .call_attested(MODULE_ID, member, (request,))
+            .call_attested_detailed(MODULE_ID, member, (request,))
             .await
-            .map_err(ClientError::Attested)
+            .map_err(ClientError::Remote)
     }
 
     /// Derive an account through an attested wallet module.

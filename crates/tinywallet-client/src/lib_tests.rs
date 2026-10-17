@@ -265,7 +265,7 @@ async fn attested_call_with_no_release_library_pins_never_serializes_request() {
         .await;
     assert!(matches!(
         result,
-        Err(ClientError::Attested(ModuleCallError::Unavailable))
+        Err(ClientError::Remote(failure)) if failure.kind == ModuleCallError::Unavailable
     ));
     assert!(!serialized.load(Ordering::SeqCst));
 }

@@ -1,4 +1,4 @@
-//! Pending the separately owned TinyBus detailed-attested-call API.
+//! Verifies detailed remote errors survive strict confidential delivery.
 
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 

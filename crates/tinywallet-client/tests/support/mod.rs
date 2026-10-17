@@ -115,11 +115,9 @@ impl ModuleAccess for Access {
                         self.host
                             .load_github_release_cached(&self.release, serde_json::json!({}))
                     };
-                    loaded
-                        .map(|_| ())
-                        .map_err(|error| {
-                            format!("the local test module could not be admitted: {error}")
-                        })
+                    loaded.map(|_| ()).map_err(|error| {
+                        format!("the local test module could not be admitted: {error}")
+                    })
                 })
                 .await
                 .map(|_| ())
@@ -180,82 +178,78 @@ impl ModuleAccess for SharedAccess {
 }
 
 pub async fn fixture() -> Fixture {
-            let admitted_record = record(false);
-            let release = cached_release();
-            let bus = MemoryBus::new();
-            let broker = Broker::new();
-            let broker_task = broker.clone().spawn(bus.clone());
-            let host = Arc::new(ModuleHost::new(broker));
-            let connection = Connection::connect(bus.connect().await.expect("memory bus"))
-                .await
-                .expect("client connection");
-            let loaded = Arc::new(OnceCell::new());
-            let access = Arc::new(Access::new(
-                Arc::clone(&host),
-                connection.clone(),
-                Arc::clone(&loaded),
-                admitted_record,
-                release.clone(),
-                None,
-            ));
-            access
-                .ensure_loaded(admitted_record.id)
-                .await
-                .expect("the pinned cached test artifact should load without network access");
-            host.ensure_ready(admitted_record.bus_name)
-                .await
-                .expect("the pinned module should become ready");
-            let wrong_access = Access::new(host, connection, loaded, record(true), release, None);
-            Fixture {
-                wallet: WalletClient::new(tinybus::module::ModuleClient::new(SharedAccess(
-                    Arc::clone(&access),
-                ))),
-                wrong_pin_wallet: WalletClient::new(tinybus::module::ModuleClient::new(
-                    wrong_access,
-                )),
-                access,
-                broker_task,
-            }
+    let admitted_record = record(false);
+    let release = cached_release();
+    let bus = MemoryBus::new();
+    let broker = Broker::new();
+    let broker_task = broker.clone().spawn(bus.clone());
+    let host = Arc::new(ModuleHost::new(broker));
+    let connection = Connection::connect(bus.connect().await.expect("memory bus"))
+        .await
+        .expect("client connection");
+    let loaded = Arc::new(OnceCell::new());
+    let access = Arc::new(Access::new(
+        Arc::clone(&host),
+        connection.clone(),
+        Arc::clone(&loaded),
+        admitted_record,
+        release.clone(),
+        None,
+    ));
+    access
+        .ensure_loaded(admitted_record.id)
+        .await
+        .expect("the pinned cached test artifact should load without network access");
+    host.ensure_ready(admitted_record.bus_name)
+        .await
+        .expect("the pinned module should become ready");
+    let wrong_access = Access::new(host, connection, loaded, record(true), release, None);
+    Fixture {
+        wallet: WalletClient::new(tinybus::module::ModuleClient::new(SharedAccess(
+            Arc::clone(&access),
+        ))),
+        wrong_pin_wallet: WalletClient::new(tinybus::module::ModuleClient::new(wrong_access)),
+        access,
+        broker_task,
+    }
 }
 
 pub async fn unattested_fixture() -> Fixture {
-            let admitted_record = record(false);
-            let release = cached_release();
-            let bus = MemoryBus::new();
-            let broker = Broker::new();
-            let broker_task = broker.clone().spawn(bus.clone());
-            let host = Arc::new(ModuleHost::new(broker));
-            let connection = Connection::connect(bus.connect().await.expect("memory bus"))
-                .await
-                .expect("client connection");
-            let loaded = Arc::new(OnceCell::new());
-            let module_path = unattested_module_path();
-            let access = Arc::new(Access::new(
-                Arc::clone(&host),
-                connection.clone(),
-                Arc::clone(&loaded),
-                admitted_record,
-                release.clone(),
-                Some(module_path),
-            ));
-            access
-                .ensure_loaded(admitted_record.id)
-                .await
-                .expect("the local unattested module should load without network access");
-            host.ensure_ready(admitted_record.bus_name)
-                .await
-                .expect("the local module should become ready");
-            let wrong_access = Access::new(host, connection, loaded, record(true), release, None);
-            Fixture {
-                wallet: WalletClient::new(tinybus::module::ModuleClient::new(SharedAccess(
-                    Arc::clone(&access),
-                ))),
-                wrong_pin_wallet: WalletClient::new(tinybus::module::ModuleClient::new(
-                    wrong_access,
-                )),
-                access,
-                broker_task,
-            }
+    let admitted_record = record(false);
+    let release = cached_release();
+    let bus = MemoryBus::new();
+    let broker = Broker::new();
+    let broker_task = broker.clone().spawn(bus.clone());
+    let host = Arc::new(ModuleHost::new(broker));
+    let connection = Connection::connect(bus.connect().await.expect("memory bus"))
+        .await
+        .expect("client connection");
+    let loaded = Arc::new(OnceCell::new());
+    let module_path = unattested_module_path();
+    let access = Arc::new(Access::new(
+        Arc::clone(&host),
+        connection.clone(),
+        Arc::clone(&loaded),
+        admitted_record,
+        release.clone(),
+        Some(module_path),
+    ));
+    access
+        .ensure_loaded(admitted_record.id)
+        .await
+        .expect("the local unattested module should load without network access");
+    host.ensure_ready(admitted_record.bus_name)
+        .await
+        .expect("the local module should become ready");
+    let wrong_access = Access::new(host, connection, loaded, record(true), release, None);
+    Fixture {
+        wallet: WalletClient::new(tinybus::module::ModuleClient::new(SharedAccess(
+            Arc::clone(&access),
+        ))),
+        wrong_pin_wallet: WalletClient::new(tinybus::module::ModuleClient::new(wrong_access)),
+        access,
+        broker_task,
+    }
 }
 
 pub fn record(wrong_library_pin: bool) -> &'static ReleaseRecord {

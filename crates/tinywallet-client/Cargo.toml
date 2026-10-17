@@ -35,8 +35,8 @@ path = "tests/native_unattested.rs"
 required-features = ["native-e2e"]
 
 [[test]]
-name = "attested_errors_pending"
-path = "tests/attested_errors_pending.rs"
+name = "attested_errors"
+path = "tests/attested_errors.rs"
 required-features = ["native-e2e"]
 
 [lints]
