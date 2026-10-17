@@ -87,11 +87,19 @@ class ContractBoundaryTests(unittest.TestCase):
 
     def test_storage_bus_implementation_and_runtime_closure_is_rejected(self):
         for package in (
+            "tinybus",
+            "tinybus-client",
             "tinystoragedrivers-client",
             "tinystoragedrivers-core",
+            "tinystoragedrivers-busproxy",
+            "tinystoragedrivers-secrets",
             "tinystoragedrivers-sqlite",
             "tinystoragedrivers-mongodb",
             "tokio",
+            "tinywallet-crypto",
+            "tinywallet-x402",
+            "tinywallet-web3",
+            "tinywallet-module",
         ):
             with self.subTest(package=package):
                 graph = nested_metadata(

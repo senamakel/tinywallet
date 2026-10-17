@@ -47,9 +47,7 @@ Rules:
 - `Chain`, `Error` and `TronTransfer` live in crypto so the graph has no cycle.
   `TronTransfer` used to sit in `bus::wire`, but `tx::tron` needs it, so it moved
   down and `bus::wire::TronTransfer` re-exports it. Its JSON form is unchanged.
-- The x402 payment algorithms depend on crypto and never on web3. Its ledger
-  feature also depends on `tinywallet-bus` for the static storage-needs
-  declaration; it does not move ledger behavior into the bus.
+- x402 depends on crypto and never on the bus or web3.
 - The bus takes x402 with `default-features = false`, so it can enable only
   `eip712` and `abi`. It must never enable anything heavier, in particular the
   PR 2 `pay` feature.
