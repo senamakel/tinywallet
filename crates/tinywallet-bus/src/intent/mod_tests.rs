@@ -1,5 +1,7 @@
 //! Behavior tests for pure quote-to-intent comparisons.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::*;
 use crate::wire::{
     AuthorizeWeb3ExecutionRequest, EvmNetwork, NativeWalletExecutionIntent, PreparedKind,

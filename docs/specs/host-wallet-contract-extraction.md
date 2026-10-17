@@ -77,18 +77,22 @@ the quote-bound permit and decide whether execution is authorized.
 - Quote ID must match exactly, and operation must correspond exactly to quote
   kind: `swap`, `bridge`, or `dapp_call`.
 - EVM execution requires an EVM signing chain, a known network name and chain
-  ID pair, and agreement with a quote `network` string when present.
+  ID pair, and agreement with a quote `network` string when it is a string.
+  Missing, null, or non-string quote network values are treated as absent.
 - Dapp calls compare quote `contractAddress` case-insensitively, `calldata`
   byte-for-byte, and `valueRaw` byte-for-byte against the request.
 - Swaps and bridges compare `tx.to` case-insensitively, `tx.data` exactly, and
-  `tx.value` when represented as either a JSON string or number. Other JSON
-  types do not match.
+  `tx.value` when represented as either a JSON string or number. For `tx.data`,
+  absent or non-string quote data matches only an absent request data value;
+  other JSON types do not match a string request value. Other value JSON types
+  never match.
 - Solana execution matches only swap or bridge quotes and requires an exact
   match with `tx.data`.
 - Missing required quote fields, wrong signing chain, quote kind, operation,
-  network, recipient, calldata or value return `false`. Nonce and fee fields
-  are intentionally outside this quote-intent comparison, as in the existing
-  host implementation.
+  network, recipient, calldata or value return `false`; optional network and
+  swap/bridge data follow the absence rules above. Nonce and fee fields are
+  intentionally outside this quote-intent comparison, as in the existing host
+  implementation.
 
 ## Compatibility and regression coverage
 
