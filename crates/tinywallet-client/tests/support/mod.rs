@@ -181,7 +181,7 @@ impl ModuleAccess for SharedAccess {
 pub async fn fixture() -> &'static Fixture {
     FIXTURE
         .get_or_init(|| async {
-            let record = record(false);
+            let admitted_record = record(false);
             let release = cached_release();
             let bus = MemoryBus::new();
             let broker = Broker::new();
@@ -195,15 +195,15 @@ pub async fn fixture() -> &'static Fixture {
                 Arc::clone(&host),
                 connection.clone(),
                 Arc::clone(&loaded),
-                record,
+                admitted_record,
                 release.clone(),
                 None,
             ));
             access
-                .ensure_loaded(record.id)
+                .ensure_loaded(admitted_record.id)
                 .await
                 .expect("the pinned cached test artifact should load without network access");
-            host.ensure_ready(record.bus_name)
+            host.ensure_ready(admitted_record.bus_name)
                 .await
                 .expect("the pinned module should become ready");
             let wrong_access = Access::new(host, connection, loaded, record(true), release, None);
@@ -225,7 +225,7 @@ pub async fn unattested_fixture() -> &'static Fixture {
     static UNATTESTED: OnceCell<Fixture> = OnceCell::const_new();
     UNATTESTED
         .get_or_init(|| async {
-            let record = record(false);
+            let admitted_record = record(false);
             let release = cached_release();
             let bus = MemoryBus::new();
             let broker = Broker::new();
@@ -240,15 +240,15 @@ pub async fn unattested_fixture() -> &'static Fixture {
                 Arc::clone(&host),
                 connection.clone(),
                 Arc::clone(&loaded),
-                record,
+                admitted_record,
                 release.clone(),
                 Some(module_path),
             ));
             access
-                .ensure_loaded(record.id)
+                .ensure_loaded(admitted_record.id)
                 .await
                 .expect("the local unattested module should load without network access");
-            host.ensure_ready(record.bus_name)
+            host.ensure_ready(admitted_record.bus_name)
                 .await
                 .expect("the local module should become ready");
             let wrong_access = Access::new(host, connection, loaded, record(true), release, None);
