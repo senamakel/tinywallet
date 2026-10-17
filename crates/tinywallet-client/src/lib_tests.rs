@@ -262,6 +262,9 @@ async fn signing_and_export_wrappers_wipe_mnemonics_after_errors() {
 
 static STRICT_RECORD: std::sync::OnceLock<ReleaseRecord> = std::sync::OnceLock::new();
 
+// The dummy pin lets the strict call reach preparation. The fake access never
+// reports readiness or supplies a proxy, so no attestation succeeds and no
+// request can be serialized or delivered.
 fn strict_record() -> &'static ReleaseRecord {
     STRICT_RECORD.get_or_init(|| {
         let host_key = Box::leak(
