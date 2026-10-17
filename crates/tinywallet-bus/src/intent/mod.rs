@@ -95,7 +95,6 @@ pub fn native_intent_matches_quote(
                     _ => false,
                 }
             }
-            _ => false,
         },
         NativeWalletExecutionIntent::SolanaMessage { message_hex } => {
             quote.chain == WalletChain::Solana

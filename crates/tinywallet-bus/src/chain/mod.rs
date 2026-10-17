@@ -100,7 +100,6 @@ pub fn endpoint_key(
         Chain::Btc => Some(RpcEndpointKey::Btc),
         Chain::Solana => Some(RpcEndpointKey::Solana),
         Chain::Tron => Some(RpcEndpointKey::Tron),
-        _ => None,
     }
 }
 

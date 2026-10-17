@@ -2,13 +2,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::*;
+use crate::TronTransfer;
 use crate::wire::{
     AuthorizeWeb3ExecutionRequest, EvmNetwork, NativeWalletExecutionIntent, PreparedKind,
     PreparedStatus, PreparedTransaction, TransactionSpec, WalletChain, Web3ExecutionIntent,
     Web3QuoteKind, Web3QuoteResponse,
 };
-use crate::{Chain, TronTransfer};
 
 fn prepared_quote(
     quote_id: &str,
@@ -253,11 +252,12 @@ fn native_token_signing_intents_reject_malformed_hex_and_wrong_quote_kinds() {
     );
     let valid_tron = NativeWalletExecutionIntent::Transaction {
         transaction: TransactionSpec::Tron {
+            raw_data_hex: "00".into(),
             expected_to: "recipient".into(),
+            expected_txid: "txid".into(),
             transfer: TronTransfer::Trc20 {
                 parameter_hex: "deadbeef".into(),
             },
-            transaction: "node-built".into(),
         },
     };
     assert!(super::native_intent_matches_quote(&tron_quote, &valid_tron));
