@@ -23,7 +23,7 @@ def metadata(name, kind=None, source=boundary.REGISTRY):
     }
 
 
-def nested_metadata(root, middle, leaf, middle_source, leaf_source=None):
+def nested_metadata(root, middle, leaf, middle_source, leaf_source=boundary.REGISTRY):
     packages = [
         {"id": "root", "name": root},
         {"id": "middle", "name": middle, "source": middle_source},
