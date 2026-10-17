@@ -64,7 +64,22 @@ jobs:
       - id: validate
         env:
           REVIEWED_PR: ${{ inputs.reviewed_pr }}
-        run: bash scripts/validate-reviewed-epic-release.sh
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_REPOSITORY:-}" == "tinyhumansai/tinywallet" ]] || {
+            echo "reviewed releases run only in tinyhumansai/tinywallet" >&2
+            exit 2
+          }
+          [[ "${GITHUB_REF:-}" == "refs/heads/epic/8056-modules-wiring" ]] || {
+            echo "reviewed releases run only from epic/8056-modules-wiring" >&2
+            exit 2
+          }
+          [[ "${REVIEWED_PR:-}" =~ ^[1-9][0-9]*$ ]] || {
+            echo "reviewed_pr must be a positive integer" >&2
+            exit 2
+          }
+          printf 'reviewed_pr=%s\n' "$REVIEWED_PR" >> "$GITHUB_OUTPUT"
 
   module-reviewed-release:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'reviewed-epic'
