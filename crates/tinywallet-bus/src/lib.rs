@@ -47,7 +47,7 @@ pub use names::{
     BUS_NAME, CONFIDENTIAL_METHODS, HOST_INTERFACE, HOST_METHODS, HOST_OBJECT_PATH, METHODS,
     OBJECT_PATH,
 };
-pub use storage_needs::{storage_needs, X402_BUDGET_COLLECTION, X402_PAYMENTS_STREAM_PREFIX};
+pub use storage_needs::{X402_BUDGET_COLLECTION, X402_PAYMENTS_STREAM_PREFIX, storage_needs};
 pub use version::{CONTRACT_VERSION, is_compatible};
 
 #[cfg(test)]
