@@ -54,8 +54,9 @@ exclude = ["vendor/tinybus"]
 resolver = "3"
 
 [workspace.dependencies]
-# Typed host calls use TinyBus's published strict attestation API.
-tinybus = { version = "=0.1.8", git = "https://github.com/tinyhumansai/tinybus", rev = "3e693a2b262e811c7495bec16e7492ef77ae3e8e", default-features = false, features = ["modules"] }
+# Typed host calls use the published strict attestation API. The client needs
+# no loader or transport features; its host supplies those features.
+tinybus = { version = "=0.1.8", git = "https://github.com/tinyhumansai/tinybus", rev = "3e693a2b262e811c7495bec16e7492ef77ae3e8e", default-features = false }
 # The shared agent `Tool` trait, for the `tools` features of `tinywallet-x402`
 # and `tinywallet-web3`. A git source rather than a path on purpose, matching
 # tinymcp: a host that already links tinytools (OpenHuman, through
