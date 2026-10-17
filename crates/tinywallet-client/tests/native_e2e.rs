@@ -110,9 +110,10 @@ async fn all_six_confidential_wrappers_use_the_verified_unique_peer() {
         .derive_mnemonic_seed(support::VECTOR.to_string())
         .await
         .expect("DeriveMnemonicSeed returns its typed response");
-    assert_eq!(
-        hex(&seed.seed),
-        "5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d8d48b2d2ce9e38e4"
+    assert!(
+        hex(&seed.seed)
+            == "5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d8d48b2d2ce9e38e4",
+        "seed response must match the standard BIP-39 vector"
     );
     seed.seed.zeroize();
     assert_same_peer(&unique_peer).await;
