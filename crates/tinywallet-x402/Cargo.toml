@@ -21,7 +21,7 @@ publish = false
 # ask for; `abi` enables the two it needs.
 tinywallet-crypto = { path = "../tinywallet-crypto", default-features = false, optional = true }
 # Static prompt-facing tool declaration, enabled only with the tool adapter.
-tinywallet-bus = { path = "../tinywallet-bus", default-features = false, features = ["wire"], optional = true }
+tinywallet-bus = { path = "../tinywallet-bus", default-features = false, optional = true }
 # Derive macros for the `eip712::Error` and `abi::Error` types.
 thiserror = { version = "2", optional = true }
 # Keccak-256, the hash EIP-712 struct hashes and the ERC-20 selector are
@@ -106,7 +106,7 @@ eip712 = ["dep:sha3", "dep:thiserror"]
 abi = ["eip712", "dep:tinywallet-crypto", "tinywallet-crypto/evm", "tinywallet-crypto/keccak"]
 # The rail-neutral spending ledger: records, budgets, the JSONL file, and the
 # process-wide handle.
-ledger = ["dep:serde", "dep:serde_json", "dep:chrono", "dep:log", "dep:tinystoragedrivers-core", "dep:tokio"]
+ledger = ["dep:serde", "dep:serde_json", "dep:chrono", "dep:log", "dep:tinywallet-bus", "dep:tinystoragedrivers-core", "dep:tokio"]
 # Paying a 402 challenge: header codec, the client, and the EVM and Solana
 # payment builders behind the `PaymentSigner` seam. Solana reads the recent
 # blockhash through `tinywallet_crypto::rpc::Transport`.
@@ -125,7 +125,7 @@ pay = [
     "dep:sha2",
 ]
 # The `x402_request` agent tool.
-tools = ["pay", "dep:tinywallet-bus", "dep:tinytools", "dep:anyhow", "dep:uuid"]
+tools = ["pay", "tinywallet-bus/wire", "dep:tinytools", "dep:anyhow", "dep:uuid"]
 
 [lints]
 workspace = true

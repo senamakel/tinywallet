@@ -1,9 +1,11 @@
 # tinywallet-bus
 
 The minimal TinyBus contract for TinyWallet: names, version, shared chain
-identifiers, error vocabulary, transfer types and request/result DTOs. Normal
-and build dependencies are limited to serde, serde_json and thiserror plus their approved
-serialization and derive closure. No feature links crypto, x402, web3, transport or native libraries.
+identifiers, error vocabulary, transfer types, request/result DTOs, and the
+x402 ledger's data-only storage declaration. Normal and build dependencies
+are limited to serde, serde_json, thiserror, and the feature-disabled
+`tinystoragedrivers-bus` contract. No feature links crypto, x402, web3, a
+storage client, transport, or native libraries.
 
 Network enums in the bus are identifiers only. RPC endpoints, explorer URLs,
 Solana mint addresses, and display labels remain implementation-owned reference
@@ -76,3 +78,8 @@ Contract 1.12 adds optional `additional_secrets` to confidential
 `X402PreparePayment`. When omitted or empty, the request keeps its prior JSON
 shape. The module parses the challenge, selects the payment chain, and uses
 only the matching confidential secret; hosts do not parse payment challenges.
+
+The bus exposes `storage_needs()` for the x402 ledger's host-facing storage
+declaration. It uses the canonical `tinystoragedrivers-bus` type and requests
+only the `x402_budget` collection and `x402.payments` stream prefix. The ledger's
+persistence constants alias these shared names.

@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use chrono::{DateTime, Duration, TimeZone, Utc};
 
 use super::faulty::{append_raw, faulty_storage};
-use super::persist::{BUDGET_COLLECTION, HOLDS_ID, HoldsDoc, Persist};
+use super::persist::{BUDGET_COLLECTION, HOLDS_ID, HoldsDoc, PAYMENTS_STREAM, Persist};
 use super::*;
 use tinystoragedrivers_core::{Blocking, Version};
 
@@ -25,6 +25,20 @@ fn budget() -> SpendingBudget {
 
 fn now() -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 3, 15, 12, 0, 0).unwrap()
+}
+
+#[test]
+fn persistence_resource_names_match_the_bus_storage_declaration() {
+    let needs = tinywallet_bus::storage_needs();
+
+    assert_eq!(needs.collections.len(), 1);
+    assert_eq!(needs.collections[0].name, BUDGET_COLLECTION);
+    assert!(needs.collections[0].indexes.is_empty());
+    assert_eq!(needs.collections[0].ttl_field, None);
+    assert_eq!(needs.collections[0].search, None);
+    assert_eq!(needs.stream_prefixes, [PAYMENTS_STREAM]);
+    assert!(needs.blob_prefixes.is_empty());
+    assert!(needs.secret_prefixes.is_empty());
 }
 
 fn record(

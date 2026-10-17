@@ -23,9 +23,9 @@ const LOG_PREFIX: &str = "[x402::persist]";
 
 /// Append-only stream of payment records. A payment that changes status is
 /// appended again with the same id; readers fold to the latest per id.
-pub(super) const PAYMENTS_STREAM: &str = "x402.payments";
+pub(super) const PAYMENTS_STREAM: &str = tinywallet_bus::X402_PAYMENTS_STREAM_PREFIX;
 /// Collection holding the single budget-hold document.
-pub(super) const BUDGET_COLLECTION: &str = "x402_budget";
+pub(super) const BUDGET_COLLECTION: &str = tinywallet_bus::X402_BUDGET_COLLECTION;
 /// Id of the budget-hold document.
 pub(super) const HOLDS_ID: &str = "holds";
 /// How long a hold survives without being released or committed. A process that
