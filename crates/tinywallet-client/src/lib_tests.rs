@@ -207,6 +207,45 @@ fn take_observed_mnemonic_wipes() -> Vec<(&'static str, bool)> {
     )
 }
 
+struct WipeObserved(Arc<AtomicBool>);
+
+impl ZeroizeMnemonic for WipeObserved {
+    fn zeroize_mnemonic(&mut self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+}
+
+fn complete_with_guard(result: Result<(), ()>, wiped: Arc<AtomicBool>) -> Result<(), ()> {
+    let _request = MnemonicRequestGuard(WipeObserved(wiped));
+    result
+}
+
+#[test]
+fn mnemonic_request_guard_wipes_after_success_and_error() {
+    for result in [Ok(()), Err(())] {
+        let wiped = Arc::new(AtomicBool::new(false));
+        let outcome = complete_with_guard(result, wiped.clone());
+        assert_eq!(outcome, result);
+        assert!(wiped.load(Ordering::SeqCst));
+    }
+}
+
+#[tokio::test]
+async fn mnemonic_request_guard_wipes_when_the_waiting_call_is_cancelled() {
+    let wiped = Arc::new(AtomicBool::new(false));
+    let task_wiped = wiped.clone();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let task = tokio::spawn(async move {
+        let _request = MnemonicRequestGuard(WipeObserved(task_wiped));
+        let _ = started_tx.send(());
+        std::future::pending::<()>().await;
+    });
+    assert!(started_rx.await.is_ok());
+    task.abort();
+    let _ = task.await;
+    assert!(wiped.load(Ordering::SeqCst));
+}
+
 fn secret_material() -> SecretMaterial {
     SecretMaterial {
         mnemonic: "sensitive phrase".to_string(),
