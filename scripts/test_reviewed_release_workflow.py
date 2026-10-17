@@ -41,7 +41,7 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
         self.assertNotIn("module-reviewed-epic-preflight@", self.workflow)
         self.assertNotIn("f4602aaa4a6f163973ec38e29f8b5bbc6ff4db51", self.workflow)
         self.assertIn(
-            "reviewed-pr: ${{ fromJSON(needs.validate-reviewed-dispatch.outputs.reviewed_pr) }}",
+            "reviewed-pr: ${{ fromJSON(needs.validate-reviewed-dispatch.outputs.reviewed_pr || '0') }}",
             self.workflow,
         )
         self.assertIn("tag: ${{ needs.resolve.outputs.tag }}", self.workflow)
