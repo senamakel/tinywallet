@@ -65,7 +65,7 @@ fn endpoint_keys_cover_known_chains_and_reject_unknown_evm_ids() {
     for network in EvmNetwork::ALL {
         assert_eq!(
             super::endpoint_key(Chain::Evm, Some(network.chain_id())),
-            Some(RpcEndpointKey::Evm { network: *network })
+            Some(RpcEndpointKey::Evm { network })
         );
     }
     assert_eq!(super::endpoint_key(Chain::Evm, None), None);
