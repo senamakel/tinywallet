@@ -69,10 +69,7 @@ fn endpoint_keys_cover_known_chains_and_reject_unknown_evm_ids() {
         );
     }
     assert_eq!(super::endpoint_key(Chain::Evm, None), None);
-    assert_eq!(
-        super::endpoint_key(Chain::Evm, Some(u64::MAX)),
-        None
-    );
+    assert_eq!(super::endpoint_key(Chain::Evm, Some(u64::MAX)), None);
     assert_eq!(
         super::endpoint_key(Chain::Btc, Some(u64::MAX)),
         Some(RpcEndpointKey::Btc)

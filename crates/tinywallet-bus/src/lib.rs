@@ -21,6 +21,8 @@
 //! The `serde` feature derives wire serialization; `wire` enables call DTOs.
 //! Legacy feature names remain accepted but never enable implementation code.
 
+#[cfg(feature = "wire")]
+pub mod intent;
 pub mod mnemonic;
 pub mod names;
 #[cfg(feature = "wire")]

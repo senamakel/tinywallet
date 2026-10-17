@@ -125,7 +125,12 @@ fn native_evm_transfer_uses_the_quoted_network_and_empty_calldata() {
     default_network.evm_network = None;
     assert!(super::native_intent_matches_quote(
         &default_network,
-        &evm_intent("recipient", "42", "", EvmNetwork::EthereumMainnet.chain_id())
+        &evm_intent(
+            "recipient",
+            "42",
+            "",
+            EvmNetwork::EthereumMainnet.chain_id()
+        )
     ));
 }
 
@@ -167,7 +172,8 @@ fn native_evm_token_transfer_checks_contract_selector_recipient_and_uint256_amou
         )
     ));
 
-    quote.amount_raw = "115792089237316195423570985008687907853269984665640564039457584007913129639936".into();
+    quote.amount_raw =
+        "115792089237316195423570985008687907853269984665640564039457584007913129639936".into();
     assert!(!super::native_intent_matches_quote(
         &quote,
         &evm_intent(contract, "0", &erc20_transfer_data(recipient, 42), 1)
@@ -210,17 +216,22 @@ fn native_solana_and_tron_transfers_match_chain_specific_amounts() {
     );
     let tron_intent = NativeWalletExecutionIntent::Transaction {
         transaction: TransactionSpec::Tron {
+            raw_data_hex: "00".into(),
             expected_to: "recipient".into(),
+            expected_txid: "txid".into(),
             transfer: TronTransfer::Native { amount_sun: 25 },
-            transaction: "node-built".into(),
         },
     };
-    assert!(super::native_intent_matches_quote(&tron_quote, &tron_intent));
+    assert!(super::native_intent_matches_quote(
+        &tron_quote,
+        &tron_intent
+    ));
     let wrong_amount = NativeWalletExecutionIntent::Transaction {
         transaction: TransactionSpec::Tron {
+            raw_data_hex: "00".into(),
             expected_to: "recipient".into(),
+            expected_txid: "txid".into(),
             transfer: TronTransfer::Native { amount_sun: 26 },
-            transaction: "node-built".into(),
         },
     };
     assert!(!super::native_intent_matches_quote(
@@ -247,24 +258,19 @@ fn native_token_signing_intents_reject_malformed_hex_and_wrong_quote_kinds() {
             transaction: "node-built".into(),
         },
     };
-    assert!(super::native_intent_matches_quote(
-        &tron_quote,
-        &valid_tron
-    ));
+    assert!(super::native_intent_matches_quote(&tron_quote, &valid_tron));
     for parameter_hex in ["", "abc", "0xgg"] {
         let malformed = NativeWalletExecutionIntent::Transaction {
             transaction: TransactionSpec::Tron {
+                raw_data_hex: "00".into(),
                 expected_to: "recipient".into(),
+                expected_txid: "txid".into(),
                 transfer: TronTransfer::Trc20 {
                     parameter_hex: parameter_hex.into(),
                 },
-                transaction: "node-built".into(),
             },
         };
-        assert!(!super::native_intent_matches_quote(
-            &tron_quote,
-            &malformed
-        ));
+        assert!(!super::native_intent_matches_quote(&tron_quote, &malformed));
     }
 
     let solana_token_quote = prepared_quote(
@@ -303,7 +309,11 @@ fn native_token_signing_intents_reject_malformed_hex_and_wrong_quote_kinds() {
     ));
 }
 
-fn web3_quote(kind: Web3QuoteKind, signing_chain: WalletChain, quote: serde_json::Value) -> Web3QuoteResponse {
+fn web3_quote(
+    kind: Web3QuoteKind,
+    signing_chain: WalletChain,
+    quote: serde_json::Value,
+) -> Web3QuoteResponse {
     Web3QuoteResponse {
         quote_id: "quote-1".into(),
         kind,
@@ -325,7 +335,13 @@ fn web3_request(
     }
 }
 
-fn web3_evm(network: &str, to: &str, data: Option<&str>, value: &str, chain_id: u64) -> Web3ExecutionIntent {
+fn web3_evm(
+    network: &str,
+    to: &str,
+    data: Option<&str>,
+    value: &str,
+    chain_id: u64,
+) -> Web3ExecutionIntent {
     Web3ExecutionIntent::Evm {
         network: network.into(),
         to: to.into(),
@@ -356,21 +372,79 @@ fn web3_dapp_call_matches_only_the_same_quote_operation_and_exact_call_facts() {
         &web3_request(
             "quote-1",
             "dapp_call",
-            web3_evm("polygon_mainnet", &address.to_ascii_uppercase().replacen("0X", "0x", 1), Some("0xabcd"), "5", 137),
+            web3_evm(
+                "polygon_mainnet",
+                &address.to_ascii_uppercase().replacen("0X", "0x", 1),
+                Some("0xabcd"),
+                "5",
+                137
+            ),
         )
     ));
 
     for (quote_id, operation, network, to, data, value, chain_id) in [
-        ("other-quote", "dapp_call", "polygon_mainnet", address, Some("0xabcd"), "5", 137),
-        ("quote-1", "swap", "polygon_mainnet", address, Some("0xabcd"), "5", 137),
-        ("quote-1", "dapp_call", "polygon_mainnet", address, Some("0xabce"), "5", 137),
-        ("quote-1", "dapp_call", "polygon_mainnet", address, Some("0xabcd"), "6", 137),
-        ("quote-1", "dapp_call", "ethereum_mainnet", address, Some("0xabcd"), "5", 137),
-        ("quote-1", "dapp_call", "polygon_mainnet", address, Some("0xabcd"), "5", 1),
+        (
+            "other-quote",
+            "dapp_call",
+            "polygon_mainnet",
+            address,
+            Some("0xabcd"),
+            "5",
+            137,
+        ),
+        (
+            "quote-1",
+            "swap",
+            "polygon_mainnet",
+            address,
+            Some("0xabcd"),
+            "5",
+            137,
+        ),
+        (
+            "quote-1",
+            "dapp_call",
+            "polygon_mainnet",
+            address,
+            Some("0xabce"),
+            "5",
+            137,
+        ),
+        (
+            "quote-1",
+            "dapp_call",
+            "polygon_mainnet",
+            address,
+            Some("0xabcd"),
+            "6",
+            137,
+        ),
+        (
+            "quote-1",
+            "dapp_call",
+            "ethereum_mainnet",
+            address,
+            Some("0xabcd"),
+            "5",
+            137,
+        ),
+        (
+            "quote-1",
+            "dapp_call",
+            "polygon_mainnet",
+            address,
+            Some("0xabcd"),
+            "5",
+            1,
+        ),
     ] {
         assert!(!super::web3_approval_matches_request(
             &quote,
-            &web3_request(quote_id, operation, web3_evm(network, to, data, value, chain_id))
+            &web3_request(
+                quote_id,
+                operation,
+                web3_evm(network, to, data, value, chain_id)
+            )
         ));
     }
 
@@ -409,7 +483,11 @@ fn web3_swap_and_bridge_compare_transaction_data_and_string_or_number_value() {
                 }
             }),
         );
-        let operation = if kind == Web3QuoteKind::Swap { "swap" } else { "bridge" };
+        let operation = if kind == Web3QuoteKind::Swap {
+            "swap"
+        } else {
+            "bridge"
+        };
         assert!(super::web3_approval_matches_request(
             &quote,
             &web3_request(
@@ -429,7 +507,13 @@ fn web3_swap_and_bridge_compare_transaction_data_and_string_or_number_value() {
             &web3_request(
                 "quote-1",
                 operation,
-                web3_evm("polygon_mainnet", "0x1111111111111111111111111111111111111111", Some("0x0103"), "5", 137),
+                web3_evm(
+                    "polygon_mainnet",
+                    "0x1111111111111111111111111111111111111111",
+                    Some("0x0103"),
+                    "5",
+                    137
+                ),
             )
         ));
     }
