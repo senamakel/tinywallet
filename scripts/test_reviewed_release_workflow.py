@@ -92,8 +92,35 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
         ).strip()
         self.assertEqual(commit, TINYBUS_REV)
 
-    def run_validator(self, repository, ref, reviewed_pr):
+    def validation_run_block(self):
+        lines = self.workflow.splitlines()
+        start = lines.index("  validate-reviewed-dispatch:") + 1
+        end = next(
+            index
+            for index in range(start, len(lines))
+            if lines[index].startswith("  ")
+            and not lines[index].startswith("    ")
+            and lines[index].endswith(":")
+        )
+        for index in range(start, end):
+            line = lines[index]
+            if not line.startswith("        run:"):
+                continue
+            command = line[len("        run:"):].strip()
+            if command != "|":
+                return command
+            body = []
+            for body_line in lines[index + 1:end]:
+                if body_line.strip() and not body_line.startswith("          "):
+                    break
+                body.append(body_line[10:] if body_line.startswith("          ") else "")
+            return "\n".join(body)
+        raise AssertionError("reviewed-dispatch job has no run block")
+
+    def run_validation_block(self, repository, ref, reviewed_pr):
         with tempfile.TemporaryDirectory(prefix="reviewed-release-test-") as directory:
+            empty_cwd = Path(directory) / "empty-cwd"
+            empty_cwd.mkdir()
             output = Path(directory) / "output"
             output.write_text("")
             environment = dict(
@@ -104,12 +131,16 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
                 GITHUB_OUTPUT=str(output),
             )
             result = subprocess.run(
-                ["bash", str(VALIDATOR)], capture_output=True, text=True, env=environment
+                ["bash", "-c", self.validation_run_block()],
+                cwd=empty_cwd,
+                capture_output=True,
+                text=True,
+                env=environment,
             )
             return result, output.read_text()
 
     def test_dispatch_gate_accepts_only_positive_integer_on_canonical_epic_branch(self):
-        result, output = self.run_validator(
+        result, output = self.run_validation_block(
             "tinyhumansai/tinywallet", "refs/heads/epic/8056-modules-wiring", "123"
         )
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -125,7 +156,7 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
             ("tinyhumansai/tinywallet", "refs/heads/epic/8056-modules-wiring", "123;echo bad"),
         ):
             with self.subTest(repository=repository, ref=ref, reviewed_pr=reviewed_pr):
-                result, output = self.run_validator(repository, ref, reviewed_pr)
+                result, output = self.run_validation_block(repository, ref, reviewed_pr)
                 self.assertEqual(result.returncode, 2)
                 self.assertEqual(output, "")
 
