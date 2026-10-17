@@ -118,7 +118,9 @@ impl ModuleAccess for Access {
                     };
                     loaded
                         .map(|_| ())
-                        .map_err(|_| "the local test module could not be admitted".to_string())
+                        .map_err(|error| {
+                            format!("the local test module could not be admitted: {error}")
+                        })
                 })
                 .await
                 .map(|_| ())
