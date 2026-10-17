@@ -112,7 +112,9 @@ fn confidential_wire_requests_keep_their_distinct_wrapper_shapes() {
         derivation_path: "m/44'/60'/0'/0/0".to_string(),
         chain: tinywallet_bus::Chain::Evm,
     };
-    let bare = serde_json::to_value(&secret).unwrap();
+    let bare = serde_json::to_value(&secret);
+    assert!(bare.is_ok(), "the secret wire type must serialize");
+    let bare = bare.unwrap_or(serde_json::Value::Null);
     assert!(serde_json::from_value::<ExportRequest>(bare).is_err());
 
     let signing = serde_json::to_value(SignRequest {
@@ -126,8 +128,9 @@ fn confidential_wire_requests_keep_their_distinct_wrapper_shapes() {
             gas_price_wei: "1".to_string(),
             chain_id: 1,
         },
-    })
-    .unwrap();
+    });
+    assert!(signing.is_ok(), "the sign request wire type must serialize");
+    let signing = signing.unwrap_or(serde_json::Value::Null);
     assert!(serde_json::from_value::<SignMessageRequest>(signing).is_err());
 }
 
