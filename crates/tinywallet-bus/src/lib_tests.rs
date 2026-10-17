@@ -120,7 +120,7 @@ fn the_contract_accepts_its_own_version_and_newer_minors() {
 
 #[test]
 fn storage_needs_publish_only_the_x402_ledger_resources() {
-    let needs: tinystoragedrivers_bus::StorageNeeds<'static> = super::storage_needs();
+    let needs = super::storage_needs();
 
     assert_eq!(needs.collections.len(), 1);
     let collection = &needs.collections[0];
