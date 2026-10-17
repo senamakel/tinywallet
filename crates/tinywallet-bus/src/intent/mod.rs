@@ -5,6 +5,8 @@
 //! wallet implementation.
 
 use crate::TronTransfer;
+
+const HEX: &[u8; 16] = b"0123456789abcdef";
 use crate::wire::{
     AuthorizeWeb3ExecutionRequest, NativeWalletExecutionIntent, PreparedKind, PreparedTransaction,
     TransactionSpec, WalletChain, Web3ExecutionIntent, Web3QuoteKind, Web3QuoteResponse,
@@ -243,7 +245,6 @@ fn decimal_u256_word(decimal: &str) -> Option<String> {
             return None;
         }
     }
-    const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut word = String::with_capacity(64);
     for byte in bytes {
         word.push(char::from(HEX[usize::from(byte >> 4)]));
