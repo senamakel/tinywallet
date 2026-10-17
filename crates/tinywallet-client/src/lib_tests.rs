@@ -299,40 +299,40 @@ async fn signing_and_export_wrappers_wipe_mnemonics_after_errors() {
     );
 }
 
-static STRICT_RECORD: std::sync::OnceLock<ReleaseRecord> = std::sync::OnceLock::new();
+static STRICT_RECORD: std::sync::OnceLock<Option<ReleaseRecord>> = std::sync::OnceLock::new();
 
 // The dummy pin lets the strict call reach preparation. The fake access never
 // reports readiness or supplies a proxy, so no attestation succeeds and no
 // request can be serialized or delivered.
-fn strict_record() -> &'static ReleaseRecord {
-    STRICT_RECORD.get_or_init(|| {
-        let host_key = Box::leak(
-            tinybus::module::platform::host_candidates()
+fn strict_record() -> Option<&'static ReleaseRecord> {
+    STRICT_RECORD
+        .get_or_init(|| {
+            let host_key = tinybus::module::platform::host_candidates()
                 .into_iter()
-                .next()
-                .expect("the supported test host has a module platform key")
-                .into_boxed_str(),
-        );
-        let archive_sha256 = Box::leak("a".repeat(64).into_boxed_str());
-        let library_sha256 = Box::leak("b".repeat(64).into_boxed_str());
-        let assets = Box::leak(
-            vec![ReleaseAsset {
-                host_key,
-                archive: "fixture.tar.gz",
-                sha256: archive_sha256,
-                library_sha256: Some(library_sha256),
-            }]
-            .into_boxed_slice(),
-        );
-        ReleaseRecord {
-            id: "tinywallet",
-            bus_name: tinywallet_bus::BUS_NAME,
-            object_path: tinywallet_bus::OBJECT_PATH,
-            version: "0.25.0",
-            release_url: "https://example.invalid/tinywallet",
-            assets,
-        }
-    })
+                .next()?
+                .into_boxed_str();
+            let host_key = Box::leak(host_key);
+            let archive_sha256 = Box::leak("a".repeat(64).into_boxed_str());
+            let library_sha256 = Box::leak("b".repeat(64).into_boxed_str());
+            let assets = Box::leak(
+                vec![ReleaseAsset {
+                    host_key,
+                    archive: "fixture.tar.gz",
+                    sha256: archive_sha256,
+                    library_sha256: Some(library_sha256),
+                }]
+                .into_boxed_slice(),
+            );
+            Some(ReleaseRecord {
+                id: "tinywallet",
+                bus_name: tinywallet_bus::BUS_NAME,
+                object_path: tinywallet_bus::OBJECT_PATH,
+                version: "0.25.0",
+                release_url: "https://example.invalid/tinywallet",
+                assets,
+            })
+        })
+        .as_ref()
 }
 
 struct PendingModules {
@@ -342,7 +342,11 @@ struct PendingModules {
 
 impl ModuleAccess for PendingModules {
     fn find(&self, id: &str) -> Option<&'static ReleaseRecord> {
-        (id == "tinywallet").then_some(strict_record())
+        if id == "tinywallet" {
+            strict_record()
+        } else {
+            None
+        }
     }
 
     fn enabled(&self) -> bool {
@@ -383,6 +387,10 @@ fn pending_client(started: Arc<tokio::sync::Notify>) -> WalletClient {
 
 #[tokio::test]
 async fn signing_and_export_wrappers_wipe_mnemonics_when_cancelled() {
+    // Unsupported hosts have no published module platform candidate to pin.
+    if strict_record().is_none() {
+        return;
+    }
     let _observer_lock = OBSERVER_TEST_LOCK.lock().await;
     let _ = take_observed_mnemonic_wipes();
 
