@@ -24,9 +24,6 @@ default = []
 # Exercises a locally built cdylib through the hash-verified TinyBus cache.
 # scripts/test-e2e.sh stages the required archive and distinct library pin.
 native-e2e = []
-# Deliberately pending the separately owned detailed-attested TinyBus API.
-pending-attested-errors = []
-
 [[test]]
 name = "native_e2e"
 path = "tests/native_e2e.rs"
@@ -40,7 +37,7 @@ required-features = ["native-e2e"]
 [[test]]
 name = "attested_errors_pending"
 path = "tests/attested_errors_pending.rs"
-required-features = ["native-e2e", "pending-attested-errors"]
+required-features = ["native-e2e"]
 
 [lints]
 workspace = true
