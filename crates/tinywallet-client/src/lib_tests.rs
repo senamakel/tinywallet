@@ -105,6 +105,32 @@ fn public_wallet_members_remain_ordinary_calls() {
     }
 }
 
+#[test]
+fn confidential_wire_requests_keep_their_distinct_wrapper_shapes() {
+    let secret = SecretMaterial {
+        mnemonic: "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about".to_string(),
+        derivation_path: "m/44'/60'/0'/0/0".to_string(),
+        chain: tinywallet_bus::Chain::Evm,
+    };
+    let bare = serde_json::to_value(&secret).unwrap();
+    assert!(serde_json::from_value::<ExportRequest>(bare).is_err());
+
+    let signing = serde_json::to_value(SignRequest {
+        secret: secret.clone(),
+        transaction: TransactionSpec::Evm {
+            to: format!("0x{}", "11".repeat(20)),
+            value_wei: "1".to_string(),
+            data_hex: "0x".to_string(),
+            nonce: 0,
+            gas_limit: 21_000,
+            gas_price_wei: "1".to_string(),
+            chain_id: 1,
+        },
+    })
+    .unwrap();
+    assert!(serde_json::from_value::<SignMessageRequest>(signing).is_err());
+}
+
 #[tokio::test]
 async fn ordinary_call_refuses_confidential_member_before_serializing_request() {
     let serialized = Arc::new(AtomicBool::new(false));

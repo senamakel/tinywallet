@@ -10,8 +10,10 @@ use std::fmt;
 
 use serde::{Serialize, de::DeserializeOwned};
 use tinybus::module::{ModuleCallError, ModuleCallFailure, ModuleClient};
-use tinywallet_bus::names::{CONFIDENTIAL_METHODS, methods};
-use tinywallet_bus::wire::{
+pub use tinywallet_bus::Chain;
+use tinywallet_bus::names::CONFIDENTIAL_METHODS;
+pub use tinywallet_bus::names::methods;
+pub use tinywallet_bus::wire::{
     DeriveMnemonicSeedRequest, DeriveMnemonicSeedResponse, DerivedAccount,
     EncodeErc20TransferRequest, EncodeErc20TransferResponse, ExportRequest, ExportedKey,
     GenerateMnemonicRequest, GenerateMnemonicResponse, Scheme, SecretMaterial, SignMessageRequest,
@@ -167,14 +169,14 @@ impl WalletClient {
     pub async fn sign_message(
         &self,
         secret: SecretMaterial,
-        message_hex: String,
+        message: &[u8],
         scheme: Scheme,
     ) -> Result<Signature, ClientError> {
         self.call_attested(
             methods::SIGN_MESSAGE,
             SignMessageRequest {
                 secret,
-                message_hex,
+                message_hex: hex(message),
                 scheme,
             },
         )
@@ -236,20 +238,32 @@ impl WalletClient {
         &self,
         to_address: String,
         amount_raw: String,
-    ) -> Result<EncodeErc20TransferResponse, ClientError> {
-        self.call(
-            methods::ENCODE_ERC20_TRANSFER,
-            EncodeErc20TransferRequest {
-                to_address,
-                amount_raw,
-            },
-        )
-        .await
+    ) -> Result<String, ClientError> {
+        let response: EncodeErc20TransferResponse = self
+            .call(
+                methods::ENCODE_ERC20_TRANSFER,
+                EncodeErc20TransferRequest {
+                    to_address,
+                    amount_raw,
+                },
+            )
+            .await?;
+        Ok(response.calldata)
     }
 }
 
 fn is_confidential(member: &str) -> bool {
     CONFIDENTIAL_METHODS.contains(&member)
+}
+
+fn hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
+        encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    encoded
 }
 
 #[cfg(test)]
