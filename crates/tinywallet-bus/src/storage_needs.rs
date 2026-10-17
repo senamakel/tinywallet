@@ -2,7 +2,7 @@
 
 use std::sync::LazyLock;
 
-use tinystoragedrivers_bus::{CollectionSpec, StorageNeeds};
+use tinystoragedrivers_bus_contract::{CollectionSpec, StorageNeeds};
 
 /// The collection containing the x402 budget-hold document.
 pub const X402_BUDGET_COLLECTION: &str = "x402_budget";
