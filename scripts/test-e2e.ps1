@@ -35,3 +35,40 @@ cargo test --locked --release --package tinywallet-module --test module_e2e -- -
 if ($LASTEXITCODE -ne 0) { throw 'TinyWallet module E2E failed' }
 cargo test --locked --release --package tinywallet-module --test lifecycle_e2e -- --ignored
 if ($LASTEXITCODE -ne 0) { throw 'TinyWallet lifecycle E2E failed' }
+
+# Build a local archive/cache from the same release cdylib. The Rust client
+# fixture uses CachedRelease with downloads disabled and verifies both hashes.
+$clientCache = Join-Path $target 'tinywallet-client-e2e-cache'
+$unattestedDir = Join-Path $target 'tinywallet-client-unattested'
+$archiveName = 'tinywallet-module-client-test.tar.gz'
+$archivePath = Join-Path $target $archiveName
+Remove-Item -LiteralPath $clientCache, $unattestedDir, $archivePath -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force $clientCache, $unattestedDir | Out-Null
+foreach ($privateDir in @($clientCache, $unattestedDir)) {
+    icacls $privateDir /reset | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "could not reset module test directory permissions: $privateDir" }
+    icacls $privateDir /inheritance:r /grant:r $runnerSid $adminSid $systemSid | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "could not restrict module test directory permissions: $privateDir" }
+    icacls $privateDir /setowner $identity.Name | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "could not set module test directory owner: $privateDir" }
+}
+$library = Join-Path $clientCache 'tinywallet_module.dll'
+Copy-Item -LiteralPath (Join-Path $stage 'tinywallet_module.dll') -Destination $library
+Copy-Item -LiteralPath (Join-Path $stage 'modules.toml') -Destination (Join-Path $clientCache 'modules.toml')
+& tar.exe -czf $archivePath -C $clientCache .
+if ($LASTEXITCODE -ne 0) { throw 'Could not archive the local TinyWallet test module' }
+Copy-Item -LiteralPath $archivePath -Destination (Join-Path $clientCache $archiveName)
+$archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+$libraryHash = (Get-FileHash -LiteralPath $library -Algorithm SHA256).Hash.ToLowerInvariant()
+$unattestedModule = Join-Path $unattestedDir 'tinywallet_module.dll'
+Copy-Item -LiteralPath (Join-Path $stage 'tinywallet_module.dll') -Destination $unattestedModule
+
+$env:TINYWALLET_CLIENT_TEST_CACHE = $clientCache
+$env:TINYWALLET_CLIENT_TEST_ARCHIVE_NAME = $archiveName
+$env:TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256 = $archiveHash
+$env:TINYWALLET_CLIENT_TEST_LIBRARY_SHA256 = $libraryHash
+cargo test --locked --release --package tinywallet-client --features native-e2e --test native_e2e -- --test-threads=1
+if ($LASTEXITCODE -ne 0) { throw 'TinyWallet typed client attested E2E failed' }
+$env:TINYWALLET_CLIENT_UNATTESTED_MODULE = $unattestedModule
+cargo test --locked --release --package tinywallet-client --features native-e2e --test native_unattested -- --test-threads=1
+if ($LASTEXITCODE -ne 0) { throw 'TinyWallet typed client unattested E2E failed' }

@@ -138,7 +138,8 @@ impl WalletClient {
         secret: SecretMaterial,
     ) -> Result<DerivedAccount, ClientError> {
         let request = MnemonicRequestGuard(secret);
-        self.call_attested(methods::DERIVE_ACCOUNT, &request.0).await
+        self.call_attested(methods::DERIVE_ACCOUNT, &request.0)
+            .await
     }
 
     /// Sign a transaction inside the attested wallet module.
@@ -224,11 +225,8 @@ impl WalletClient {
         mnemonic: String,
     ) -> Result<DeriveMnemonicSeedResponse, ClientError> {
         let request = MnemonicRequestGuard(DeriveMnemonicSeedRequest { mnemonic });
-        self.call_attested(
-            methods::DERIVE_MNEMONIC_SEED,
-            &request.0,
-        )
-        .await
+        self.call_attested(methods::DERIVE_MNEMONIC_SEED, &request.0)
+            .await
     }
 
     /// Encode ERC-20 transfer calldata with the module-owned ABI implementation.

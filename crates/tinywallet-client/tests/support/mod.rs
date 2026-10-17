@@ -13,7 +13,7 @@ use tinybus::module::{
 };
 use tinybus::transport::memory::MemoryBus;
 use tinybus::{Connection, Proxy};
-use tinywallet_client::{WalletClient, methods};
+use tinywallet_client::WalletClient;
 use tokio::sync::OnceCell;
 
 pub const VECTOR: &str = "abandon abandon abandon abandon abandon abandon \
@@ -47,6 +47,8 @@ pub struct Access {
     unattested_module: Option<PathBuf>,
 }
 
+pub struct SharedAccess(Arc<Access>);
+
 impl Access {
     fn new(
         host: Arc<ModuleHost>,
@@ -65,6 +67,29 @@ impl Access {
             release,
             unattested_module,
         }
+    }
+
+    pub async fn unique_peer(&self) -> tinybus::BusName {
+        self.connection
+            .name_owner(self.record.bus_name)
+            .await
+            .expect("module owner lookup")
+            .expect("ready module has a unique owner")
+    }
+
+    pub async fn attestation(&self) -> tinybus::Attestation {
+        self.observed_attestation()
+            .await
+            .expect("cached release was attested")
+    }
+
+    pub async fn observed_attestation(&self) -> Option<tinybus::Attestation> {
+        self.connection
+            .attestation(
+                tinybus::BusName::new(self.record.bus_name).expect("valid wallet bus name"),
+            )
+            .await
+            .expect("module attestation lookup")
     }
 }
 
@@ -123,25 +148,25 @@ impl ModuleAccess for Access {
     }
 }
 
-impl ModuleAccess for Arc<Access> {
+impl ModuleAccess for SharedAccess {
     fn find(&self, id: &str) -> Option<&'static ReleaseRecord> {
-        self.as_ref().find(id)
+        self.0.find(id)
     }
 
     fn enabled(&self) -> bool {
-        self.as_ref().enabled()
+        self.0.enabled()
     }
 
     fn reporter(&self) -> &FailureReporter {
-        self.as_ref().reporter()
+        self.0.reporter()
     }
 
     fn ensure_loaded<'a>(&'a self, id: &'a str) -> AccessFuture<'a, Result<(), String>> {
-        self.as_ref().ensure_loaded(id)
+        self.0.ensure_loaded(id)
     }
 
     fn prepare_attested<'a>(&'a self, id: &'a str) -> AccessFuture<'a, Result<(), String>> {
-        self.as_ref().prepare_attested(id)
+        self.0.prepare_attested(id)
     }
 
     fn proxy<'a>(
@@ -149,7 +174,7 @@ impl ModuleAccess for Arc<Access> {
         bus_name: &'a str,
         object_path: &'a str,
     ) -> AccessFuture<'a, Result<Proxy, ProxyFailure>> {
-        self.as_ref().proxy(bus_name, object_path)
+        self.0.proxy(bus_name, object_path)
     }
 }
 
@@ -181,17 +206,14 @@ pub async fn fixture() -> &'static Fixture {
             host.ensure_ready(record.bus_name)
                 .await
                 .expect("the pinned module should become ready");
-            let wrong_access = Access::new(
-                host,
-                connection,
-                loaded,
-                record(true),
-                release,
-                None,
-            );
+            let wrong_access = Access::new(host, connection, loaded, record(true), release, None);
             Fixture {
-                wallet: WalletClient::new(tinybus::module::ModuleClient::new(Arc::clone(&access))),
-                wrong_pin_wallet: WalletClient::new(tinybus::module::ModuleClient::new(wrong_access)),
+                wallet: WalletClient::new(tinybus::module::ModuleClient::new(SharedAccess(
+                    Arc::clone(&access),
+                ))),
+                wrong_pin_wallet: WalletClient::new(tinybus::module::ModuleClient::new(
+                    wrong_access,
+                )),
                 access,
                 broker_task,
             }
@@ -229,19 +251,14 @@ pub async fn unattested_fixture() -> &'static Fixture {
             host.ensure_ready(record.bus_name)
                 .await
                 .expect("the local module should become ready");
-            let wrong_access = Access::new(
-                host,
-                connection,
-                loaded,
-                record(true),
-                release,
-                None,
-            );
+            let wrong_access = Access::new(host, connection, loaded, record(true), release, None);
             Fixture {
-                wallet: WalletClient::new(tinybus::module::ModuleClient::new(Arc::clone(&access))),
-                wrong_pin_wallet: WalletClient::new(
-                    tinybus::module::ModuleClient::new(wrong_access),
-                ),
+                wallet: WalletClient::new(tinybus::module::ModuleClient::new(SharedAccess(
+                    Arc::clone(&access),
+                ))),
+                wrong_pin_wallet: WalletClient::new(tinybus::module::ModuleClient::new(
+                    wrong_access,
+                )),
                 access,
                 broker_task,
             }
@@ -304,7 +321,9 @@ fn cached_release() -> CachedRelease<'static> {
 fn leak_env(name: &str) -> &'static str {
     Box::leak(
         std::env::var(name)
-            .unwrap_or_else(|_| panic!("{name} must point at the staged local wallet test artifact"))
+            .unwrap_or_else(|_| {
+                panic!("{name} must point at the staged local wallet test artifact")
+            })
             .into_boxed_str(),
     )
 }
