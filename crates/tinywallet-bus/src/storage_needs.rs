@@ -28,7 +28,7 @@ static STREAM_PREFIXES: [&str; 1] = [X402_PAYMENTS_STREAM_PREFIX];
 #[must_use]
 pub fn storage_needs() -> StorageNeeds<'static> {
     StorageNeeds {
-        collections: &COLLECTIONS,
+        collections: &COLLECTIONS[..],
         blob_prefixes: &[],
         stream_prefixes: &STREAM_PREFIXES,
         secret_prefixes: &[],
