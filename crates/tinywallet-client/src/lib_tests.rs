@@ -4,7 +4,8 @@ use super::*;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tinybus::module::{
-    AccessFuture, FailureReporter, FailureSink, ModuleAccess, ProxyFailure, ReleaseRecord,
+    AccessFuture, FailureReporter, FailureSink, ModuleAccess, ModuleCallError, ProxyFailure,
+    ReleaseRecord,
 };
 
 struct Quiet;
