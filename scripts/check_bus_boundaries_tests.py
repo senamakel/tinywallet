@@ -23,7 +23,14 @@ def metadata(name, kind=None, source=boundary.REGISTRY):
     }
 
 
-def nested_metadata(root, middle, leaf, middle_source, leaf_source=boundary.REGISTRY):
+def nested_metadata(
+    root,
+    middle,
+    leaf,
+    middle_source,
+    leaf_source=boundary.REGISTRY,
+    leaf_features=None,
+):
     packages = [
         {"id": "root", "name": root},
         {"id": "middle", "name": middle, "source": middle_source},
@@ -32,7 +39,7 @@ def nested_metadata(root, middle, leaf, middle_source, leaf_source=boundary.REGI
     nodes = [
         {"id": "root", "deps": [{"pkg": "middle", "dep_kinds": [{"kind": None}]}]},
         {"id": "middle", "deps": [{"pkg": "leaf", "dep_kinds": [{"kind": None}]}]},
-        {"id": "leaf", "deps": []},
+        {"id": "leaf", "features": leaf_features or [], "deps": []},
     ]
     return {"packages": packages, "resolve": {"nodes": nodes}}
 
@@ -50,6 +57,46 @@ class ContractBoundaryTests(unittest.TestCase):
 
     def test_local_package_cannot_impersonate_serde(self):
         self.assertTrue(boundary.audit(metadata("serde", source=None)))
+
+    def test_excluded_consumer_must_resolve_the_repository_bus_manifest(self):
+        graph = {
+            "packages": [
+                {"id": "consumer", "name": "tinywallet-storage-needs-consumer"},
+                {
+                    "id": "wallet-bus",
+                    "name": "tinywallet-bus",
+                    "source": None,
+                    "manifest_path": "/repo/crates/tinywallet-bus/Cargo.toml",
+                },
+            ],
+            "resolve": {
+                "nodes": [
+                    {
+                        "id": "consumer",
+                        "deps": [
+                            {"pkg": "wallet-bus", "dep_kinds": [{"kind": None}]}
+                        ],
+                    },
+                    {"id": "wallet-bus", "deps": []},
+                ]
+            },
+        }
+        self.assertEqual(
+            boundary.audit(
+                graph,
+                "tinywallet-storage-needs-consumer",
+                "/repo/crates/tinywallet-bus/Cargo.toml",
+            ),
+            [],
+        )
+        self.assertEqual(
+            boundary.audit(
+                graph,
+                "tinywallet-storage-needs-consumer",
+                "/another/repo/crates/tinywallet-bus/Cargo.toml",
+            ),
+            ["tinywallet-storage-needs-consumer -> tinywallet-bus"],
+        )
 
     def test_pinned_storage_bus_data_contract_is_allowed(self):
         graph = nested_metadata(
@@ -84,6 +131,60 @@ class ContractBoundaryTests(unittest.TestCase):
             boundary.audit(graph),
             ["tinywallet-bus -> tinystoragedrivers-bus"],
         )
+
+    def test_same_sha_from_a_tag_is_not_the_pinned_rev_source(self):
+        graph = nested_metadata(
+            "tinywallet-bus",
+            boundary.TSD_BUS,
+            "serde",
+            "git+https://github.com/tinyhumansai/tinystoragedrivers?tag=v1.5.0#c9ea6ff1615b77b55d7269403af5fd11bedc9ce8",
+        )
+        self.assertEqual(
+            boundary.audit(graph),
+            ["tinywallet-bus -> tinystoragedrivers-bus"],
+        )
+
+    def test_shortened_revision_and_sha_are_not_accepted(self):
+        graph = nested_metadata(
+            "tinywallet-bus",
+            boundary.TSD_BUS,
+            "serde",
+            "git+https://github.com/tinyhumansai/tinystoragedrivers?rev=c9ea6ff#c9ea6ff",
+        )
+        self.assertEqual(
+            boundary.audit(graph),
+            ["tinywallet-bus -> tinystoragedrivers-bus"],
+        )
+
+    def test_a_missing_resolve_node_fails_closed(self):
+        graph = nested_metadata(
+            "tinywallet-bus",
+            boundary.TSD_BUS,
+            "serde",
+            boundary.TSD_BUS_SOURCE,
+        )
+        graph["resolve"]["nodes"] = [
+            node for node in graph["resolve"]["nodes"] if node["id"] != "leaf"
+        ]
+        self.assertEqual(
+            boundary.audit(graph),
+            ["unresolved dependency node: tinywallet-bus -> tinystoragedrivers-bus -> serde"],
+        )
+
+    def test_tokio_is_rejected_even_with_extra_default_features(self):
+        for features in ([], ["io-std"], ["signal"], ["io-std", "signal"]):
+            with self.subTest(features=features):
+                graph = nested_metadata(
+                    "tinywallet-bus",
+                    boundary.TSD_BUS,
+                    "tokio",
+                    boundary.TSD_BUS_SOURCE,
+                    leaf_features=features,
+                )
+                self.assertEqual(
+                    boundary.audit(graph),
+                    ["tinywallet-bus -> tinystoragedrivers-bus -> tokio"],
+                )
 
     def test_storage_bus_implementation_and_runtime_closure_is_rejected(self):
         for package in (
