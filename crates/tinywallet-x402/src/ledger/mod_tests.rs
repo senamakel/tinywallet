@@ -33,12 +33,12 @@ fn persistence_resource_names_match_the_bus_storage_declaration() {
 
     assert_eq!(needs.collections.len(), 1);
     assert_eq!(needs.collections[0].name, BUDGET_COLLECTION);
-    assert!(needs.collections[0].indexes.is_empty());
+    assert_eq!(needs.collections[0].indexes, Vec::new());
     assert_eq!(needs.collections[0].ttl_field, None);
     assert_eq!(needs.collections[0].search, None);
     assert_eq!(needs.stream_prefixes, [PAYMENTS_STREAM]);
-    assert!(needs.blob_prefixes.is_empty());
-    assert!(needs.secret_prefixes.is_empty());
+    assert_eq!(needs.blob_prefixes, &[] as &[&str]);
+    assert_eq!(needs.secret_prefixes, &[] as &[&str]);
 }
 
 fn record(
