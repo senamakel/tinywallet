@@ -150,14 +150,12 @@ impl WalletClient {
         secret: SecretMaterial,
         transaction: TransactionSpec,
     ) -> Result<SignedTransaction, ClientError> {
-        self.call_attested(
-            methods::SIGN_TRANSACTION,
-            SignRequest {
-                secret,
-                transaction,
-            },
-        )
-        .await
+        let request = MnemonicRequestGuard(SignRequest {
+            secret,
+            transaction,
+        });
+        self.call_attested(methods::SIGN_TRANSACTION, &request.0)
+            .await
     }
 
     /// Sign opaque bytes inside the attested wallet module.
@@ -172,15 +170,12 @@ impl WalletClient {
         message: &[u8],
         scheme: Scheme,
     ) -> Result<Signature, ClientError> {
-        self.call_attested(
-            methods::SIGN_MESSAGE,
-            SignMessageRequest {
-                secret,
-                message_hex: hex(message),
-                scheme,
-            },
-        )
-        .await
+        let request = MnemonicRequestGuard(SignMessageRequest {
+            secret,
+            message_hex: hex(message),
+            scheme,
+        });
+        self.call_attested(methods::SIGN_MESSAGE, &request.0).await
     }
 
     /// Export a derived key through the attested wallet module.
@@ -190,8 +185,8 @@ impl WalletClient {
     /// Returns an error if the module is unavailable, unattested, or rejects
     /// the request.
     pub async fn export_key(&self, secret: SecretMaterial) -> Result<ExportedKey, ClientError> {
-        self.call_attested(methods::EXPORT_KEY, ExportRequest { secret })
-            .await
+        let request = MnemonicRequestGuard(ExportRequest { secret });
+        self.call_attested(methods::EXPORT_KEY, &request.0).await
     }
 
     /// Generate a recovery phrase in the attested wallet module.
@@ -275,6 +270,30 @@ impl ZeroizeMnemonic for SecretMaterial {
 impl ZeroizeMnemonic for DeriveMnemonicSeedRequest {
     fn zeroize_mnemonic(&mut self) {
         self.mnemonic.zeroize();
+    }
+}
+
+impl ZeroizeMnemonic for SignRequest {
+    fn zeroize_mnemonic(&mut self) {
+        self.secret.mnemonic.zeroize();
+        #[cfg(test)]
+        crate::tests::observe_mnemonic_wipe("sign_transaction", self.secret.mnemonic.is_empty());
+    }
+}
+
+impl ZeroizeMnemonic for SignMessageRequest {
+    fn zeroize_mnemonic(&mut self) {
+        self.secret.mnemonic.zeroize();
+        #[cfg(test)]
+        crate::tests::observe_mnemonic_wipe("sign_message", self.secret.mnemonic.is_empty());
+    }
+}
+
+impl ZeroizeMnemonic for ExportRequest {
+    fn zeroize_mnemonic(&mut self) {
+        self.secret.mnemonic.zeroize();
+        #[cfg(test)]
+        crate::tests::observe_mnemonic_wipe("export_key", self.secret.mnemonic.is_empty());
     }
 }
 
