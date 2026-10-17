@@ -243,12 +243,18 @@ fn decimal_u256_word(decimal: &str) -> Option<String> {
             return None;
         }
     }
-    Some(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut word = String::with_capacity(64);
+    for byte in bytes {
+        word.push(char::from(HEX[usize::from(byte >> 4)]));
+        word.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    Some(word)
 }
 
 fn valid_hex(value: &str) -> bool {
     !value.is_empty()
-        && value.len().is_multiple_of(2)
+        && value.len() % 2 == 0
         && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 

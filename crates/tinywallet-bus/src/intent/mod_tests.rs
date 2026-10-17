@@ -54,7 +54,7 @@ fn evm_intent(to: &str, value: &str, data: &str, chain_id: u64) -> NativeWalletE
 
 fn erc20_transfer_data(recipient: &str, amount: u64) -> String {
     let address = recipient.strip_prefix("0x").unwrap();
-    format!("0xa9059cbb{:0>64}{:064x}", address, amount)
+    format!("0xa9059cbb{address:0>64}{amount:064x}")
 }
 
 #[test]
