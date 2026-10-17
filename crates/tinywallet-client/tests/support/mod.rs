@@ -16,7 +16,7 @@ use tinybus::{Connection, Proxy};
 use tinywallet_client::WalletClient;
 use tokio::sync::OnceCell;
 
-pub const VECTOR: &str = "abandon abandon abandon abandon abandon abandon \
+pub(crate) const VECTOR: &str = "abandon abandon abandon abandon abandon abandon \
                           abandon abandon abandon abandon abandon about";
 const RELEASE_URL: &str = "https://github.com/tinyhumansai/tinywallet/releases/tag/v0.25.0";
 
@@ -29,14 +29,20 @@ impl FailureSink for QuietSink {
     fn capture(&self, _: &tinybus::module::FailureReport<'_>) {}
 }
 
-pub struct Fixture {
-    pub access: Arc<Access>,
-    pub wallet: WalletClient,
-    pub wrong_pin_wallet: WalletClient,
-    pub broker_task: tokio::task::JoinHandle<tinybus::Result<()>>,
+pub(crate) struct Fixture {
+    pub(crate) access: Arc<Access>,
+    pub(crate) wallet: WalletClient,
+    pub(crate) wrong_pin_wallet: WalletClient,
+    broker_task: tokio::task::JoinHandle<tinybus::Result<()>>,
 }
 
-pub struct Access {
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        self.broker_task.abort();
+    }
+}
+
+pub(crate) struct Access {
     host: Arc<ModuleHost>,
     connection: Connection,
     reporter: FailureReporter,
@@ -68,7 +74,7 @@ impl Access {
         }
     }
 
-    pub async fn unique_peer(&self) -> tinybus::BusName {
+    pub(crate) async fn unique_peer(&self) -> tinybus::BusName {
         self.connection
             .name_owner(self.record.bus_name)
             .await
@@ -76,13 +82,13 @@ impl Access {
             .expect("ready module has a unique owner")
     }
 
-    pub async fn attestation(&self) -> tinybus::Attestation {
+    pub(crate) async fn attestation(&self) -> tinybus::Attestation {
         self.observed_attestation()
             .await
             .expect("cached release was attested")
     }
 
-    pub async fn observed_attestation(&self) -> Option<tinybus::Attestation> {
+    pub(crate) async fn observed_attestation(&self) -> Option<tinybus::Attestation> {
         self.connection
             .attestation(
                 tinybus::BusName::new(self.record.bus_name).expect("valid wallet bus name"),
@@ -177,7 +183,7 @@ impl ModuleAccess for SharedAccess {
     }
 }
 
-pub async fn fixture() -> Fixture {
+pub(crate) async fn fixture() -> Fixture {
     let admitted_record = record(false);
     let release = cached_release();
     let bus = MemoryBus::new();
@@ -214,7 +220,7 @@ pub async fn fixture() -> Fixture {
     }
 }
 
-pub async fn unattested_fixture() -> Fixture {
+pub(crate) async fn unattested_fixture() -> Fixture {
     let admitted_record = record(false);
     let release = cached_release();
     let bus = MemoryBus::new();
@@ -252,7 +258,7 @@ pub async fn unattested_fixture() -> Fixture {
     }
 }
 
-pub fn record(wrong_library_pin: bool) -> &'static ReleaseRecord {
+pub(crate) fn record(wrong_library_pin: bool) -> &'static ReleaseRecord {
     let slot = if wrong_library_pin {
         &WRONG_LIBRARY_RECORD
     } else {
@@ -324,19 +330,11 @@ fn leak_path(name: &str) -> &'static Path {
     )
 }
 
-pub fn fixture_cache() -> &'static Path {
-    leak_path("TINYWALLET_CLIENT_TEST_CACHE")
-}
-
-pub fn unattested_module_path() -> PathBuf {
+pub(crate) fn unattested_module_path() -> PathBuf {
     PathBuf::from(leak_env("TINYWALLET_CLIENT_UNATTESTED_MODULE"))
 }
 
-pub fn shutdown(fixture: &Fixture) {
-    fixture.broker_task.abort();
-}
-
-pub fn expected_module_unavailable(error: tinywallet_client::ClientError) -> bool {
+pub(crate) fn expected_module_unavailable(error: tinywallet_client::ClientError) -> bool {
     matches!(
         error,
         tinywallet_client::ClientError::Remote(failure)
