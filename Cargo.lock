@@ -2229,6 +2229,7 @@ dependencies = [
  "tinybus",
  "tinywallet-bus",
  "tokio",
+ "zeroize",
 ]
 
 [[package]]
