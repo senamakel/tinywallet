@@ -94,6 +94,29 @@ fn wallet_signing_members_are_declared_confidential() {
 }
 
 #[test]
+fn calls_use_the_tinywallet_contract_identity_and_declared_members() {
+    assert_eq!(tinywallet_bus::BUS_NAME, "ai.tinyhumans.tinywallet.Wallet");
+    assert_eq!(
+        tinywallet_bus::OBJECT_PATH,
+        "/ai/tinyhumans/tinywallet/Wallet"
+    );
+    for member in [
+        methods::DERIVE_ACCOUNT,
+        methods::DERIVE_MNEMONIC_SEED,
+        methods::ENCODE_ERC20_TRANSFER,
+        methods::EXPORT_KEY,
+        methods::GENERATE_MNEMONIC,
+        methods::SIGN_MESSAGE,
+        methods::SIGN_TRANSACTION,
+    ] {
+        assert!(
+            tinywallet_bus::METHODS.contains(&member),
+            "{member} is not in the contract"
+        );
+    }
+}
+
+#[test]
 fn public_wallet_members_remain_ordinary_calls() {
     for member in [
         methods::ENCODE_ERC20_TRANSFER,
@@ -132,6 +155,19 @@ fn confidential_wire_requests_keep_their_distinct_wrapper_shapes() {
     assert!(signing.is_ok(), "the sign request wire type must serialize");
     let signing = signing.unwrap_or(serde_json::Value::Null);
     assert!(serde_json::from_value::<SignMessageRequest>(signing).is_err());
+}
+
+#[test]
+fn remote_peer_details_are_absent_from_error_renderings() {
+    let error = ClientError::Remote(ModuleCallFailure {
+        kind: ModuleCallError::ModuleFault,
+        wire_name: "private-peer-detail".to_string(),
+        message: "sensitive request content".to_string(),
+    });
+    assert!(!format!("{error:?}").contains("private-peer-detail"));
+    assert!(!format!("{error:?}").contains("sensitive request content"));
+    assert!(!error.to_string().contains("private-peer-detail"));
+    assert!(!error.to_string().contains("sensitive request content"));
 }
 
 #[tokio::test]
