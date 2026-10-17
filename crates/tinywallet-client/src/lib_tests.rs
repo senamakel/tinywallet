@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tinybus::module::{
     AccessFuture, FailureReporter, FailureSink, ModuleAccess, ModuleCallError, ProxyFailure,
-    ReleaseRecord,
+    ReleaseAsset, ReleaseRecord,
 };
 
 struct Quiet;
@@ -188,6 +188,25 @@ fn mnemonic_request_types_wipe_their_phrase_fields() {
     assert!(request.mnemonic.is_empty());
 }
 
+static OBSERVER_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+static OBSERVED_MNEMONIC_WIPES: std::sync::Mutex<Vec<(&'static str, bool)>> =
+    std::sync::Mutex::new(Vec::new());
+
+pub(super) fn observe_mnemonic_wipe(wrapper: &'static str, mnemonic_is_empty: bool) {
+    OBSERVED_MNEMONIC_WIPES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .push((wrapper, mnemonic_is_empty));
+}
+
+fn take_observed_mnemonic_wipes() -> Vec<(&'static str, bool)> {
+    std::mem::take(
+        &mut *OBSERVED_MNEMONIC_WIPES
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+    )
+}
+
 fn secret_material() -> SecretMaterial {
     SecretMaterial {
         mnemonic: "sensitive phrase".to_string(),
@@ -196,102 +215,174 @@ fn secret_material() -> SecretMaterial {
     }
 }
 
-fn sign_transaction_request() -> SignRequest {
-    SignRequest {
-        secret: secret_material(),
-        transaction: TransactionSpec::Evm {
-            to: format!("0x{}", "11".repeat(20)),
-            value_wei: "1".to_string(),
-            data_hex: "0x".to_string(),
-            nonce: 0,
-            gas_limit: 21_000,
-            gas_price_wei: "1".to_string(),
-            chain_id: 1,
-        },
+fn transaction() -> TransactionSpec {
+    TransactionSpec::Evm {
+        to: format!("0x{}", "11".repeat(20)),
+        value_wei: "1".to_string(),
+        data_hex: "0x".to_string(),
+        nonce: 0,
+        gas_limit: 21_000,
+        gas_price_wei: "1".to_string(),
+        chain_id: 1,
     }
 }
 
-fn sign_message_request() -> SignMessageRequest {
-    SignMessageRequest {
-        secret: secret_material(),
-        message_hex: "42".to_string(),
-        scheme: Scheme::Secp256k1Prehash,
-    }
-}
-
-fn assert_sign_transaction_request_wiped_on_result(result: Result<(), ()>) {
-    let mut request = sign_transaction_request();
-    let outcome = {
-        let _request = MnemonicRequestGuard(&mut request);
-        result
-    };
-    assert_eq!(outcome, result);
-    assert!(request.secret.mnemonic.is_empty());
-}
-
-fn assert_sign_message_request_wiped_on_result(result: Result<(), ()>) {
-    let mut request = sign_message_request();
-    let outcome = {
-        let _request = MnemonicRequestGuard(&mut request);
-        result
-    };
-    assert_eq!(outcome, result);
-    assert!(request.secret.mnemonic.is_empty());
-}
-
-fn assert_export_request_wiped_on_result(result: Result<(), ()>) {
-    let mut request = ExportRequest {
-        secret: secret_material(),
-    };
-    let outcome = {
-        let _request = MnemonicRequestGuard(&mut request);
-        result
-    };
-    assert_eq!(outcome, result);
-    assert!(request.secret.mnemonic.is_empty());
-}
-
-#[test]
-fn signing_and_export_request_guards_wipe_after_success_and_error() {
-    for result in [Ok(()), Err(())] {
-        assert_sign_transaction_request_wiped_on_result(result);
-        assert_sign_message_request_wiped_on_result(result);
-        assert_export_request_wiped_on_result(result);
-    }
-}
-
-async fn abort_request_while_guarded<T>(request: Arc<tokio::sync::Mutex<T>>)
-where
-    T: ZeroizeMnemonic + Send + 'static,
-{
-    let task_request = request.clone();
-    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
-    let task = tokio::spawn(async move {
-        let mut request = task_request.lock().await;
-        let _guard = MnemonicRequestGuard(&mut *request);
-        let _ = started_tx.send(());
-        std::future::pending::<()>().await;
-    });
-    assert!(started_rx.await.is_ok());
-    task.abort();
-    let _ = task.await;
+fn assert_remote_unavailable(result: Result<impl Sized, ClientError>) {
+    assert!(matches!(
+        result,
+        Err(ClientError::Remote(failure)) if failure.kind == ModuleCallError::Unavailable
+    ));
 }
 
 #[tokio::test]
-async fn signing_and_export_request_guards_wipe_when_the_call_is_cancelled() {
-    let transaction = Arc::new(tokio::sync::Mutex::new(sign_transaction_request()));
-    abort_request_while_guarded(transaction.clone()).await;
-    assert!(transaction.lock().await.secret.mnemonic.is_empty());
+async fn signing_and_export_wrappers_wipe_mnemonics_after_errors() {
+    let _observer_lock = OBSERVER_TEST_LOCK.lock().await;
+    let _ = take_observed_mnemonic_wipes();
 
-    let message = Arc::new(tokio::sync::Mutex::new(sign_message_request()));
-    abort_request_while_guarded(message.clone()).await;
-    assert!(message.lock().await.secret.mnemonic.is_empty());
+    let result = client()
+        .sign_transaction(secret_material(), transaction())
+        .await;
+    assert_remote_unavailable(result);
+    let result = client()
+        .sign_message(secret_material(), &[0x42; 32], Scheme::Secp256k1Prehash)
+        .await;
+    assert_remote_unavailable(result);
+    let result = client().export_key(secret_material()).await;
+    assert_remote_unavailable(result);
 
-    let export = Arc::new(tokio::sync::Mutex::new(ExportRequest {
-        secret: secret_material(),
-    }));
-    abort_request_while_guarded(export.clone()).await;
-    assert!(export.lock().await.secret.mnemonic.is_empty());
+    assert_eq!(
+        take_observed_mnemonic_wipes(),
+        vec![
+            ("sign_transaction", true),
+            ("sign_message", true),
+            ("export_key", true),
+        ]
+    );
+}
+
+static STRICT_RECORD: std::sync::OnceLock<ReleaseRecord> = std::sync::OnceLock::new();
+
+fn strict_record() -> &'static ReleaseRecord {
+    STRICT_RECORD.get_or_init(|| {
+        let host_key = Box::leak(
+            tinybus::module::platform::host_candidates()
+                .into_iter()
+                .next()
+                .expect("the supported test host has a module platform key")
+                .into_boxed_str(),
+        );
+        let archive_sha256 = Box::leak("a".repeat(64).into_boxed_str());
+        let library_sha256 = Box::leak("b".repeat(64).into_boxed_str());
+        let assets = Box::leak(
+            vec![ReleaseAsset {
+                host_key,
+                archive: "fixture.tar.gz",
+                sha256: archive_sha256,
+                library_sha256: Some(library_sha256),
+            }]
+            .into_boxed_slice(),
+        );
+        ReleaseRecord {
+            id: "tinywallet",
+            bus_name: tinywallet_bus::BUS_NAME,
+            object_path: tinywallet_bus::OBJECT_PATH,
+            version: "0.25.0",
+            release_url: "https://example.invalid/tinywallet",
+            assets,
+        }
+    })
+}
+
+struct PendingModules {
+    reporter: FailureReporter,
+    started: Arc<tokio::sync::Notify>,
+}
+
+impl ModuleAccess for PendingModules {
+    fn find(&self, id: &str) -> Option<&'static ReleaseRecord> {
+        (id == "tinywallet").then_some(strict_record())
+    }
+
+    fn enabled(&self) -> bool {
+        true
+    }
+
+    fn reporter(&self) -> &FailureReporter {
+        &self.reporter
+    }
+
+    fn ensure_loaded<'a>(&'a self, _: &'a str) -> AccessFuture<'a, Result<(), String>> {
+        Box::pin(async { Err("unexpected ordinary load".to_string()) })
+    }
+
+    fn prepare_attested<'a>(&'a self, _: &'a str) -> AccessFuture<'a, Result<(), String>> {
+        let started = Arc::clone(&self.started);
+        Box::pin(async move {
+            started.notify_one();
+            std::future::pending().await
+        })
+    }
+
+    fn proxy<'a>(
+        &'a self,
+        _: &'a str,
+        _: &'a str,
+    ) -> AccessFuture<'a, Result<tinybus::Proxy, ProxyFailure>> {
+        Box::pin(async { Err(ProxyFailure::Transport) })
+    }
+}
+
+fn pending_client(started: Arc<tokio::sync::Notify>) -> WalletClient {
+    WalletClient::new(ModuleClient::new(PendingModules {
+        reporter: FailureReporter::new(Arc::new(Quiet)),
+        started,
+    }))
+}
+
+#[tokio::test]
+async fn signing_and_export_wrappers_wipe_mnemonics_when_cancelled() {
+    let _observer_lock = OBSERVER_TEST_LOCK.lock().await;
+    let _ = take_observed_mnemonic_wipes();
+
+    let started = Arc::new(tokio::sync::Notify::new());
+    let wallet = pending_client(Arc::clone(&started));
+    let transaction_task = tokio::spawn(async move {
+        let _ = wallet
+            .sign_transaction(secret_material(), transaction())
+            .await;
+    });
+    started.notified().await;
+    transaction_task.abort();
+    let _ = transaction_task.await;
+
+    let started = Arc::new(tokio::sync::Notify::new());
+    let wallet = pending_client(Arc::clone(&started));
+    let message_task = tokio::spawn(async move {
+        let _ = wallet
+            .sign_message(secret_material(), &[0x42; 32], Scheme::Secp256k1Prehash)
+            .await;
+    });
+    started.notified().await;
+    message_task.abort();
+    let _ = message_task.await;
+
+    let started = Arc::new(tokio::sync::Notify::new());
+    let wallet = pending_client(Arc::clone(&started));
+    let export_task = tokio::spawn(async move {
+        let _ = wallet.export_key(secret_material()).await;
+    });
+    started.notified().await;
+    export_task.abort();
+    let _ = export_task.await;
+
+    assert_eq!(
+        take_observed_mnemonic_wipes(),
+        vec![
+            ("sign_transaction", true),
+            ("sign_message", true),
+            ("export_key", true),
+        ]
+    );
 }
 
 #[tokio::test]
