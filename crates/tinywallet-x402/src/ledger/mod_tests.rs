@@ -279,6 +279,24 @@ fn records_survive_a_restart() {
 }
 
 #[test]
+fn memory_storage_reopens_payment_history_and_released_holds() {
+    let storage = LedgerStorage::memory();
+    {
+        let mut ledger = ledger_in(&storage);
+        ledger.record_payment(record(100_000, PaymentStatus::Settled, now(), SESSION));
+        let hold = ledger.reserve_at(now(), 50_000).unwrap().unwrap();
+        ledger.release(hold);
+        assert_eq!(ledger.reserved_atomic(), 0);
+    }
+
+    let reopened = ledger_in(&storage);
+    let payments = reopened.recent_payments(10);
+    assert_eq!(payments.len(), 1);
+    assert_eq!(payments[0].amount_atomic, 100_000);
+    assert_eq!(reopened.reserved_atomic(), 0);
+}
+
+#[test]
 fn a_record_serialises_camel_case_with_snake_case_status() {
     let json = serde_json::to_value(record(7, PaymentStatus::Denied, now(), SESSION)).unwrap();
     assert_eq!(json["amountAtomic"], 7);
