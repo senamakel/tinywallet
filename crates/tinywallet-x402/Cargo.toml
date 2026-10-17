@@ -20,7 +20,8 @@ publish = false
 # Default features off so this crate never turns on a chain the caller did not
 # ask for; `abi` enables the two it needs.
 tinywallet-crypto = { path = "../tinywallet-crypto", default-features = false, optional = true }
-# Static prompt-facing tool declaration, enabled only with the tool adapter.
+# Shared bus contract: the ledger's static storage needs and the prompt-facing
+# tool declaration. Enabled only by the ledger or tool adapter.
 tinywallet-bus = { path = "../tinywallet-bus", default-features = false, optional = true }
 # Derive macros for the `eip712::Error` and `abi::Error` types.
 thiserror = { version = "2", optional = true }

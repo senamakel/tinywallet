@@ -66,7 +66,7 @@ tinytools = { git = "https://github.com/tinyhumansai/tinytools", rev = "bd60b9b5
 # is the sync bridge the ledger's synchronous API runs the async ports on.
 tinystoragedrivers-core = { git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v0.11.0", default-features = false, features = ["blocking"] }
 # The data-only storage-needs contract for the x402 ledger declaration.
-tinystoragedrivers-bus-contract = { package = "tinystoragedrivers-bus", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "c525a17d5153fc95e67e3cd44bcde1d90be60a71", default-features = false }
+tinystoragedrivers-bus-contract = { package = "tinystoragedrivers-bus", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "c9ea6ff1615b77b55d7269403af5fd11bedc9ce8", default-features = false }
 # The storage bus, for the loadable module only: it reaches the host's storage
 # through the same ports over TinyBus rather than a process-local registry.
 tinystoragedrivers-bus = { git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v0.11.0" }
