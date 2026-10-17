@@ -12,10 +12,32 @@ publish = false
 serde = { version = "1", features = ["derive"] }
 tinywallet-bus = { path = "../tinywallet-bus", default-features = false, features = ["wire"] }
 tinybus.workspace = true
+zeroize = "1"
 
 [dev-dependencies]
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt"] }
+tinybus = { workspace = true, features = ["modules"] }
+
+[features]
+default = []
+native-e2e = []
+pending-attested-errors = []
+
+[[test]]
+name = "native_e2e"
+path = "tests/native_e2e.rs"
+required-features = ["native-e2e"]
+
+[[test]]
+name = "native_unattested"
+path = "tests/native_unattested.rs"
+required-features = ["native-e2e"]
+
+[[test]]
+name = "attested_errors_pending"
+path = "tests/attested_errors_pending.rs"
+required-features = ["native-e2e", "pending-attested-errors"]
 
 [lints]
 workspace = true

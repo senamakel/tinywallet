@@ -19,6 +19,7 @@ pub use tinywallet_bus::wire::{
     GenerateMnemonicRequest, GenerateMnemonicResponse, Scheme, SecretMaterial, SignMessageRequest,
     SignRequest, Signature, SignedTransaction, TransactionSpec,
 };
+use zeroize::Zeroize;
 
 const MODULE_ID: &str = "tinywallet";
 
@@ -136,7 +137,8 @@ impl WalletClient {
         &self,
         secret: SecretMaterial,
     ) -> Result<DerivedAccount, ClientError> {
-        self.call_attested(methods::DERIVE_ACCOUNT, secret).await
+        let request = MnemonicRequestGuard(secret);
+        self.call_attested(methods::DERIVE_ACCOUNT, &request.0).await
     }
 
     /// Sign a transaction inside the attested wallet module.
@@ -221,9 +223,10 @@ impl WalletClient {
         &self,
         mnemonic: String,
     ) -> Result<DeriveMnemonicSeedResponse, ClientError> {
+        let request = MnemonicRequestGuard(DeriveMnemonicSeedRequest { mnemonic });
         self.call_attested(
             methods::DERIVE_MNEMONIC_SEED,
-            DeriveMnemonicSeedRequest { mnemonic },
+            &request.0,
         )
         .await
     }
@@ -254,6 +257,30 @@ impl WalletClient {
 
 fn is_confidential(member: &str) -> bool {
     CONFIDENTIAL_METHODS.contains(&member)
+}
+
+struct MnemonicRequestGuard<T: ZeroizeMnemonic>(T);
+
+impl<T: ZeroizeMnemonic> Drop for MnemonicRequestGuard<T> {
+    fn drop(&mut self) {
+        self.0.zeroize_mnemonic();
+    }
+}
+
+trait ZeroizeMnemonic {
+    fn zeroize_mnemonic(&mut self);
+}
+
+impl ZeroizeMnemonic for SecretMaterial {
+    fn zeroize_mnemonic(&mut self) {
+        self.mnemonic.zeroize();
+    }
+}
+
+impl ZeroizeMnemonic for DeriveMnemonicSeedRequest {
+    fn zeroize_mnemonic(&mut self) {
+        self.mnemonic.zeroize();
+    }
 }
 
 fn hex(bytes: &[u8]) -> String {

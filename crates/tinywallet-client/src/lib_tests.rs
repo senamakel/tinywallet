@@ -170,6 +170,62 @@ fn remote_peer_details_are_absent_from_error_renderings() {
     assert!(!error.to_string().contains("sensitive request content"));
 }
 
+#[test]
+fn mnemonic_request_types_wipe_their_phrase_fields() {
+    let mut secret = SecretMaterial {
+        mnemonic: "sensitive phrase".to_string(),
+        derivation_path: "m/44'/60'/0'/0/0".to_string(),
+        chain: tinywallet_bus::Chain::Evm,
+    };
+    secret.zeroize_mnemonic();
+    assert!(secret.mnemonic.is_empty());
+
+    let mut request = DeriveMnemonicSeedRequest {
+        mnemonic: "sensitive phrase".to_string(),
+    };
+    request.zeroize_mnemonic();
+    assert!(request.mnemonic.is_empty());
+}
+
+struct WipeObserved(Arc<AtomicBool>);
+
+impl ZeroizeMnemonic for WipeObserved {
+    fn zeroize_mnemonic(&mut self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+}
+
+fn complete_with_guard(result: Result<(), ()>, wiped: Arc<AtomicBool>) -> Result<(), ()> {
+    let _request = MnemonicRequestGuard(WipeObserved(wiped));
+    result
+}
+
+#[test]
+fn mnemonic_request_guard_wipes_after_success_and_error() {
+    for result in [Ok(()), Err(())] {
+        let wiped = Arc::new(AtomicBool::new(false));
+        let outcome = complete_with_guard(result, wiped.clone());
+        assert_eq!(outcome, result);
+        assert!(wiped.load(Ordering::SeqCst));
+    }
+}
+
+#[tokio::test]
+async fn mnemonic_request_guard_wipes_when_the_waiting_call_is_cancelled() {
+    let wiped = Arc::new(AtomicBool::new(false));
+    let task_wiped = wiped.clone();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let task = tokio::spawn(async move {
+        let _request = MnemonicRequestGuard(WipeObserved(task_wiped));
+        let _ = started_tx.send(());
+        std::future::pending::<()>().await;
+    });
+    assert!(started_rx.await.is_ok());
+    task.abort();
+    let _ = task.await;
+    assert!(wiped.load(Ordering::SeqCst));
+}
+
 #[tokio::test]
 async fn ordinary_call_refuses_confidential_member_before_serializing_request() {
     for member in CONFIDENTIAL_METHODS {
