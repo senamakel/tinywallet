@@ -20,6 +20,7 @@ jobs:
       msrv-build-targets: |
         [
           {"packages":["tinywallet","tinywallet-crypto","tinywallet-bus"],"all_targets":true,"all_features":true},
+          {"packages":["tinywallet-client"],"all_targets":true,"all_features":true},
           {"packages":["tinywallet-x402"],"features":["wire","eip712","abi"],"all_targets":true,"no_default_features":true},
           {"packages":["tinywallet-web3"],"all_targets":true}
         ]
