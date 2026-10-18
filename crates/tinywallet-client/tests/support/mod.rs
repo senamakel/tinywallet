@@ -52,7 +52,7 @@ pub(crate) struct Access {
     unattested_module: Option<PathBuf>,
 }
 
-pub struct SharedAccess(Arc<Access>);
+pub(crate) struct SharedAccess(Arc<Access>);
 
 impl Access {
     fn new(
@@ -121,7 +121,7 @@ impl ModuleAccess for Access {
                         self.host
                             .load_github_release_cached(&self.release, serde_json::json!({}))
                     };
-                    loaded.map(|_| ()).map_err(|error| {
+                    loaded.map(|()| ()).map_err(|error| {
                         format!("the local test module could not be admitted: {error}")
                     })
                 })

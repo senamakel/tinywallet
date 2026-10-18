@@ -1,7 +1,11 @@
-//! Real cached-module E2E tests for TinyWalletClient confidential wrappers.
+//! Real cached-module E2E tests for `TinyWalletClient` confidential wrappers.
 
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
+#[expect(
+    dead_code,
+    reason = "this fixture module is shared by independent Cargo integration-test crates"
+)]
 mod support;
 
 use tinywallet_client::{Chain, Scheme, SecretMaterial, Signature, TransactionSpec};

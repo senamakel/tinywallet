@@ -2,6 +2,10 @@
 
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
+#[expect(
+    dead_code,
+    reason = "this fixture module is shared by independent Cargo integration-test crates"
+)]
 mod support;
 
 use tinywallet_client::ClientError;
@@ -13,9 +17,8 @@ async fn invalid_seed_preserves_remote_error_classification_on_strict_delivery()
         .wallet
         .derive_mnemonic_seed("not a valid mnemonic".to_string())
         .await;
-    let failure = match result {
-        Err(ClientError::Remote(failure)) => failure,
-        _ => panic!("strict remote InvalidInput must retain its detailed failure type"),
+    let Err(ClientError::Remote(failure)) = result else {
+        panic!("strict remote InvalidInput must retain its detailed failure type");
     };
 
     assert!(
