@@ -172,6 +172,10 @@ fn remote_peer_details_are_absent_from_error_renderings() {
 }
 
 #[test]
+#[expect(
+    clippy::assert_is_empty,
+    reason = "assert_eq would print the mnemonic if zeroization regressed"
+)]
 fn mnemonic_request_types_wipe_their_phrase_fields() {
     let mut secret = SecretMaterial {
         mnemonic: "sensitive phrase".to_string(),
