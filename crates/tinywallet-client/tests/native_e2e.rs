@@ -199,9 +199,10 @@ async fn ordinary_public_call_encodes_transfers_and_keeps_preflight_errors_safe(
          0000000000000000000000000000000000000000000000000000000000000001"
     );
 
+    let confidential_request = serde_json::json!({});
     let confidential_error = fixture
         .wallet
-        .call::<_, serde_json::Value>(methods::SIGN_MESSAGE, serde_json::json!({}))
+        .call::<_, serde_json::Value>(methods::SIGN_MESSAGE, &confidential_request)
         .await
         .unwrap_err();
     assert!(matches!(

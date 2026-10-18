@@ -72,7 +72,23 @@ impl WalletClient {
     /// Make a typed ordinary call with exactly one request argument.
     ///
     /// Members declared confidential by tinywallet-bus are refused before the
-    /// request is serialized.
+    /// request is serialized. The request is borrowed, so the caller retains
+    /// ownership and is responsible for wiping any secret fields after refusal
+    /// or completion. Confidential typed wrappers provide an RAII mnemonic
+    /// guard.
+    ///
+    /// Secret-bearing requests cannot be consumed by this ordinary-call API:
+    ///
+    /// ```compile_fail
+    /// use tinywallet_client::{WalletClient, methods, SecretMaterial};
+    ///
+    /// fn pass_owned_secret(wallet: &WalletClient, secret: SecretMaterial) {
+    ///     let _future = wallet.call::<_, serde_json::Value>(
+    ///         methods::DERIVE_ACCOUNT,
+    ///         secret,
+    ///     );
+    /// }
+    /// ```
     ///
     /// # Errors
     ///
@@ -81,10 +97,10 @@ impl WalletClient {
     pub async fn call<Request, Reply>(
         &self,
         member: &str,
-        request: Request,
+        request: &Request,
     ) -> Result<Reply, ClientError>
     where
-        Request: Serialize + Send,
+        Request: Serialize + Sync + ?Sized,
         Reply: DeserializeOwned,
     {
         if is_confidential(member) {
@@ -247,15 +263,12 @@ impl WalletClient {
         to_address: String,
         amount_raw: String,
     ) -> Result<String, ClientError> {
-        let response: EncodeErc20TransferResponse = self
-            .call(
-                methods::ENCODE_ERC20_TRANSFER,
-                EncodeErc20TransferRequest {
-                    to_address,
-                    amount_raw,
-                },
-            )
-            .await?;
+        let request = EncodeErc20TransferRequest {
+            to_address,
+            amount_raw,
+        };
+        let response: EncodeErc20TransferResponse =
+            self.call(methods::ENCODE_ERC20_TRANSFER, &request).await?;
         Ok(response.calldata)
     }
 }

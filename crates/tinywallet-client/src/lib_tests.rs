@@ -466,8 +466,9 @@ async fn signing_and_export_wrappers_wipe_mnemonics_when_cancelled() {
 async fn ordinary_call_refuses_confidential_member_before_serializing_request() {
     for member in CONFIDENTIAL_METHODS {
         let serialized = Arc::new(AtomicBool::new(false));
+        let request = MustNotSerialize(serialized.clone());
         let result = client()
-            .call::<_, serde_json::Value>(member, MustNotSerialize(serialized.clone()))
+            .call::<_, serde_json::Value>(member, &request)
             .await;
         assert!(
             matches!(result, Err(ClientError::ConfidentialRequired)),
@@ -475,6 +476,26 @@ async fn ordinary_call_refuses_confidential_member_before_serializing_request() 
         );
         assert!(!serialized.load(Ordering::SeqCst), "{member}");
     }
+}
+
+#[tokio::test]
+async fn ordinary_refusal_leaves_secret_request_with_caller_to_wipe() {
+    let serialized = Arc::new(AtomicBool::new(false));
+    let dropped = Arc::new(AtomicBool::new(false));
+    let request = CallerOwnedSecretRequest {
+        secret: "content-free-test-secret".to_owned(),
+        serialized: Arc::clone(&serialized),
+        dropped: Arc::clone(&dropped),
+    };
+    let result = client()
+        .call::<_, serde_json::Value>(methods::DERIVE_ACCOUNT, &request)
+        .await;
+
+    assert!(matches!(result, Err(ClientError::ConfidentialRequired)));
+    assert!(!serialized.load(Ordering::SeqCst));
+    assert!(!dropped.load(Ordering::SeqCst));
+    drop(request);
+    assert!(dropped.load(Ordering::SeqCst));
 }
 
 #[tokio::test]
