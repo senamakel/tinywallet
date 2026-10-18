@@ -45,7 +45,7 @@ class NativeE2ETopologyTests(unittest.TestCase):
         for target in targets.values():
             self.assertEqual(target["required-features"], ["native-e2e"])
 
-    def test_all_seven_native_cases_are_required_and_counted_by_the_runner(self):
+    def test_all_eight_native_cases_are_required_and_counted_by_the_runner(self):
         self.assertEqual(sum(EXPECTED_COUNTS.values()), 8)
         for target, names in CLIENT_TESTS.items():
             source = (ROOT / "crates/tinywallet-client/tests" / f"{target}.rs").read_text()
