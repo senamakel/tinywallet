@@ -217,7 +217,8 @@ impl WalletClient {
         word_count: u8,
     ) -> Result<GenerateMnemonicResponse, ClientError> {
         let request = GenerateMnemonicRequest { word_count };
-        self.call_attested(methods::GENERATE_MNEMONIC, &request).await
+        self.call_attested(methods::GENERATE_MNEMONIC, &request)
+            .await
     }
 
     /// Derive a BIP-39 seed through the attested wallet module.

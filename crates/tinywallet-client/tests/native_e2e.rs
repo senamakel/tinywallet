@@ -222,7 +222,10 @@ async fn ordinary_public_call_encodes_transfers_and_keeps_preflight_errors_safe(
         .await
         .unwrap_err();
     assert!(matches!(&public_error, ClientError::NotConfidential));
-    assert_eq!(public_error.to_string(), "wallet member is not confidential");
+    assert_eq!(
+        public_error.to_string(),
+        "wallet member is not confidential"
+    );
 
     let remote_error = fixture
         .wallet

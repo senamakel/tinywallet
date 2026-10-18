@@ -482,10 +482,7 @@ async fn attested_call_refuses_public_member_before_module_access() {
     let serialized = Arc::new(AtomicBool::new(false));
     let request = MustNotSerialize(serialized.clone());
     let result = client()
-        .call_attested::<_, serde_json::Value>(
-            methods::ENCODE_ERC20_TRANSFER,
-            &request,
-        )
+        .call_attested::<_, serde_json::Value>(methods::ENCODE_ERC20_TRANSFER, &request)
         .await;
     assert!(matches!(result, Err(ClientError::NotConfidential)));
     assert!(!serialized.load(Ordering::SeqCst));
@@ -496,10 +493,7 @@ async fn attested_call_with_no_release_library_pins_never_serializes_request() {
     let serialized = Arc::new(AtomicBool::new(false));
     let request = MustNotSerialize(serialized.clone());
     let result = client()
-        .call_attested::<_, serde_json::Value>(
-            methods::SIGN_MESSAGE,
-            &request,
-        )
+        .call_attested::<_, serde_json::Value>(methods::SIGN_MESSAGE, &request)
         .await;
     assert!(matches!(
         result,
@@ -521,7 +515,9 @@ async fn attested_failure_leaves_secret_request_with_caller_to_wipe() {
         .call_attested::<_, serde_json::Value>(methods::SIGN_MESSAGE, &request)
         .await;
 
-    assert!(matches!(result, Err(ClientError::Remote(failure)) if failure.kind == ModuleCallError::Unavailable));
+    assert!(
+        matches!(result, Err(ClientError::Remote(failure)) if failure.kind == ModuleCallError::Unavailable)
+    );
     assert!(!serialized.load(Ordering::SeqCst));
     assert!(!dropped.load(Ordering::SeqCst));
     drop(request);
