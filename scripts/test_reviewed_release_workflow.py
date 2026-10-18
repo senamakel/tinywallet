@@ -10,9 +10,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / ".github/workflows/release.yml"
-REVIEWED_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-reviewed-epic-release.yml@b52f22509fdf4969612ac21f225cd0d27c0b3240"
+REVIEWED_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-reviewed-epic-release.yml@6ed83b04aab2d8977ec62e966cb914531e534fa4"
 LEGACY_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-release.yml@4adc1080fb495098e7af1aade82ed7e6e3c69bb7"
-TINYBUS_REV = "ed1ee4f5ee561c0320fa715eef114e0f1b888e41"
+TINYBUS_REV = "cba2de0e573f99fe4c7e45ba14e2d6b5a2a7757f"
 
 
 class ReviewedReleaseWorkflowTests(unittest.TestCase):
