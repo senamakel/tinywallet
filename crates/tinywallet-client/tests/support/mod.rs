@@ -126,7 +126,7 @@ impl ModuleAccess for Access {
                     })
                 })
                 .await
-                .map(|_| ())
+                .map(drop)
         })
     }
 
