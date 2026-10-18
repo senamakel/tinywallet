@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import tomllib
 import unittest
+from pathlib import PureWindowsPath
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -93,6 +94,36 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
             ["git", "-C", str(ROOT / "vendor/tinybus"), "rev-parse", "HEAD"], text=True
         ).strip()
         self.assertEqual(commit, TINYBUS_REV)
+
+    def test_tinybus_gitlink_guard_reads_exact_parent_tree_entry(self):
+        entry = f"160000 commit {TINYBUS_REV}\tvendor/tinybus\n"
+        self.assertTrue(_is_expected_tinybus_gitlink(entry))
+
+    def test_tinybus_gitlink_guard_rejects_stale_missing_wrong_mode_or_path(self):
+        self.assertFalse(_is_expected_tinybus_gitlink(""))
+        self.assertFalse(
+            _is_expected_tinybus_gitlink(
+                "160000 commit 1111111111111111111111111111111111111111\tvendor/tinybus\n"
+            )
+        )
+        self.assertFalse(
+            _is_expected_tinybus_gitlink(
+                f"100644 blob {TINYBUS_REV}\tvendor/tinybus\n"
+            )
+        )
+        self.assertFalse(
+            _is_expected_tinybus_gitlink(
+                f"160000 commit {TINYBUS_REV}\tvendor/other\n"
+            )
+        )
+
+    def test_manifest_path_labels_use_forward_slashes_on_windows(self):
+        repository = PureWindowsPath(r"C:\repo")
+        manifest = PureWindowsPath(r"C:\repo\crates\tinywallet-module\Cargo.toml")
+        self.assertEqual(
+            _manifest_path_label(manifest, repository),
+            "crates/tinywallet-module/Cargo.toml",
+        )
 
     def test_all_wallet_tinybus_sdk_edges_allow_a_single_compatible_host_version(self):
         root_manifest = tomllib.loads((ROOT / "Cargo.toml").read_text())
