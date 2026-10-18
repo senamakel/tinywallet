@@ -97,6 +97,36 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
         ).strip()
         self.assertEqual(commit, TINYBUS_REV)
 
+    def test_wallet_client_accepts_v034_without_upgrading_the_native_producer(self):
+        root_manifest = tomllib.loads((ROOT / "Cargo.toml").read_text())
+        host_dependency = root_manifest["workspace"]["dependencies"]["tinybus"]
+        self.assertEqual(host_dependency["version"], ">=0.3.3, <0.4.0")
+        self.assertEqual(
+            host_dependency["git"], "https://github.com/tinyhumansai/tinybus"
+        )
+        self.assertEqual(host_dependency["rev"], TINYBUS_REV)
+        self.assertFalse(host_dependency["default-features"])
+
+        client_manifest = tomllib.loads(
+            (ROOT / "crates/tinywallet-client/Cargo.toml").read_text()
+        )
+        client_dependency = client_manifest["dependencies"]["tinybus"]
+        self.assertTrue(client_dependency["workspace"])
+        self.assertNotIn("features", client_dependency)
+
+        module_manifest = tomllib.loads(
+            (ROOT / "crates/tinywallet-module/Cargo.toml").read_text()
+        )
+        module_dependencies = module_manifest["dependencies"]
+        module_dev_dependencies = module_manifest["dev-dependencies"]
+        for dependency in (
+            module_dependencies["tinybus"],
+            module_dependencies["tinybus-module"],
+            module_dev_dependencies["tinybus"],
+        ):
+            self.assertEqual(dependency["version"], "=0.3.3")
+            self.assertEqual(dependency["rev"], TINYBUS_REV)
+
     def test_every_workspace_package_is_at_the_feature_release_version(self):
         manifests = [ROOT / "Cargo.toml", *sorted((ROOT / "crates").glob("*/Cargo.toml"))]
         versions = {
