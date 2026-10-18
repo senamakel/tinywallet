@@ -213,11 +213,12 @@ async fn ordinary_public_call_encodes_transfers_and_keeps_preflight_errors_safe(
         "wallet member requires attested delivery"
     );
 
+    let public_request = serde_json::json!({});
     let public_error = fixture
         .wallet
         .call_attested::<_, serde_json::Value>(
             methods::ENCODE_ERC20_TRANSFER,
-            serde_json::json!({}),
+            &public_request,
         )
         .await
         .unwrap_err();
