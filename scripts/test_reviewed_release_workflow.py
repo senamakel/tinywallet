@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / ".github/workflows/release.yml"
 REVIEWED_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-reviewed-epic-release.yml@6ed83b04aab2d8977ec62e966cb914531e534fa4"
 LEGACY_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-release.yml@4adc1080fb495098e7af1aade82ed7e6e3c69bb7"
-TINYBUS_REV = "cba2de0e573f99fe4c7e45ba14e2d6b5a2a7757f"
+TINYBUS_REV = "207a9a7df15e44fdba00a807d0f7eaf21904ba0e"
 
 
 class ReviewedReleaseWorkflowTests(unittest.TestCase):
