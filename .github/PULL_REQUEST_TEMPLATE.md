@@ -14,10 +14,13 @@
 
 Commands actually run, with their outcome:
 
+The feature runner stages the wallet module fixture required by native tests;
+use the shell runner on Unix and PowerShell runner on Windows.
+
 - [ ] `cargo fmt --all -- --check`
 - [ ] `cargo clippy --all-targets --all-features -- -D warnings`
 - [ ] `cargo build --all-targets --all-features`
-- [ ] `cargo test --all-features`
+- [ ] `bash scripts/test-features.sh` (or `scripts/test-features.ps1` on Windows)
 
 ## Tests
 
