@@ -466,8 +466,9 @@ async fn signing_and_export_wrappers_wipe_mnemonics_when_cancelled() {
 async fn ordinary_call_refuses_confidential_member_before_serializing_request() {
     for member in CONFIDENTIAL_METHODS {
         let serialized = Arc::new(AtomicBool::new(false));
+        let request = MustNotSerialize(serialized.clone());
         let result = client()
-            .call::<_, serde_json::Value>(member, MustNotSerialize(serialized.clone()))
+            .call::<_, serde_json::Value>(member, &request)
             .await;
         assert!(
             matches!(result, Err(ClientError::ConfidentialRequired)),
