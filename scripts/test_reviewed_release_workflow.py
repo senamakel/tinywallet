@@ -92,21 +92,12 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
         self.assertEqual(commit, TINYBUS_REV)
 
     def test_every_workspace_package_is_at_the_feature_release_version(self):
-        manifests = [
-            ROOT / "Cargo.toml",
-            *(ROOT / "crates" / crate / "Cargo.toml" for crate in (
-                "tinywallet-bus",
-                "tinywallet-crypto",
-                "tinywallet-module",
-                "tinywallet-web3",
-                "tinywallet-x402",
-            )),
-        ]
+        manifests = [ROOT / "Cargo.toml", *sorted((ROOT / "crates").glob("*/Cargo.toml"))]
         versions = {
             tomllib.loads(manifest.read_text())["package"]["version"]
             for manifest in manifests
         }
-        self.assertEqual(versions, {"0.24.0"})
+        self.assertEqual(versions, {"0.25.0"})
 
     def validation_run_block(self):
         lines = self.workflow.splitlines()
