@@ -82,7 +82,12 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
                     "proof-workspaces/tinywallet-client-native-e2e/Cargo.toml",
                     path.read_text(),
                 )
-                self.assertIn("--test attested_errors", path.read_text())
+                native_target = (
+                    "--test attested_errors"
+                    if path.suffix == ".sh"
+                    else "'--test', 'attested_errors'"
+                )
+                self.assertIn(native_target, path.read_text())
 
     def test_module_dependencies_and_nested_patch_use_canonical_tinybus_release(self):
         module_manifest = tomllib.loads((ROOT / "crates/tinywallet-module/Cargo.toml").read_text())
