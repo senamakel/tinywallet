@@ -267,9 +267,8 @@ impl WalletClient {
             to_address,
             amount_raw,
         };
-        let response: EncodeErc20TransferResponse = self
-            .call(methods::ENCODE_ERC20_TRANSFER, &request)
-            .await?;
+        let response: EncodeErc20TransferResponse =
+            self.call(methods::ENCODE_ERC20_TRANSFER, &request).await?;
         Ok(response.calldata)
     }
 }
