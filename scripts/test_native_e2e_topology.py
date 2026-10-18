@@ -94,11 +94,12 @@ class NativeE2ETopologyTests(unittest.TestCase):
         self.assertNotIn("tar.exe -czf $archivePath", powershell)
 
     def test_contributor_checklists_use_fixture_preparing_feature_runner(self):
-        for filename in ("AGENTS.md", "CONTRIBUTING.md", "README.md"):
+        for filename in ("AGENTS.md", "CONTRIBUTING.md", "README.md", ".github/PULL_REQUEST_TEMPLATE.md"):
             source = (ROOT / filename).read_text()
             self.assertIn("scripts/test-features.sh", source)
             self.assertNotRegex(source, r"(?m)^cargo test --all-features\s*$")
         self.assertIn("scripts/test-features.ps1", (ROOT / "CONTRIBUTING.md").read_text())
+        self.assertIn("scripts/test-features.ps1", (ROOT / ".github/PULL_REQUEST_TEMPLATE.md").read_text())
 
 
 if __name__ == "__main__":
