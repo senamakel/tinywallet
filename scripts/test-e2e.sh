@@ -65,6 +65,12 @@ TINYWALLET_CLIENT_TEST_CACHE="$client_cache" \
 TINYWALLET_CLIENT_TEST_ARCHIVE_NAME="$archive_name" \
 TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256="$archive_hash" \
 TINYWALLET_CLIENT_TEST_LIBRARY_SHA256="$hash" \
+cargo test --locked --release --package tinywallet-client --features native-e2e \
+  --test attested_errors -- --test-threads=1
+TINYWALLET_CLIENT_TEST_CACHE="$client_cache" \
+TINYWALLET_CLIENT_TEST_ARCHIVE_NAME="$archive_name" \
+TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256="$archive_hash" \
+TINYWALLET_CLIENT_TEST_LIBRARY_SHA256="$hash" \
 TINYWALLET_CLIENT_UNATTESTED_MODULE="$unattested_dir/$name" \
 cargo test --locked --release --package tinywallet-client --features native-e2e \
   --test native_unattested -- --test-threads=1
