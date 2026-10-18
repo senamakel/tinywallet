@@ -93,6 +93,13 @@ class NativeE2ETopologyTests(unittest.TestCase):
         self.assertIn("tar.exe -czf $archiveName -C 'tinywallet-client-e2e-cache' .", powershell)
         self.assertNotIn("tar.exe -czf $archivePath", powershell)
 
+    def test_contributor_checklists_use_fixture_preparing_feature_runner(self):
+        for filename in ("AGENTS.md", "CONTRIBUTING.md", "README.md"):
+            source = (ROOT / filename).read_text()
+            self.assertIn("scripts/test-features.sh", source)
+            self.assertNotIn("cargo test --all-features", source)
+        self.assertIn("scripts/test-features.ps1", (ROOT / "CONTRIBUTING.md").read_text())
+
 
 if __name__ == "__main__":
     unittest.main()

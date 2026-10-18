@@ -168,9 +168,13 @@ git submodule update --init --recursive
 
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all-features
+bash scripts/test-features.sh
 cargo run --example basic
 ```
+
+On Windows, use `scripts/test-features.ps1`. The feature runners stage the
+locally built wallet module before all-feature tests run; a bare
+`cargo test --all-features` does not prepare the native fixture.
 
 `scripts/test-e2e.sh` (or `scripts/test-e2e.ps1`) also stages the built wallet
 module as a locally pinned archive and library, then runs the typed client's
