@@ -20,6 +20,26 @@ case "$host" in
   *) echo "unsupported E2E host target: $host" >&2; exit 2 ;;
 esac
 
+native_test_logs="$target/tinywallet-native-e2e-logs"
+rm -rf "$native_test_logs"
+mkdir -p "$native_test_logs"
+run_counted_test() {
+  local expected_count="$1"
+  local test_name="$2"
+  shift 2
+  local log_path="$native_test_logs/$test_name.log"
+  if ! "$@" 2>&1 | tee "$log_path"; then
+    echo "native E2E target $test_name failed; see $log_path" >&2
+    return 1
+  fi
+  local actual_count
+  actual_count="$(sed -nE 's/^test result: ok\. ([0-9]+) passed;.*/\1/p' "$log_path" | tail -n 1)"
+  if [[ "$actual_count" != "$expected_count" ]]; then
+    echo "native E2E target $test_name ran ${actual_count:-no reported tests}; expected $expected_count" >&2
+    return 1
+  fi
+}
+
 cargo build --locked --release --package tinywallet-module --features e2e-memory-storage
 stage="$target/tinywallet-module-e2e"
 rm -rf "$stage"
@@ -31,10 +51,10 @@ else
   hash="$(shasum -a 256 "$stage/$name" | awk '{print $1}')"
 fi
 printf '"%s" = "%s"\n' "$name" "$hash" > "$stage/modules.toml"
-TINYWALLET_TEST_MODULE="$stage/$name" cargo test --locked --release \
-  --package tinywallet-module --test module_e2e -- --ignored
-TINYWALLET_TEST_MODULE="$stage/$name" cargo test --locked --release \
-  --package tinywallet-module --test lifecycle_e2e -- --ignored
+run_counted_test 2 module_e2e env TINYWALLET_TEST_MODULE="$stage/$name" \
+  cargo test --locked --release --package tinywallet-module --test module_e2e -- --ignored
+run_counted_test 1 lifecycle_e2e env TINYWALLET_TEST_MODULE="$stage/$name" \
+  cargo test --locked --release --package tinywallet-module --test lifecycle_e2e -- --ignored
 
 # Client E2E uses this exact local build as both a release archive and a
 # library-pinned cache entry. The cached-release loader is forbidden to fetch.
@@ -57,22 +77,15 @@ if command -v sha256sum >/dev/null 2>&1; then
 else
   archive_hash="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
 fi
-TINYWALLET_CLIENT_TEST_CACHE="$client_cache" \
-TINYWALLET_CLIENT_TEST_ARCHIVE_NAME="$archive_name" \
-TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256="$archive_hash" \
-TINYWALLET_CLIENT_TEST_LIBRARY_SHA256="$hash" \
-cargo test --locked --release --manifest-path proof-workspaces/tinywallet-client-native-e2e/Cargo.toml --features native-e2e \
-  --test native_e2e -- --test-threads=1
-TINYWALLET_CLIENT_TEST_CACHE="$client_cache" \
-TINYWALLET_CLIENT_TEST_ARCHIVE_NAME="$archive_name" \
-TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256="$archive_hash" \
-TINYWALLET_CLIENT_TEST_LIBRARY_SHA256="$hash" \
-cargo test --locked --release --manifest-path proof-workspaces/tinywallet-client-native-e2e/Cargo.toml --features native-e2e \
-  --test attested_errors -- --test-threads=1
-TINYWALLET_CLIENT_TEST_CACHE="$client_cache" \
-TINYWALLET_CLIENT_TEST_ARCHIVE_NAME="$archive_name" \
-TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256="$archive_hash" \
-TINYWALLET_CLIENT_TEST_LIBRARY_SHA256="$hash" \
-TINYWALLET_CLIENT_UNATTESTED_MODULE="$unattested_dir/$name" \
-cargo test --locked --release --manifest-path proof-workspaces/tinywallet-client-native-e2e/Cargo.toml --features native-e2e \
-  --test native_unattested -- --test-threads=1
+export TINYWALLET_CLIENT_TEST_CACHE="$client_cache"
+export TINYWALLET_CLIENT_TEST_ARCHIVE_NAME="$archive_name"
+export TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256="$archive_hash"
+export TINYWALLET_CLIENT_TEST_LIBRARY_SHA256="$hash"
+proof_manifest=proof-workspaces/tinywallet-client-native-e2e/Cargo.toml
+run_counted_test 2 native_e2e cargo test --locked --release \
+  --manifest-path "$proof_manifest" --features native-e2e --test native_e2e -- --test-threads=1
+run_counted_test 1 attested_errors cargo test --locked --release \
+  --manifest-path "$proof_manifest" --features native-e2e --test attested_errors -- --test-threads=1
+export TINYWALLET_CLIENT_UNATTESTED_MODULE="$unattested_dir/$name"
+run_counted_test 1 native_unattested cargo test --locked --release \
+  --manifest-path "$proof_manifest" --features native-e2e --test native_unattested -- --test-threads=1
