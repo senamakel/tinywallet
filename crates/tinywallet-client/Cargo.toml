@@ -21,9 +21,23 @@ tinybus = { workspace = true, features = ["macros", "modules"] }
 
 [features]
 default = []
-# Marker forwarded by the excluded native-E2E proof workspace. The artifact-
-# gated tests stay out of ordinary workspace all-feature test and coverage runs.
+# Exercises the locally built cdylib through its hash-verified TinyBus cache.
+# The feature and runner stage the required archive and distinct library pin.
 native-e2e = []
+[[test]]
+name = "native_e2e"
+path = "tests/native_e2e.rs"
+required-features = ["native-e2e"]
+
+[[test]]
+name = "native_unattested"
+path = "tests/native_unattested.rs"
+required-features = ["native-e2e"]
+
+[[test]]
+name = "attested_errors"
+path = "tests/attested_errors.rs"
+required-features = ["native-e2e"]
 
 [lints]
 workspace = true

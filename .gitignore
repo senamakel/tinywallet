@@ -1,7 +1,6 @@
 # Build output
 /target/
 /proof-workspaces/storage-needs/target/
-/proof-workspaces/tinywallet-client-native-e2e/target/
 **/*.rs.bk
 *.pdb
 __pycache__/
