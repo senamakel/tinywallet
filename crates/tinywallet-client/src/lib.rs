@@ -74,6 +74,19 @@ impl WalletClient {
     /// Members declared confidential by tinywallet-bus are refused before the
     /// request is serialized.
     ///
+    /// Secret-bearing requests cannot be consumed by this ordinary-call API:
+    ///
+    /// ```compile_fail
+    /// use tinywallet_client::{WalletClient, methods, SecretMaterial};
+    ///
+    /// fn pass_owned_secret(wallet: &WalletClient, secret: SecretMaterial) {
+    ///     let _future = wallet.call::<_, serde_json::Value>(
+    ///         methods::DERIVE_ACCOUNT,
+    ///         secret,
+    ///     );
+    /// }
+    /// ```
+    ///
     /// # Errors
     ///
     /// Returns `ConfidentialRequired` for a confidential member, or `Remote` for

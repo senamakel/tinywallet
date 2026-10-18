@@ -478,6 +478,26 @@ async fn ordinary_call_refuses_confidential_member_before_serializing_request() 
 }
 
 #[tokio::test]
+async fn ordinary_refusal_leaves_secret_request_with_caller_to_wipe() {
+    let serialized = Arc::new(AtomicBool::new(false));
+    let dropped = Arc::new(AtomicBool::new(false));
+    let request = CallerOwnedSecretRequest {
+        secret: "content-free-test-secret".to_owned(),
+        serialized: Arc::clone(&serialized),
+        dropped: Arc::clone(&dropped),
+    };
+    let result = client()
+        .call::<_, serde_json::Value>(methods::DERIVE_ACCOUNT, &request)
+        .await;
+
+    assert!(matches!(result, Err(ClientError::ConfidentialRequired)));
+    assert!(!serialized.load(Ordering::SeqCst));
+    assert!(!dropped.load(Ordering::SeqCst));
+    drop(request);
+    assert!(dropped.load(Ordering::SeqCst));
+}
+
+#[tokio::test]
 async fn attested_call_refuses_public_member_before_module_access() {
     let serialized = Arc::new(AtomicBool::new(false));
     let request = MustNotSerialize(serialized.clone());
