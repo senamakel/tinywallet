@@ -18,6 +18,26 @@ TINYBUS_VERSION_RANGE = ">=0.3.3, <0.4.0"
 TINYBUS_CRATES = ("tinybus", "tinybus-module", "tinybus-macros")
 
 
+def _is_expected_tinybus_gitlink(entry):
+    lines = entry.splitlines()
+    if len(lines) != 1:
+        return False
+    metadata, separator, path = lines[0].partition("\t")
+    fields = metadata.split()
+    return (
+        separator == "\t"
+        and len(fields) == 3
+        and fields[0] == "160000"
+        and fields[1] == "commit"
+        and fields[2] == TINYBUS_REV
+        and path == "vendor/tinybus"
+    )
+
+
+def _manifest_path_label(manifest_path, repository_root=ROOT):
+    return manifest_path.relative_to(repository_root).as_posix()
+
+
 class ReviewedReleaseWorkflowTests(unittest.TestCase):
     def setUp(self):
         self.workflow = WORKFLOW.read_text()
@@ -90,10 +110,10 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
         self.assertEqual(patch_table["tinybus"]["path"], "vendor/tinybus/crates/tinybus")
         self.assertEqual(patch_table["tinybus-module"]["path"], "vendor/tinybus/crates/tinybus-module")
         self.assertEqual(patch_table["tinybus-macros"]["path"], "vendor/tinybus/crates/tinybus-macros")
-        commit = subprocess.check_output(
-            ["git", "-C", str(ROOT / "vendor/tinybus"), "rev-parse", "HEAD"], text=True
+        entry = subprocess.check_output(
+            ["git", "-C", str(ROOT), "ls-tree", "HEAD", "--", "vendor/tinybus"], text=True
         ).strip()
-        self.assertEqual(commit, TINYBUS_REV)
+        self.assertTrue(_is_expected_tinybus_gitlink(entry), entry)
 
     def test_tinybus_gitlink_guard_reads_exact_parent_tree_entry(self):
         entry = f"160000 commit {TINYBUS_REV}\tvendor/tinybus\n"
@@ -140,10 +160,10 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
                         edge = current[crate]
                         if isinstance(edge, dict) and edge.get("workspace"):
                             continue
-                        sdk_edges.append((manifest_path.relative_to(ROOT), section, crate, edge))
+                        sdk_edges.append((_manifest_path_label(manifest_path), section, crate, edge))
 
         self.assertEqual(
-            {(str(path), section, crate) for path, section, crate, _ in sdk_edges},
+            {(path, section, crate) for path, section, crate, _ in sdk_edges},
             {
                 ("Cargo.toml", "workspace.dependencies", "tinybus"),
                 ("crates/tinywallet-module/Cargo.toml", "dependencies", "tinybus"),
