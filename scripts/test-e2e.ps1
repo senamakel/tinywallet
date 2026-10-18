@@ -1,3 +1,5 @@
+param([switch]$PrepareOnly)
+
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $root
@@ -53,12 +55,14 @@ $hash = (Get-FileHash -LiteralPath $library -Algorithm SHA256).Hash.ToLowerInvar
 '"tinywallet_module.dll" = "{0}"' -f $hash |
     Set-Content -Path (Join-Path $stage 'modules.toml') -Encoding utf8NoBOM
 $env:TINYWALLET_TEST_MODULE = $library
-Invoke-CountedNativeTest -Name 'module_e2e' -ExpectedCount 2 -Arguments @(
-    '--locked', '--release', '--package', 'tinywallet-module', '--test', 'module_e2e', '--', '--ignored'
-)
-Invoke-CountedNativeTest -Name 'lifecycle_e2e' -ExpectedCount 1 -Arguments @(
-    '--locked', '--release', '--package', 'tinywallet-module', '--test', 'lifecycle_e2e', '--', '--ignored'
-)
+if (-not $PrepareOnly) {
+    Invoke-CountedNativeTest -Name 'module_e2e' -ExpectedCount 2 -Arguments @(
+        '--locked', '--release', '--package', 'tinywallet-module', '--test', 'module_e2e', '--', '--ignored'
+    )
+    Invoke-CountedNativeTest -Name 'lifecycle_e2e' -ExpectedCount 1 -Arguments @(
+        '--locked', '--release', '--package', 'tinywallet-module', '--test', 'lifecycle_e2e', '--', '--ignored'
+    )
+}
 
 # Build a local archive/cache from the same release cdylib. The Rust client
 # fixture uses CachedRelease with downloads disabled and verifies both hashes.

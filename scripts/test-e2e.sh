@@ -3,8 +3,19 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$root"
+prepare_only=0
+if [[ "${1:-}" == "--prepare-only" && "$#" -eq 1 ]]; then
+  prepare_only=1
+elif [[ "$#" -ne 0 ]]; then
+  echo "usage: $0 [--prepare-only]" >&2
+  exit 2
+fi
 if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
-  pwsh -NoProfile -File scripts/test-e2e.ps1
+  if (( prepare_only )); then
+    pwsh -NoProfile -File scripts/test-e2e.ps1 -PrepareOnly
+  else
+    pwsh -NoProfile -File scripts/test-e2e.ps1
+  fi
   exit
 fi
 target="${CARGO_TARGET_DIR:-$root/target}"
@@ -21,7 +32,9 @@ case "$host" in
 esac
 
 native_test_logs="$target/tinywallet-native-e2e-logs"
-rm -rf "$native_test_logs"
+if (( ! prepare_only )); then
+  rm -rf "$native_test_logs"
+fi
 mkdir -p "$native_test_logs"
 run_counted_test() {
   local expected_count="$1"
@@ -51,15 +64,17 @@ else
   hash="$(shasum -a 256 "$stage/$name" | awk '{print $1}')"
 fi
 printf '"%s" = "%s"\n' "$name" "$hash" > "$stage/modules.toml"
-run_counted_test 2 module_e2e env TINYWALLET_TEST_MODULE="$stage/$name" \
-  cargo test --locked --release --package tinywallet-module --test module_e2e -- --ignored
-run_counted_test 1 lifecycle_e2e env TINYWALLET_TEST_MODULE="$stage/$name" \
-  cargo test --locked --release --package tinywallet-module --test lifecycle_e2e -- --ignored
+if (( ! prepare_only )); then
+  run_counted_test 2 module_e2e env TINYWALLET_TEST_MODULE="$stage/$name" \
+    cargo test --locked --release --package tinywallet-module --test module_e2e -- --ignored
+  run_counted_test 1 lifecycle_e2e env TINYWALLET_TEST_MODULE="$stage/$name" \
+    cargo test --locked --release --package tinywallet-module --test lifecycle_e2e -- --ignored
+fi
 
 # Client E2E uses this exact local build as both a release archive and a
 # library-pinned cache entry. The cached-release loader is forbidden to fetch.
-# Its fixture-dependent tests live in an excluded proof workspace so ordinary
-# all-feature tests and coverage cannot launch them before this staging step.
+# Its fixture-dependent tests run only after this local archive and both hashes
+# have been staged; feature and coverage runners use prepare-only mode first.
 client_cache="$target/tinywallet-client-e2e-cache"
 unattested_dir="$target/tinywallet-client-unattested"
 archive_name="tinywallet-module-client-test.tar.gz"
@@ -81,11 +96,23 @@ export TINYWALLET_CLIENT_TEST_CACHE="$client_cache"
 export TINYWALLET_CLIENT_TEST_ARCHIVE_NAME="$archive_name"
 export TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256="$archive_hash"
 export TINYWALLET_CLIENT_TEST_LIBRARY_SHA256="$hash"
-proof_manifest=proof-workspaces/tinywallet-client-native-e2e/Cargo.toml
-run_counted_test 2 native_e2e cargo test --locked --release \
-  --manifest-path "$proof_manifest" --features native-e2e --test native_e2e -- --test-threads=1
-run_counted_test 1 attested_errors cargo test --locked --release \
-  --manifest-path "$proof_manifest" --features native-e2e --test attested_errors -- --test-threads=1
 export TINYWALLET_CLIENT_UNATTESTED_MODULE="$unattested_dir/$name"
-run_counted_test 1 native_unattested cargo test --locked --release \
-  --manifest-path "$proof_manifest" --features native-e2e --test native_unattested -- --test-threads=1
+env_file="$target/tinywallet-client-e2e.env"
+{
+  printf 'export TINYWALLET_CLIENT_TEST_CACHE=%q\n' "$TINYWALLET_CLIENT_TEST_CACHE"
+  printf 'export TINYWALLET_CLIENT_TEST_ARCHIVE_NAME=%q\n' "$TINYWALLET_CLIENT_TEST_ARCHIVE_NAME"
+  printf 'export TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256=%q\n' "$TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256"
+  printf 'export TINYWALLET_CLIENT_TEST_LIBRARY_SHA256=%q\n' "$TINYWALLET_CLIENT_TEST_LIBRARY_SHA256"
+  printf 'export TINYWALLET_CLIENT_UNATTESTED_MODULE=%q\n' "$TINYWALLET_CLIENT_UNATTESTED_MODULE"
+} > "$env_file"
+if (( prepare_only )); then
+  echo "prepared native wallet fixture environment at $env_file"
+  exit 0
+fi
+
+run_counted_test 2 native_e2e cargo test --locked --release --package tinywallet-client \
+  --features native-e2e --test native_e2e -- --test-threads=1
+run_counted_test 1 attested_errors cargo test --locked --release --package tinywallet-client \
+  --features native-e2e --test attested_errors -- --test-threads=1
+run_counted_test 1 native_unattested cargo test --locked --release --package tinywallet-client \
+  --features native-e2e --test native_unattested -- --test-threads=1
