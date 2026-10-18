@@ -85,7 +85,7 @@ class NativeE2ETopologyTests(unittest.TestCase):
             if runner.suffix == ".sh":
                 self.assertIn(f"proof_manifest={manifest_path}", source)
             else:
-                self.assertIn(f"--manifest-path {manifest_path}", source)
+                self.assertIn(f"'--manifest-path', '{manifest_path}'", source)
             for target, expected_count in EXPECTED_COUNTS.items():
                 self.assertEqual(source.count(f"--test {target}"), 1)
                 if runner.suffix == ".sh":
