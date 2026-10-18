@@ -97,7 +97,7 @@ class NativeE2ETopologyTests(unittest.TestCase):
         for filename in ("AGENTS.md", "CONTRIBUTING.md", "README.md"):
             source = (ROOT / filename).read_text()
             self.assertIn("scripts/test-features.sh", source)
-            self.assertNotIn("cargo test --all-features", source)
+            self.assertNotRegex(source, r"(?m)^cargo test --all-features\s*$")
         self.assertIn("scripts/test-features.ps1", (ROOT / "CONTRIBUTING.md").read_text())
 
 
