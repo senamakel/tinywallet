@@ -1,7 +1,9 @@
 # Build output
 /target/
+/proof-workspaces/storage-needs/target/
 **/*.rs.bk
 *.pdb
+__pycache__/
 
 # Coverage output
 /coverage/

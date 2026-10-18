@@ -87,20 +87,25 @@ the crate-wide `Result<T>` from fallible public APIs.
 
 ## Build And Test
 
-Run every command from the repository root. These four are the contract; CI
-runs exactly them, so a green local run should mean a green CI run.
+Run every command from the repository root. CI builds and lints the workspace
+directly. The native wallet targets need a staged release fixture before the
+all-features test, so use the self-preparing feature runner for that test lane.
 
 ```sh
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo build --all-targets --all-features
-cargo test --all-features
+bash scripts/test-features.sh
 ```
 
 Supporting commands:
 
 - `cargo fmt --all` — format before committing.
 - `cargo test <filter>` — run a focused subset while iterating.
+- `scripts/test-features.sh` (or `scripts/test-features.ps1` on Windows) — run
+  default tests, stage the locally built wallet fixture, then run all-feature
+  tests. A bare `cargo test --all-features` omits fixture setup and is not the
+  supported full test command.
 - `cargo run --example basic` — run the bundled example.
 - `cargo doc --no-deps --all-features` — build the rustdoc CI also builds with
   `RUSTDOCFLAGS="-D warnings"`.

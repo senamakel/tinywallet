@@ -10,9 +10,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / ".github/workflows/release.yml"
-REVIEWED_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-reviewed-epic-release.yml@b52f22509fdf4969612ac21f225cd0d27c0b3240"
+REVIEWED_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-reviewed-epic-release.yml@6ed83b04aab2d8977ec62e966cb914531e534fa4"
 LEGACY_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-release.yml@4adc1080fb495098e7af1aade82ed7e6e3c69bb7"
-TINYBUS_REV = "ed1ee4f5ee561c0320fa715eef114e0f1b888e41"
+TINYBUS_REV = "207a9a7df15e44fdba00a807d0f7eaf21904ba0e"
 
 
 class ReviewedReleaseWorkflowTests(unittest.TestCase):
@@ -75,6 +75,12 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
         ci = (ROOT / ".github/workflows/ci.yml").read_text()
         self.assertIn("python3 scripts/test_reviewed_release_workflow.py", ci)
 
+    def test_native_e2e_runs_the_detailed_attested_error_target(self):
+        for path in (ROOT / "scripts/test-e2e.sh", ROOT / "scripts/test-e2e.ps1"):
+            with self.subTest(path=path.name):
+                native_target = "--test attested_errors" if path.suffix == ".sh" else "'--test', 'attested_errors'"
+                self.assertIn(native_target, path.read_text())
+
     def test_module_dependencies_and_nested_patch_use_canonical_tinybus_release(self):
         module_manifest = tomllib.loads((ROOT / "crates/tinywallet-module/Cargo.toml").read_text())
         dependencies = module_manifest["dependencies"]
@@ -92,21 +98,12 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
         self.assertEqual(commit, TINYBUS_REV)
 
     def test_every_workspace_package_is_at_the_feature_release_version(self):
-        manifests = [
-            ROOT / "Cargo.toml",
-            *(ROOT / "crates" / crate / "Cargo.toml" for crate in (
-                "tinywallet-bus",
-                "tinywallet-crypto",
-                "tinywallet-module",
-                "tinywallet-web3",
-                "tinywallet-x402",
-            )),
-        ]
+        manifests = [ROOT / "Cargo.toml", *sorted((ROOT / "crates").glob("*/Cargo.toml"))]
         versions = {
             tomllib.loads(manifest.read_text())["package"]["version"]
             for manifest in manifests
         }
-        self.assertEqual(versions, {"0.24.0"})
+        self.assertEqual(versions, {"0.25.0"})
 
     def validation_run_block(self):
         lines = self.workflow.splitlines()
