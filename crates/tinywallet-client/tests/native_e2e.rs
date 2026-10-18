@@ -216,10 +216,7 @@ async fn ordinary_public_call_encodes_transfers_and_keeps_preflight_errors_safe(
     let public_request = serde_json::json!({});
     let public_error = fixture
         .wallet
-        .call_attested::<_, serde_json::Value>(
-            methods::ENCODE_ERC20_TRANSFER,
-            &public_request,
-        )
+        .call_attested::<_, serde_json::Value>(methods::ENCODE_ERC20_TRANSFER, &public_request)
         .await
         .unwrap_err();
     assert!(matches!(&public_error, ClientError::NotConfidential));
