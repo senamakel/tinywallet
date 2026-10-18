@@ -73,6 +73,29 @@ impl serde::Serialize for MustNotSerialize {
     }
 }
 
+struct CallerOwnedSecretRequest {
+    secret: String,
+    serialized: Arc<AtomicBool>,
+    dropped: Arc<AtomicBool>,
+}
+
+impl serde::Serialize for CallerOwnedSecretRequest {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.serialized.store(true, Ordering::SeqCst);
+        serializer.serialize_str(&self.secret)
+    }
+}
+
+impl Drop for CallerOwnedSecretRequest {
+    fn drop(&mut self) {
+        self.secret.zeroize();
+        self.dropped.store(true, Ordering::SeqCst);
+    }
+}
+
 #[test]
 fn every_bus_confidential_member_is_classified_as_confidential() {
     for member in CONFIDENTIAL_METHODS {
@@ -480,5 +503,52 @@ async fn attested_call_with_no_release_library_pins_never_serializes_request() {
         result,
         Err(ClientError::Remote(failure)) if failure.kind == ModuleCallError::Unavailable
     ));
+    assert!(!serialized.load(Ordering::SeqCst));
+}
+
+#[tokio::test]
+async fn attested_failure_leaves_secret_request_with_caller_to_wipe() {
+    let serialized = Arc::new(AtomicBool::new(false));
+    let dropped = Arc::new(AtomicBool::new(false));
+    let request = CallerOwnedSecretRequest {
+        secret: "content-free-test-secret".to_owned(),
+        serialized: Arc::clone(&serialized),
+        dropped: Arc::clone(&dropped),
+    };
+    let result = client()
+        .call_attested::<_, serde_json::Value>(methods::SIGN_MESSAGE, &request)
+        .await;
+
+    assert!(matches!(result, Err(ClientError::Remote(failure)) if failure.kind == ModuleCallError::Unavailable));
+    assert!(!serialized.load(Ordering::SeqCst));
+    assert!(!dropped.load(Ordering::SeqCst));
+    drop(request);
+    assert!(dropped.load(Ordering::SeqCst));
+}
+
+#[tokio::test]
+async fn cancelling_attested_call_leaves_secret_request_with_caller_task_to_wipe() {
+    let serialized = Arc::new(AtomicBool::new(false));
+    let dropped = Arc::new(AtomicBool::new(false));
+    let started = Arc::new(tokio::sync::Notify::new());
+    let wallet = pending_client(Arc::clone(&started));
+    let task_serialized = Arc::clone(&serialized);
+    let task_dropped = Arc::clone(&dropped);
+    let task = tokio::spawn(async move {
+        let request = CallerOwnedSecretRequest {
+            secret: "content-free-test-secret".to_owned(),
+            serialized: task_serialized,
+            dropped: task_dropped,
+        };
+        let _ = wallet
+            .call_attested::<_, serde_json::Value>(methods::SIGN_MESSAGE, &request)
+            .await;
+    });
+    started.notified().await;
+    assert!(!dropped.load(Ordering::SeqCst));
+    assert!(!serialized.load(Ordering::SeqCst));
+    task.abort();
+    let _ = task.await;
+    assert!(dropped.load(Ordering::SeqCst));
     assert!(!serialized.load(Ordering::SeqCst));
 }
