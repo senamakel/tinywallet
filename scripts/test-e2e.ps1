@@ -6,6 +6,28 @@ New-Item -ItemType Directory -Force $target | Out-Null
 $target = (Resolve-Path -LiteralPath $target).Path
 $rootPrefix = $root.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
 if (-not $target.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) { throw 'CARGO_TARGET_DIR must stay inside the repository' }
+$nativeTestLogs = Join-Path $target 'tinywallet-native-e2e-logs'
+Remove-Item -LiteralPath $nativeTestLogs -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force $nativeTestLogs | Out-Null
+
+function Invoke-CountedNativeTest {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][int]$ExpectedCount,
+        [Parameter(Mandatory)][string[]]$Arguments
+    )
+
+    $logPath = Join-Path $nativeTestLogs "$Name.log"
+    & cargo @Arguments 2>&1 | Tee-Object -FilePath $logPath
+    if ($LASTEXITCODE -ne 0) { throw "TinyWallet native E2E target failed: $Name" }
+    $summaries = @(Select-String -Path $logPath -Pattern '^test result: ok\. (\d+) passed;')
+    if ($summaries.Count -eq 0) { throw "TinyWallet native E2E target reported no test result: $Name" }
+    $actualCount = [int]$summaries[-1].Matches[0].Groups[1].Value
+    if ($actualCount -ne $ExpectedCount) {
+        throw "TinyWallet native E2E target $Name ran $actualCount tests; expected $ExpectedCount"
+    }
+}
+
 $stage = Join-Path $target 'tinywallet-module-e2e'
 
 cargo build --locked --release --package tinywallet-module --features e2e-memory-storage
@@ -31,10 +53,12 @@ $hash = (Get-FileHash -LiteralPath $library -Algorithm SHA256).Hash.ToLowerInvar
 '"tinywallet_module.dll" = "{0}"' -f $hash |
     Set-Content -Path (Join-Path $stage 'modules.toml') -Encoding utf8NoBOM
 $env:TINYWALLET_TEST_MODULE = $library
-cargo test --locked --release --package tinywallet-module --test module_e2e -- --ignored
-if ($LASTEXITCODE -ne 0) { throw 'TinyWallet module E2E failed' }
-cargo test --locked --release --package tinywallet-module --test lifecycle_e2e -- --ignored
-if ($LASTEXITCODE -ne 0) { throw 'TinyWallet lifecycle E2E failed' }
+Invoke-CountedNativeTest -Name 'module_e2e' -ExpectedCount 2 -Arguments @(
+    '--locked', '--release', '--package', 'tinywallet-module', '--test', 'module_e2e', '--', '--ignored'
+)
+Invoke-CountedNativeTest -Name 'lifecycle_e2e' -ExpectedCount 1 -Arguments @(
+    '--locked', '--release', '--package', 'tinywallet-module', '--test', 'lifecycle_e2e', '--', '--ignored'
+)
 
 # Build a local archive/cache from the same release cdylib. The Rust client
 # fixture uses CachedRelease with downloads disabled and verifies both hashes.
@@ -67,10 +91,16 @@ $env:TINYWALLET_CLIENT_TEST_CACHE = $clientCache
 $env:TINYWALLET_CLIENT_TEST_ARCHIVE_NAME = $archiveName
 $env:TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256 = $archiveHash
 $env:TINYWALLET_CLIENT_TEST_LIBRARY_SHA256 = $libraryHash
-cargo test --locked --release --manifest-path proof-workspaces/tinywallet-client-native-e2e/Cargo.toml --features native-e2e --test native_e2e -- --test-threads=1
-if ($LASTEXITCODE -ne 0) { throw 'TinyWallet typed client attested E2E failed' }
-cargo test --locked --release --manifest-path proof-workspaces/tinywallet-client-native-e2e/Cargo.toml --features native-e2e --test attested_errors -- --test-threads=1
-if ($LASTEXITCODE -ne 0) { throw 'TinyWallet typed client detailed attested error E2E failed' }
+Invoke-CountedNativeTest -Name 'native_e2e' -ExpectedCount 2 -Arguments @(
+    '--locked', '--release', '--manifest-path', 'proof-workspaces/tinywallet-client-native-e2e/Cargo.toml',
+    '--features', 'native-e2e', '--test', 'native_e2e', '--', '--test-threads=1'
+)
+Invoke-CountedNativeTest -Name 'attested_errors' -ExpectedCount 1 -Arguments @(
+    '--locked', '--release', '--manifest-path', 'proof-workspaces/tinywallet-client-native-e2e/Cargo.toml',
+    '--features', 'native-e2e', '--test', 'attested_errors', '--', '--test-threads=1'
+)
 $env:TINYWALLET_CLIENT_UNATTESTED_MODULE = $unattestedModule
-cargo test --locked --release --manifest-path proof-workspaces/tinywallet-client-native-e2e/Cargo.toml --features native-e2e --test native_unattested -- --test-threads=1
-if ($LASTEXITCODE -ne 0) { throw 'TinyWallet typed client unattested E2E failed' }
+Invoke-CountedNativeTest -Name 'native_unattested' -ExpectedCount 1 -Arguments @(
+    '--locked', '--release', '--manifest-path', 'proof-workspaces/tinywallet-client-native-e2e/Cargo.toml',
+    '--features', 'native-e2e', '--test', 'native_unattested', '--', '--test-threads=1'
+)

@@ -17,6 +17,13 @@ TARGETS = {
     "attested_errors": ("invalid_seed_preserves_remote_error_classification_on_strict_delivery",),
     "native_unattested": ("unattested_module_never_receives_any_confidential_wrapper_request",),
 }
+EXPECTED_COUNTS = {
+    "module_e2e": 2,
+    "lifecycle_e2e": 1,
+    "native_e2e": 2,
+    "attested_errors": 1,
+    "native_unattested": 1,
+}
 MODULE_TESTS = {
     "module_e2e.rs": (
         "refuses_a_confidential_call_to_an_unattested_module",
@@ -49,8 +56,12 @@ class NativeE2ETopologyTests(unittest.TestCase):
         self.assertEqual(set(targets), set(TARGETS))
         for target in targets.values():
             self.assertEqual(target["required-features"], ["native-e2e"])
+        proof_lock = tomllib.loads((ROOT / PROOF / "Cargo.lock").read_text())
+        tinybus = next(package for package in proof_lock["package"] if package["name"] == "tinybus")
+        self.assertEqual(tinybus["version"], "0.3.3")
 
     def test_native_runners_execute_all_seven_cases_and_ci_invokes_them(self):
+        self.assertEqual(sum(EXPECTED_COUNTS.values()), 7)
         source_files = {
             target: (ROOT / PROOF / "tests" / f"{target}.rs").read_text()
             for target in TARGETS
@@ -71,11 +82,15 @@ class NativeE2ETopologyTests(unittest.TestCase):
         for runner in (ROOT / "scripts/test-e2e.sh", ROOT / "scripts/test-e2e.ps1"):
             source = runner.read_text()
             self.assertIn(f"--manifest-path {PROOF_MANIFEST.relative_to(ROOT)}", source)
-            self.assertEqual(source.count("--test module_e2e"), 1)
-            self.assertEqual(source.count("--test lifecycle_e2e"), 1)
-            for target in TARGETS:
+            for target, expected_count in EXPECTED_COUNTS.items():
                 self.assertEqual(source.count(f"--test {target}"), 1)
-            self.assertGreaterEqual(source.count("--features native-e2e"), len(TARGETS))
+                if runner.suffix == ".sh":
+                    self.assertIn(f"run_counted_test {expected_count} {target}", source)
+                else:
+                    self.assertIn(
+                        f"-Name '{target}' -ExpectedCount {expected_count}", source
+                    )
+            self.assertGreaterEqual(source.count("native-e2e"), len(TARGETS))
 
         ci = (ROOT / ".github/workflows/ci.yml").read_text()
         self.assertIn("module-e2e-script: scripts/test-e2e.sh", ci)
