@@ -75,6 +75,11 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
         ci = (ROOT / ".github/workflows/ci.yml").read_text()
         self.assertIn("python3 scripts/test_reviewed_release_workflow.py", ci)
 
+    def test_native_e2e_runs_the_detailed_attested_error_target(self):
+        for path in (ROOT / "scripts/test-e2e.sh", ROOT / "scripts/test-e2e.ps1"):
+            with self.subTest(path=path.name):
+                self.assertIn("--test attested_errors", path.read_text())
+
     def test_module_dependencies_and_nested_patch_use_canonical_tinybus_release(self):
         module_manifest = tomllib.loads((ROOT / "crates/tinywallet-module/Cargo.toml").read_text())
         dependencies = module_manifest["dependencies"]
