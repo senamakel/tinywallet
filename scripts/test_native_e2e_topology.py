@@ -87,10 +87,11 @@ class NativeE2ETopologyTests(unittest.TestCase):
             else:
                 self.assertIn(f"'--manifest-path', '{manifest_path}'", source)
             for target, expected_count in EXPECTED_COUNTS.items():
-                self.assertEqual(source.count(f"--test {target}"), 1)
                 if runner.suffix == ".sh":
+                    self.assertEqual(source.count(f"--test {target}"), 1)
                     self.assertIn(f"run_counted_test {expected_count} {target}", source)
                 else:
+                    self.assertIn(f"'--test', '{target}'", source)
                     self.assertIn(
                         f"-Name '{target}' -ExpectedCount {expected_count}", source
                     )
