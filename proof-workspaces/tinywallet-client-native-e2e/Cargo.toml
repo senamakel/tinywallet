@@ -1,0 +1,43 @@
+[package]
+name = "tinywallet-client-native-e2e"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[workspace]
+resolver = "3"
+
+[dependencies]
+tinywallet-client = { path = "../../crates/tinywallet-client", optional = true }
+
+[dev-dependencies]
+serde_json = "1"
+tinywallet-bus = { path = "../../crates/tinywallet-bus" }
+tinybus = { version = "=0.3.3", git = "https://github.com/tinyhumansai/tinybus", rev = "207a9a7df15e44fdba00a807d0f7eaf21904ba0e", default-features = false, features = ["macros", "modules"] }
+tokio = { version = "1", features = ["macros", "rt", "sync"] }
+zeroize = "1"
+
+[features]
+default = []
+native-e2e = ["dep:tinywallet-client", "tinywallet-client/native-e2e"]
+
+[[test]]
+name = "native_e2e"
+path = "tests/native_e2e.rs"
+required-features = ["native-e2e"]
+
+[[test]]
+name = "native_unattested"
+path = "tests/native_unattested.rs"
+required-features = ["native-e2e"]
+
+[[test]]
+name = "attested_errors"
+path = "tests/attested_errors.rs"
+required-features = ["native-e2e"]
+
+[patch."https://github.com/tinyhumansai/tinybus"]
+tinybus = { path = "../../vendor/tinybus/crates/tinybus" }
+tinybus-module = { path = "../../vendor/tinybus/crates/tinybus-module" }
+tinybus-macros = { path = "../../vendor/tinybus/crates/tinybus-macros" }

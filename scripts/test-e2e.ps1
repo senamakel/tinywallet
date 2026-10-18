@@ -67,10 +67,10 @@ $env:TINYWALLET_CLIENT_TEST_CACHE = $clientCache
 $env:TINYWALLET_CLIENT_TEST_ARCHIVE_NAME = $archiveName
 $env:TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256 = $archiveHash
 $env:TINYWALLET_CLIENT_TEST_LIBRARY_SHA256 = $libraryHash
-cargo test --locked --release --package tinywallet-client --features native-e2e --test native_e2e -- --test-threads=1
+cargo test --locked --release --manifest-path proof-workspaces/tinywallet-client-native-e2e/Cargo.toml --features native-e2e --test native_e2e -- --test-threads=1
 if ($LASTEXITCODE -ne 0) { throw 'TinyWallet typed client attested E2E failed' }
-cargo test --locked --release --package tinywallet-client --features native-e2e --test attested_errors -- --test-threads=1
+cargo test --locked --release --manifest-path proof-workspaces/tinywallet-client-native-e2e/Cargo.toml --features native-e2e --test attested_errors -- --test-threads=1
 if ($LASTEXITCODE -ne 0) { throw 'TinyWallet typed client detailed attested error E2E failed' }
 $env:TINYWALLET_CLIENT_UNATTESTED_MODULE = $unattestedModule
-cargo test --locked --release --package tinywallet-client --features native-e2e --test native_unattested -- --test-threads=1
+cargo test --locked --release --manifest-path proof-workspaces/tinywallet-client-native-e2e/Cargo.toml --features native-e2e --test native_unattested -- --test-threads=1
 if ($LASTEXITCODE -ne 0) { throw 'TinyWallet typed client unattested E2E failed' }

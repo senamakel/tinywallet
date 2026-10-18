@@ -50,7 +50,10 @@ default-members = [
 ]
 # The vendored bus is a submodule with its own workspace; it must not be pulled
 # into this one.
-exclude = ["vendor/tinybus"]
+exclude = [
+    "vendor/tinybus",
+    "proof-workspaces/tinywallet-client-native-e2e",
+]
 resolver = "3"
 
 [workspace.dependencies]

@@ -38,6 +38,8 @@ TINYWALLET_TEST_MODULE="$stage/$name" cargo test --locked --release \
 
 # Client E2E uses this exact local build as both a release archive and a
 # library-pinned cache entry. The cached-release loader is forbidden to fetch.
+# Its fixture-dependent tests live in an excluded proof workspace so ordinary
+# all-feature tests and coverage cannot launch them before this staging step.
 client_cache="$target/tinywallet-client-e2e-cache"
 unattested_dir="$target/tinywallet-client-unattested"
 archive_name="tinywallet-module-client-test.tar.gz"
@@ -59,18 +61,18 @@ TINYWALLET_CLIENT_TEST_CACHE="$client_cache" \
 TINYWALLET_CLIENT_TEST_ARCHIVE_NAME="$archive_name" \
 TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256="$archive_hash" \
 TINYWALLET_CLIENT_TEST_LIBRARY_SHA256="$hash" \
-cargo test --locked --release --package tinywallet-client --features native-e2e \
+cargo test --locked --release --manifest-path proof-workspaces/tinywallet-client-native-e2e/Cargo.toml --features native-e2e \
   --test native_e2e -- --test-threads=1
 TINYWALLET_CLIENT_TEST_CACHE="$client_cache" \
 TINYWALLET_CLIENT_TEST_ARCHIVE_NAME="$archive_name" \
 TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256="$archive_hash" \
 TINYWALLET_CLIENT_TEST_LIBRARY_SHA256="$hash" \
-cargo test --locked --release --package tinywallet-client --features native-e2e \
+cargo test --locked --release --manifest-path proof-workspaces/tinywallet-client-native-e2e/Cargo.toml --features native-e2e \
   --test attested_errors -- --test-threads=1
 TINYWALLET_CLIENT_TEST_CACHE="$client_cache" \
 TINYWALLET_CLIENT_TEST_ARCHIVE_NAME="$archive_name" \
 TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256="$archive_hash" \
 TINYWALLET_CLIENT_TEST_LIBRARY_SHA256="$hash" \
 TINYWALLET_CLIENT_UNATTESTED_MODULE="$unattested_dir/$name" \
-cargo test --locked --release --package tinywallet-client --features native-e2e \
+cargo test --locked --release --manifest-path proof-workspaces/tinywallet-client-native-e2e/Cargo.toml --features native-e2e \
   --test native_unattested -- --test-threads=1
