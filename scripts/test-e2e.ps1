@@ -20,7 +20,7 @@ function Invoke-CountedNativeTest {
     )
 
     $logPath = Join-Path $nativeTestLogs "$Name.log"
-    & cargo @Arguments 2>&1 | Tee-Object -FilePath $logPath
+    & cargo test @Arguments 2>&1 | Tee-Object -FilePath $logPath
     if ($LASTEXITCODE -ne 0) { throw "TinyWallet native E2E target failed: $Name" }
     $summaries = @(Select-String -Path $logPath -Pattern '^test result: ok\. (\d+) passed;')
     if ($summaries.Count -eq 0) { throw "TinyWallet native E2E target reported no test result: $Name" }

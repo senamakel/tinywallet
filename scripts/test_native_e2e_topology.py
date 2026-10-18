@@ -87,6 +87,8 @@ class NativeE2ETopologyTests(unittest.TestCase):
     def test_windows_archive_operand_is_local_not_a_drive_qualified_remote(self):
         powershell = (ROOT / "scripts/test-e2e.ps1").read_text()
         self.assertIn("Push-Location $target", powershell)
+        self.assertIn("& cargo test @Arguments", powershell)
+        self.assertIn("[string[]]$Arguments", powershell)
         self.assertIn("tar.exe -czf $archiveName -C 'tinywallet-client-e2e-cache' .", powershell)
         self.assertNotIn("tar.exe -czf $archivePath", powershell)
 
