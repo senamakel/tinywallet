@@ -81,7 +81,11 @@ class NativeE2ETopologyTests(unittest.TestCase):
 
         for runner in (ROOT / "scripts/test-e2e.sh", ROOT / "scripts/test-e2e.ps1"):
             source = runner.read_text()
-            self.assertIn(f"--manifest-path {PROOF_MANIFEST.relative_to(ROOT)}", source)
+            manifest_path = str(PROOF_MANIFEST.relative_to(ROOT))
+            if runner.suffix == ".sh":
+                self.assertIn(f"proof_manifest={manifest_path}", source)
+            else:
+                self.assertIn(f"--manifest-path {manifest_path}", source)
             for target, expected_count in EXPECTED_COUNTS.items():
                 self.assertEqual(source.count(f"--test {target}"), 1)
                 if runner.suffix == ".sh":
