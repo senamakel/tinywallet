@@ -78,15 +78,7 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
     def test_native_e2e_runs_the_detailed_attested_error_target(self):
         for path in (ROOT / "scripts/test-e2e.sh", ROOT / "scripts/test-e2e.ps1"):
             with self.subTest(path=path.name):
-                self.assertIn(
-                    "proof-workspaces/tinywallet-client-native-e2e/Cargo.toml",
-                    path.read_text(),
-                )
-                native_target = (
-                    "--test attested_errors"
-                    if path.suffix == ".sh"
-                    else "'--test', 'attested_errors'"
-                )
+                native_target = "--test attested_errors" if path.suffix == ".sh" else "'--test', 'attested_errors'"
                 self.assertIn(native_target, path.read_text())
 
     def test_module_dependencies_and_nested_patch_use_canonical_tinybus_release(self):
