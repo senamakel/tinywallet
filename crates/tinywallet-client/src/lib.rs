@@ -74,6 +74,23 @@ impl WalletClient {
     /// Members declared confidential by tinywallet-bus are refused before the
     /// request is serialized.
     ///
+    /// The request is borrowed so the caller retains ownership and remains
+    /// responsible for wiping any secret fields after the call completes or is
+    /// cancelled. Typed wallet wrappers provide an RAII mnemonic guard.
+    ///
+    /// Secret-bearing DTOs cannot be passed by value:
+    ///
+    /// ```compile_fail
+    /// use tinywallet_client::{WalletClient, methods, SecretMaterial};
+    ///
+    /// fn pass_owned_secret(wallet: &WalletClient, secret: SecretMaterial) {
+    ///     let _future = wallet.call_attested::<_, serde_json::Value>(
+    ///         methods::SIGN_TRANSACTION,
+    ///         secret,
+    ///     );
+    /// }
+    /// ```
+    ///
     /// # Errors
     ///
     /// Returns `ConfidentialRequired` for a confidential member, or `Remote` for
