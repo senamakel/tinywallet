@@ -180,8 +180,9 @@ locally built wallet module before all-feature tests run; a bare
 module as a locally pinned archive and library, then runs the typed client's
 verified-peer and separate-process unattested tests. Running either native
 client test target directly requires the same `TINYWALLET_CLIENT_TEST_*`
-artifact variables; the target fails when they are missing. The
-`pending-attested-errors` target is held for TinyBus's detailed strict-call API.
+artifact variables; the target fails when they are missing. The dedicated
+runner also executes `attested_errors`, which verifies detailed `InvalidInput`
+preservation over strict delivery.
 
 Run the gated builds too — they are the only thing that catches code that
 compiles only when a feature is on. The lib tests are feature-aware, so the
