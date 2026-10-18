@@ -8,7 +8,9 @@
 )]
 mod support;
 
-use tinywallet_client::{Chain, Scheme, SecretMaterial, Signature, TransactionSpec};
+use tinywallet_client::{
+    Chain, ClientError, Scheme, SecretMaterial, Signature, TransactionSpec, methods,
+};
 use zeroize::Zeroize;
 
 fn secret() -> SecretMaterial {
@@ -175,4 +177,61 @@ async fn wrong_library_pin_prevents_business_delivery_for_all_confidential_metho
             .unwrap_err()
     ));
     assert_same_peer(&fixture, &unique_peer).await;
+}
+
+#[tokio::test]
+async fn ordinary_public_call_encodes_transfers_and_keeps_preflight_errors_safe() {
+    let fixture = support::fixture().await;
+    assert_eq!(format!("{:?}", fixture.wallet), "WalletClient { .. }");
+
+    let calldata = fixture
+        .wallet
+        .encode_erc20_transfer(
+            "0x1111111111111111111111111111111111111111".to_string(),
+            "1".to_string(),
+        )
+        .await
+        .expect("public ERC-20 encoding uses the actual module client");
+    assert_eq!(
+        calldata,
+        "0xa9059cbb\
+         0000000000000000000000001111111111111111111111111111111111111111\
+         0000000000000000000000000000000000000000000000000000000000000001"
+    );
+
+    let confidential_error = fixture
+        .wallet
+        .call::<_, serde_json::Value>(methods::SIGN_MESSAGE, serde_json::json!({}))
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        &confidential_error,
+        ClientError::ConfidentialRequired
+    ));
+    assert_eq!(
+        confidential_error.to_string(),
+        "wallet member requires attested delivery"
+    );
+
+    let public_error = fixture
+        .wallet
+        .call_attested::<_, serde_json::Value>(
+            methods::ENCODE_ERC20_TRANSFER,
+            serde_json::json!({}),
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(&public_error, ClientError::NotConfidential));
+    assert_eq!(public_error.to_string(), "wallet member is not confidential");
+
+    let remote_error = fixture
+        .wallet
+        .encode_erc20_transfer("not-an-address".to_string(), "1".to_string())
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        remote_error,
+        ClientError::Remote(failure)
+            if failure.wire_name == "ai.tinyhumans.tinywallet.Error.InvalidInput"
+    ));
 }

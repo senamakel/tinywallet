@@ -11,6 +11,7 @@ CLIENT_TESTS = {
     "native_e2e": (
         "all_six_confidential_wrappers_use_the_verified_unique_peer",
         "wrong_library_pin_prevents_business_delivery_for_all_confidential_methods",
+        "ordinary_public_call_encodes_transfers_and_keeps_preflight_errors_safe",
     ),
     "attested_errors": ("invalid_seed_preserves_remote_error_classification_on_strict_delivery",),
     "native_unattested": ("unattested_module_never_receives_any_confidential_wrapper_request",),
@@ -18,7 +19,7 @@ CLIENT_TESTS = {
 EXPECTED_COUNTS = {
     "module_e2e": 2,
     "lifecycle_e2e": 1,
-    "native_e2e": 2,
+    "native_e2e": 3,
     "attested_errors": 1,
     "native_unattested": 1,
 }
@@ -45,7 +46,7 @@ class NativeE2ETopologyTests(unittest.TestCase):
             self.assertEqual(target["required-features"], ["native-e2e"])
 
     def test_all_seven_native_cases_are_required_and_counted_by_the_runner(self):
-        self.assertEqual(sum(EXPECTED_COUNTS.values()), 7)
+        self.assertEqual(sum(EXPECTED_COUNTS.values()), 8)
         for target, names in CLIENT_TESTS.items():
             source = (ROOT / "crates/tinywallet-client/tests" / f"{target}.rs").read_text()
             for name in names:

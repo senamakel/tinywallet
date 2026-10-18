@@ -110,7 +110,7 @@ if (( prepare_only )); then
   exit 0
 fi
 
-run_counted_test 2 native_e2e cargo test --locked --release --package tinywallet-client \
+run_counted_test 3 native_e2e cargo test --locked --release --package tinywallet-client \
   --features native-e2e --test native_e2e -- --test-threads=1
 run_counted_test 1 attested_errors cargo test --locked --release --package tinywallet-client \
   --features native-e2e --test attested_errors -- --test-threads=1

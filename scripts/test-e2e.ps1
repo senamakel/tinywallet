@@ -104,7 +104,7 @@ $env:TINYWALLET_CLIENT_TEST_LIBRARY_SHA256 = $libraryHash
 $env:TINYWALLET_CLIENT_UNATTESTED_MODULE = $unattestedModule
 if ($PrepareOnly) { return }
 
-Invoke-CountedNativeTest -Name 'native_e2e' -ExpectedCount 2 -Arguments @(
+Invoke-CountedNativeTest -Name 'native_e2e' -ExpectedCount 3 -Arguments @(
     '--locked', '--release', '--package', 'tinywallet-client',
     '--features', 'native-e2e', '--test', 'native_e2e', '--', '--test-threads=1'
 )
