@@ -121,7 +121,7 @@ impl ModuleAccess for Access {
                         self.host
                             .load_github_release_cached(&self.release, serde_json::json!({}))
                     };
-                    loaded.map(|()| ()).map_err(|error| {
+                    loaded.map(drop).map_err(|error| {
                         format!("the local test module could not be admitted: {error}")
                     })
                 })
