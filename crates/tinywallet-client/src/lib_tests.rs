@@ -480,10 +480,11 @@ async fn ordinary_call_refuses_confidential_member_before_serializing_request() 
 #[tokio::test]
 async fn attested_call_refuses_public_member_before_module_access() {
     let serialized = Arc::new(AtomicBool::new(false));
+    let request = MustNotSerialize(serialized.clone());
     let result = client()
         .call_attested::<_, serde_json::Value>(
             methods::ENCODE_ERC20_TRANSFER,
-            MustNotSerialize(serialized.clone()),
+            &request,
         )
         .await;
     assert!(matches!(result, Err(ClientError::NotConfidential)));
@@ -493,10 +494,11 @@ async fn attested_call_refuses_public_member_before_module_access() {
 #[tokio::test]
 async fn attested_call_with_no_release_library_pins_never_serializes_request() {
     let serialized = Arc::new(AtomicBool::new(false));
+    let request = MustNotSerialize(serialized.clone());
     let result = client()
         .call_attested::<_, serde_json::Value>(
             methods::SIGN_MESSAGE,
-            MustNotSerialize(serialized.clone()),
+            &request,
         )
         .await;
     assert!(matches!(
