@@ -2246,7 +2246,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "tinystoragedrivers-bus 1.5.0",
- "tinystoragedrivers-core",
 ]
 
 [[package]]
