@@ -20,7 +20,10 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 use std::time::Duration;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -1010,27 +1013,11 @@ async fn admit_module() -> (
     let artifact =
         std::env::var_os("TINYWALLET_TEST_MODULE").expect("TINYWALLET_TEST_MODULE must be set");
     let artifact = PathBuf::from(artifact);
+    let (staged, staged_artifact) = stage_artifact(&artifact);
     let bus = MemoryBus::new();
     let broker = Broker::new();
     let broker_task = broker.spawn(bus.clone());
     let modules = ModuleHost::new(broker);
-
-    let staged = tempfile::Builder::new()
-        .prefix("tinywallet-attested-")
-        .tempdir_in(artifact.parent().unwrap())
-        .unwrap();
-    let staged_artifact = staged.path().join(artifact.file_name().unwrap());
-    fs::copy(&artifact, &staged_artifact).unwrap();
-    let digest = hex(&Sha256::digest(fs::read(&staged_artifact).unwrap()));
-    fs::write(
-        staged.path().join("modules.toml"),
-        format!(
-            "{} = {:?}\n",
-            artifact.file_name().unwrap().display(),
-            digest
-        ),
-    )
-    .unwrap();
 
     let host = Connection::connect(bus.connect().await.unwrap())
         .await
@@ -1117,6 +1104,26 @@ async fn admit_module() -> (
         broker_task,
         staged,
     )
+}
+
+fn stage_artifact(artifact: &Path) -> (tempfile::TempDir, PathBuf) {
+    let staged = tempfile::Builder::new()
+        .prefix("tinywallet-attested-")
+        .tempdir_in(artifact.parent().unwrap())
+        .unwrap();
+    let staged_artifact = staged.path().join(artifact.file_name().unwrap());
+    fs::copy(artifact, &staged_artifact).unwrap();
+    let digest = hex(&Sha256::digest(fs::read(&staged_artifact).unwrap()));
+    fs::write(
+        staged.path().join("modules.toml"),
+        format!(
+            "{} = {:?}\n",
+            artifact.file_name().unwrap().display(),
+            digest
+        ),
+    )
+    .unwrap();
+    (staged, staged_artifact)
 }
 
 struct TestHost {
