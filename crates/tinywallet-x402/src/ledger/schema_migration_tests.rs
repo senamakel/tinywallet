@@ -336,7 +336,7 @@ fn migrating_twice_changes_nothing() {
 
 #[test]
 fn rfc3339_instants_parse_to_epoch_milliseconds() {
-    use super::payment::parse_rfc3339_ms as parse;
+    use super::legacy_payment::parse_rfc3339_ms as parse;
     assert_eq!(parse("1970-01-01T00:00:00Z"), Some(0));
     assert_eq!(parse("2026-03-15T12:00:00Z"), Some(V1_PAYMENT_MS));
     assert_eq!(
