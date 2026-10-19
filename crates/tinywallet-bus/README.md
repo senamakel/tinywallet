@@ -2,10 +2,12 @@
 
 The minimal TinyBus contract for TinyWallet: names, version, shared chain
 identifiers, error vocabulary, transfer types, request/result DTOs, and the
-x402 ledger's data-only storage declaration. Normal and build dependencies
-are limited to serde, serde_json, thiserror, and the feature-disabled
-`tinystoragedrivers-bus` contract. No feature links crypto, x402, web3, a
-storage client, transport, or native libraries.
+x402 ledger's data-only storage declaration. The default contract feature set
+has a data-only normal/build graph: serde, serde_json, thiserror, and the
+feature-disabled `tinystoragedrivers-bus` contract. The optional `storage`
+feature adds TinyStorageDrivers' schema/ports crate so the module can declare
+and migrate its owned resources; it does not add a storage backend, client, or
+transport.
 
 The default, data-only contract supports Rust 1.85 and is checked separately by
 the excluded storage-needs consumer. The optional `storage` schema and the

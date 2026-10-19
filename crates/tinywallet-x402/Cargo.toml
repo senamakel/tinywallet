@@ -68,9 +68,10 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "serd
 uuid = { version = "1", features = ["v4"], optional = true }
 
 # The storage ports the ledger persists through (payments stream, budget hold
-# document). Ports only; the host chooses the backend. The ledger feature and
-# its pay/tools dependents require Rust 1.88 through TSD core v1.0; the
-# wire/ABI-only feature set retains the Rust 1.85 floor below.
+# document). Ports only; the host chooses the backend. The ledger feature
+# requires Rust 1.88 through TSD core v1.0; pay includes ledger, and tools also
+# uses TinyTools, which requires 1.88. The wire/ABI-only feature set retains the
+# Rust 1.85 floor below.
 tinystoragedrivers-core = { workspace = true, optional = true }
 # `block_in_place` only: the ledger's synchronous API blocks on storage calls,
 # and on a multi-thread runtime that must hand its worker off first, or a
