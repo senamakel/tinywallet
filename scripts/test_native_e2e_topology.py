@@ -70,12 +70,14 @@ def _msrv_contract_issues(workflow):
     )
     if not bus_wire:
         issues.append("shared MSRV matrix must build the data-only bus wire feature at Rust 1.85")
-    if any(
-        "tinywallet-bus" in target.get("packages", [])
+    bus_all_features = any(
+        target.get("packages") == ["tinywallet-bus"]
+        and target.get("all_targets", False)
         and target.get("all_features", False)
         for target in targets
-    ):
-        issues.append("bus all-features must not run at its Rust 1.85 base floor")
+    )
+    if not bus_all_features:
+        issues.append("shared MSRV matrix must build bus storage vocabulary all-features at Rust 1.85")
     module_matrix = any(
         target.get("packages") == ["tinywallet-module"]
         and target.get("all_targets", False)
@@ -85,13 +87,13 @@ def _msrv_contract_issues(workflow):
     if not module_matrix:
         issues.append("shared MSRV matrix must build all module targets/features at its Rust 1.88 floor")
 
-    storage_job = _job_block(workflow, "wallet-storage-msrv")
-    if "toolchain: '1.88.0'" not in storage_job:
-        issues.append("storage feature job must use Rust 1.88.0")
-    if "cargo test --locked -p tinywallet-bus --all-targets --all-features" not in storage_job:
-        issues.append("Rust 1.88 storage job must test every bus target with all features")
-    if "cargo test --locked -p tinywallet-x402 --features ledger" not in storage_job:
-        issues.append("Rust 1.88 storage job must test the x402 ledger consumer")
+    ledger_job = _job_block(workflow, "wallet-ledger-msrv")
+    if "toolchain: '1.88.0'" not in ledger_job:
+        issues.append("x402 ledger feature job must use Rust 1.88.0")
+    if "cargo test --locked -p tinywallet-x402 --features ledger" not in ledger_job:
+        issues.append("Rust 1.88 ledger job must test the x402 ledger consumer")
+    if "tinywallet-bus --all-targets --all-features" in ledger_job:
+        issues.append("bus all-features must stay in the bus package's Rust 1.85 matrix target")
 
     proof_job = _job_block(workflow, "wallet-storage-needs-contract")
     if "toolchain: '1.85.1'" not in proof_job or (
@@ -103,8 +105,8 @@ def _msrv_contract_issues(workflow):
     bus_docs = (ROOT / "crates/tinywallet-bus/README.md").read_text()
     bus_manifest_text = (ROOT / "crates/tinywallet-bus/Cargo.toml").read_text()
     x402_manifest_text = (ROOT / "crates/tinywallet-x402/Cargo.toml").read_text()
-    if "Rust 1.85" not in bus_docs or "Rust 1.88" not in bus_docs or "1.88" not in bus_manifest_text:
-        issues.append("bus docs must distinguish the Rust 1.85 contract and Rust 1.88 storage floor")
+    if "Rust 1.85" not in bus_docs or "data-only" not in bus_docs or "tinystoragedrivers-core" in bus_manifest_text:
+        issues.append("bus docs and manifest must keep the storage vocabulary data-only at Rust 1.85")
     if not all(word in x402_manifest_text for word in ("1.88", "ledger", "pay", "tools")):
         issues.append("x402 manifest must document the Rust 1.88 ledger/pay/tools feature floor")
     return issues
@@ -115,30 +117,25 @@ class NativeE2ETopologyTests(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         self.assertEqual(_msrv_contract_issues(workflow), [])
 
-    def test_msrv_contract_rejects_running_bus_storage_at_its_1_85_floor(self):
+    def test_msrv_contract_requires_bus_storage_vocabulary_allfeatures_at_its_1_85_floor(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
-        bus_wire = '{"packages":["tinywallet-bus"],"features":["wire"]},'
-        self.assertIn(bus_wire, workflow)
-        mutated = workflow.replace(
-            bus_wire,
-            bus_wire
-            + '\n          {"packages":["tinywallet-bus"],"all_targets":true,"all_features":true},',
-            1,
-        )
+        bus_all_features = '{"packages":["tinywallet-bus"],"all_targets":true,"all_features":true},'
+        self.assertIn(bus_all_features, workflow)
+        mutated = workflow.replace(bus_all_features, "", 1)
         self.assertIn(
-            "bus all-features must not run at its Rust 1.85 base floor",
+            "shared MSRV matrix must build bus storage vocabulary all-features at Rust 1.85",
             _msrv_contract_issues(mutated),
         )
 
-    def test_msrv_contract_rejects_lowering_the_storage_job_toolchain(self):
+    def test_msrv_contract_rejects_lowering_the_x402_ledger_job_toolchain(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
-        storage_job = _job_block(workflow, "wallet-storage-msrv")
-        self.assertTrue(storage_job)
-        mutated_job = storage_job.replace("toolchain: '1.88.0'", "toolchain: '1.85.1'", 1)
-        self.assertNotEqual(storage_job, mutated_job)
-        mutated = workflow.replace(storage_job, mutated_job, 1)
+        ledger_job = _job_block(workflow, "wallet-ledger-msrv")
+        self.assertTrue(ledger_job)
+        mutated_job = ledger_job.replace("toolchain: '1.88.0'", "toolchain: '1.85.1'", 1)
+        self.assertNotEqual(ledger_job, mutated_job)
+        mutated = workflow.replace(ledger_job, mutated_job, 1)
         self.assertIn(
-            "storage feature job must use Rust 1.88.0",
+            "x402 ledger feature job must use Rust 1.88.0",
             _msrv_contract_issues(mutated),
         )
 
