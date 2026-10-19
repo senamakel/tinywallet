@@ -1,6 +1,6 @@
-//! The payment record as it is stored, and the v1 shape it migrates from.
+//! The x402 payment record vocabulary stored by the wallet module.
 
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
 /// Where a stored payment stands. The same four states, spelled the same way,
 /// as the implementation's public status type, which converts to and from this.
