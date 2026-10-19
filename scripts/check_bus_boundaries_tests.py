@@ -259,6 +259,15 @@ class StorageExemptionTests(unittest.TestCase):
         fake = ("tinystoragedrivers-core", "https://example.com/evil")
         self.assertEqual(len(boundary.audit_tree([fake], storage=True)), 1)
 
+    def test_storage_feature_must_not_link_the_runtime_or_its_native_closure(self):
+        for package in (self.PORTS, self.REGISTRY_CRATE, ("tokio", "")):
+            name, source = package
+            with self.subTest(package=name):
+                self.assertEqual(
+                    boundary.audit_tree([package], storage=True),
+                    [f"tinywallet-bus -> {name} ({source or 'registry'})"],
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
