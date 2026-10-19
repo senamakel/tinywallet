@@ -11,12 +11,12 @@ use tinystoragedrivers_core::{
     CollectionSpec, Owner, Schema, ScopeClass, SourceRecord, Step, StorageError, TargetRecord,
 };
 
+use super::types::PaymentStatus;
+use legacy_payment::LegacyPayment;
 pub(super) use tinywallet_bus::storage::{
     BUDGETS_COLLECTION, BUDGETS_VERSION, HOLDS_ID, LEGACY_BUDGET_COLLECTION,
     LEGACY_PAYMENTS_STREAM, OWNER, PAYMENTS_STREAM, StoredPayment, StoredPaymentStatus,
 };
-use legacy_payment::LegacyPayment;
-use super::types::PaymentStatus;
 
 impl From<PaymentStatus> for StoredPaymentStatus {
     fn from(status: PaymentStatus) -> Self {

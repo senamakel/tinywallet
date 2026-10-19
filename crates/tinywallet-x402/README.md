@@ -45,6 +45,10 @@ The ledger's host-facing resource declaration is `tinywallet_bus::storage_needs(
 Its persisted resource names come from the same bus constants, so the module
 and host contract cannot silently drift.
 
+The executable `storage_schema()` and its v1-to-v2 record transformations are
+owned by this ledger implementation. The bus crate carries only the shared
+resource names, `StorageNeeds` declaration, and stored payment vocabulary.
+
 - **Budget reservation.** `handle_402_and_pay` checks the daily and monthly caps
   and holds the amount (`ledger::reserve`) in one critical section *before*
   signing, so concurrent payments cannot together overspend. The hold is a

@@ -1,5 +1,4 @@
-//! The wallet schema's v1 records, migrated by the contract crate's steps, load
-//! into the ledger.
+//! The x402-owned schema migrates v1 records into the ledger's current stores.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

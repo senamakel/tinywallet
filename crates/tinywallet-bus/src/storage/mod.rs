@@ -6,8 +6,8 @@
 
 mod payment;
 
-pub use payment::{StoredPayment, StoredPaymentStatus};
 pub use super::storage_names::{
     BUDGETS_COLLECTION, BUDGETS_VERSION, HOLDS_ID, LEGACY_BUDGET_COLLECTION,
     LEGACY_PAYMENTS_STREAM, OWNER, PAYMENTS_STREAM,
 };
+pub use payment::{StoredPayment, StoredPaymentStatus};

@@ -228,7 +228,7 @@ class StorageContractClosureTests(unittest.TestCase):
     def test_pinned_data_only_storage_contract_is_allowed(self):
         self.assertEqual(boundary.audit_tree([self.DATA_CONTRACT]), [])
 
-    def test_wrong_data_contract_revision_is_rejected_in_both_closures(self):
+    def test_wrong_data_contract_revision_is_rejected(self):
         wrong = (
             boundary.TSD_BUS,
             "https://github.com/tinyhumansai/tinystoragedrivers"
