@@ -195,10 +195,6 @@ fn remote_peer_details_are_absent_from_error_renderings() {
 }
 
 #[test]
-#[expect(
-    clippy::assert_is_empty,
-    reason = "assert_eq would print the mnemonic if zeroization regressed"
-)]
 fn mnemonic_request_types_wipe_their_phrase_fields() {
     let mut secret = SecretMaterial {
         mnemonic: "sensitive phrase".to_string(),
@@ -206,13 +202,15 @@ fn mnemonic_request_types_wipe_their_phrase_fields() {
         chain: tinywallet_bus::Chain::Evm,
     };
     secret.zeroize_mnemonic();
-    assert!(secret.mnemonic.is_empty());
+    let secret_mnemonic_is_empty = secret.mnemonic.is_empty();
+    assert!(secret_mnemonic_is_empty);
 
     let mut request = DeriveMnemonicSeedRequest {
         mnemonic: "sensitive phrase".to_string(),
     };
     request.zeroize_mnemonic();
-    assert!(request.mnemonic.is_empty());
+    let request_mnemonic_is_empty = request.mnemonic.is_empty();
+    assert!(request_mnemonic_is_empty);
 }
 
 static OBSERVER_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());

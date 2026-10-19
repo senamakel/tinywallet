@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import tomllib
 import unittest
+from pathlib import PureWindowsPath
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -13,6 +14,28 @@ WORKFLOW = ROOT / ".github/workflows/release.yml"
 REVIEWED_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-reviewed-epic-release.yml@6ed83b04aab2d8977ec62e966cb914531e534fa4"
 LEGACY_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-release.yml@4adc1080fb495098e7af1aade82ed7e6e3c69bb7"
 TINYBUS_REV = "207a9a7df15e44fdba00a807d0f7eaf21904ba0e"
+TINYBUS_VERSION_RANGE = ">=0.3.3, <0.4.0"
+TINYBUS_CRATES = ("tinybus", "tinybus-module", "tinybus-macros")
+
+
+def _is_expected_tinybus_gitlink(entry):
+    lines = entry.splitlines()
+    if len(lines) != 1:
+        return False
+    metadata, separator, path = lines[0].partition("\t")
+    fields = metadata.split()
+    return (
+        separator == "\t"
+        and len(fields) == 3
+        and fields[0] == "160000"
+        and fields[1] == "commit"
+        and fields[2] == TINYBUS_REV
+        and path == "vendor/tinybus"
+    )
+
+
+def _manifest_path_label(manifest_path, repository_root=ROOT):
+    return manifest_path.relative_to(repository_root).as_posix()
 
 
 class ReviewedReleaseWorkflowTests(unittest.TestCase):
@@ -81,21 +104,99 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
                 native_target = "--test attested_errors" if path.suffix == ".sh" else "'--test', 'attested_errors'"
                 self.assertIn(native_target, path.read_text())
 
-    def test_module_dependencies_and_nested_patch_use_canonical_tinybus_release(self):
-        module_manifest = tomllib.loads((ROOT / "crates/tinywallet-module/Cargo.toml").read_text())
-        dependencies = module_manifest["dependencies"]
-        dev_dependencies = module_manifest["dev-dependencies"]
-        for dep_set, name in ((dependencies, "tinybus"), (dependencies, "tinybus-module"), (dev_dependencies, "tinybus")):
-            self.assertEqual(dep_set[name]["rev"], TINYBUS_REV)
-
+    def test_tinybus_patch_table_keeps_all_three_standalone_crates(self):
         root_manifest = tomllib.loads((ROOT / "Cargo.toml").read_text())
         patch_table = root_manifest["patch"]["https://github.com/tinyhumansai/tinybus"]
         self.assertEqual(patch_table["tinybus"]["path"], "vendor/tinybus/crates/tinybus")
         self.assertEqual(patch_table["tinybus-module"]["path"], "vendor/tinybus/crates/tinybus-module")
-        commit = subprocess.check_output(
-            ["git", "-C", str(ROOT / "vendor/tinybus"), "rev-parse", "HEAD"], text=True
+        self.assertEqual(patch_table["tinybus-macros"]["path"], "vendor/tinybus/crates/tinybus-macros")
+        entry = subprocess.check_output(
+            ["git", "-C", str(ROOT), "ls-tree", "HEAD", "--", "vendor/tinybus"], text=True
         ).strip()
-        self.assertEqual(commit, TINYBUS_REV)
+        self.assertTrue(_is_expected_tinybus_gitlink(entry), entry)
+
+    def test_tinybus_gitlink_guard_reads_exact_parent_tree_entry(self):
+        entry = f"160000 commit {TINYBUS_REV}\tvendor/tinybus\n"
+        self.assertTrue(_is_expected_tinybus_gitlink(entry))
+
+    def test_tinybus_gitlink_guard_rejects_stale_missing_wrong_mode_or_path(self):
+        self.assertFalse(_is_expected_tinybus_gitlink(""))
+        self.assertFalse(
+            _is_expected_tinybus_gitlink(
+                "160000 commit 1111111111111111111111111111111111111111\tvendor/tinybus\n"
+            )
+        )
+        self.assertFalse(
+            _is_expected_tinybus_gitlink(
+                f"100644 blob {TINYBUS_REV}\tvendor/tinybus\n"
+            )
+        )
+        self.assertFalse(
+            _is_expected_tinybus_gitlink(
+                f"160000 commit {TINYBUS_REV}\tvendor/other\n"
+            )
+        )
+
+    def test_manifest_path_labels_use_forward_slashes_on_windows(self):
+        repository = PureWindowsPath(r"C:\repo")
+        manifest = PureWindowsPath(r"C:\repo\crates\tinywallet-module\Cargo.toml")
+        self.assertEqual(
+            _manifest_path_label(manifest, repository),
+            "crates/tinywallet-module/Cargo.toml",
+        )
+
+    def test_all_wallet_tinybus_sdk_edges_allow_a_single_compatible_host_version(self):
+        root_manifest = tomllib.loads((ROOT / "Cargo.toml").read_text())
+        manifests = [ROOT / "Cargo.toml", *sorted((ROOT / "crates").glob("*/Cargo.toml"))]
+        sdk_edges = []
+        for manifest_path in manifests:
+            manifest = tomllib.loads(manifest_path.read_text())
+            for section in ("workspace.dependencies", "dependencies", "dev-dependencies"):
+                current = manifest
+                for key in section.split("."):
+                    current = current.get(key, {})
+                for crate in TINYBUS_CRATES:
+                    if crate in current:
+                        edge = current[crate]
+                        if isinstance(edge, dict) and edge.get("workspace"):
+                            continue
+                        sdk_edges.append((_manifest_path_label(manifest_path), section, crate, edge))
+
+        self.assertEqual(
+            {(path, section, crate) for path, section, crate, _ in sdk_edges},
+            {
+                ("Cargo.toml", "workspace.dependencies", "tinybus"),
+                ("crates/tinywallet-module/Cargo.toml", "dependencies", "tinybus"),
+                ("crates/tinywallet-module/Cargo.toml", "dependencies", "tinybus-module"),
+                ("crates/tinywallet-module/Cargo.toml", "dev-dependencies", "tinybus"),
+            },
+        )
+        for path, section, crate, edge in sdk_edges:
+            with self.subTest(path=path, section=section, crate=crate):
+                self.assertEqual(edge["version"], TINYBUS_VERSION_RANGE)
+                self.assertEqual(edge["git"], "https://github.com/tinyhumansai/tinybus")
+                self.assertEqual(edge["rev"], TINYBUS_REV)
+
+        client_manifest = tomllib.loads(
+            (ROOT / "crates/tinywallet-client/Cargo.toml").read_text()
+        )
+        client_dependency = client_manifest["dependencies"]["tinybus"]
+        self.assertTrue(client_dependency["workspace"])
+        self.assertNotIn("features", client_dependency)
+
+        module_manifest = tomllib.loads(
+            (ROOT / "crates/tinywallet-module/Cargo.toml").read_text()
+        )
+        module_dependencies = module_manifest["dependencies"]
+        module_dev_dependencies = module_manifest["dev-dependencies"]
+        self.assertEqual(
+            module_dependencies["tinybus"]["features"], ["macros", "modules"]
+        )
+        self.assertEqual(
+            module_dev_dependencies["tinybus"]["features"],
+            ["macros", "modules", "test-support"],
+        )
+        self.assertTrue(module_dependencies["tinybus-module"])
 
     def test_every_workspace_package_is_at_the_feature_release_version(self):
         manifests = [ROOT / "Cargo.toml", *sorted((ROOT / "crates").glob("*/Cargo.toml"))]
