@@ -216,18 +216,17 @@ class ContractBoundaryTests(unittest.TestCase):
                 )
 
 
-class StorageExemptionTests(unittest.TestCase):
-    REGISTRY_CRATE = ("zstd", "")
-    PORTS = ("tinystoragedrivers-core", "https://github.com/tinyhumansai/tinystoragedrivers?tag=v1.0.0#141fd9ed")
+class StorageContractClosureTests(unittest.TestCase):
+    IMPLEMENTATION = ("tinystoragedrivers-core", "https://github.com/tinyhumansai/tinystoragedrivers?tag=v1.0.0#141fd9ed")
     DATA_CONTRACT = (
         boundary.TSD_BUS,
         "https://github.com/tinyhumansai/tinystoragedrivers"
         "?rev=c9ea6ff1615b77b55d7269403af5fd11bedc9ce8#c9ea6ff1",
     )
 
-    def test_pinned_data_only_storage_contract_is_allowed_in_both_closures(self):
+    def test_pinned_data_only_storage_contract_is_allowed_in_each_feature_closure(self):
         self.assertEqual(boundary.audit_tree([self.DATA_CONTRACT]), [])
-        self.assertEqual(boundary.audit_tree([self.DATA_CONTRACT], storage=True), [])
+        self.assertEqual(boundary.audit_tree([self.DATA_CONTRACT]), [])
 
     def test_wrong_data_contract_revision_is_rejected_in_both_closures(self):
         wrong = (
@@ -235,36 +234,37 @@ class StorageExemptionTests(unittest.TestCase):
             "https://github.com/tinyhumansai/tinystoragedrivers"
             "?tag=v1.5.0#c9ea6ff1",
         )
-        for storage in (False, True):
-            self.assertEqual(len(boundary.audit_tree([wrong], storage=storage)), 1)
+        self.assertEqual(len(boundary.audit_tree([wrong])), 1)
 
-    def test_default_closure_rejects_the_storage_crates(self):
-        self.assertEqual(len(boundary.audit_tree([self.PORTS, self.REGISTRY_CRATE])), 2)
+    def test_storage_feature_accepts_only_contract_and_stored_vocabulary_dependencies(self):
+        self.assertEqual(
+            boundary.audit_tree([
+                self.DATA_CONTRACT,
+                ("serde", ""),
+                ("serde_json", ""),
+                ("thiserror", ""),
+            ]),
+            [],
+        )
 
-    def test_default_closure_accepts_the_allow_list(self):
-        self.assertEqual(boundary.audit_tree([("serde", ""), ("thiserror", "")]), [])
-
-    def test_storage_feature_accepts_the_ports_crate_and_registry_crates(self):
-        self.assertEqual(boundary.audit_tree([self.PORTS, self.REGISTRY_CRATE], storage=True), [])
-
-    def test_storage_feature_still_rejects_implementations(self):
+    def test_storage_feature_rejects_implementation_dependencies(self):
         path = ("tinywallet-crypto", "/work/crates/tinywallet-crypto")
-        self.assertEqual(len(boundary.audit_tree([path], storage=True)), 1)
+        self.assertEqual(len(boundary.audit_tree([path])), 1)
 
     def test_storage_feature_rejects_forbidden_registry_crates(self):
         for name in ("coins-bip32", "coins_bip32", "coins-core", "k256", "bitcoin"):
-            self.assertEqual(len(boundary.audit_tree([(name, "")], storage=True)), 1, name)
+            self.assertEqual(len(boundary.audit_tree([(name, "")]), 1), 1, name)
 
     def test_storage_feature_rejects_a_foreign_git_source(self):
-        fake = ("tinystoragedrivers-core", "https://example.com/evil")
-        self.assertEqual(len(boundary.audit_tree([fake], storage=True)), 1)
+        fake = ("tinystoragedrivers-bus", "https://example.com/evil")
+        self.assertEqual(len(boundary.audit_tree([fake])), 1)
 
     def test_storage_feature_must_not_link_the_runtime_or_its_native_closure(self):
         for package in (self.PORTS, self.REGISTRY_CRATE, ("tokio", "")):
             name, source = package
             with self.subTest(package=name):
                 self.assertEqual(
-                    boundary.audit_tree([package], storage=True),
+                    boundary.audit_tree([package]),
                     [f"tinywallet-bus -> {name} ({source or 'registry'})"],
                 )
 
