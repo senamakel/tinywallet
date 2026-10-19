@@ -1114,13 +1114,11 @@ fn stage_artifact(artifact: &Path) -> (tempfile::TempDir, PathBuf) {
     let staged_artifact = staged.path().join(artifact.file_name().unwrap());
     fs::copy(artifact, &staged_artifact).unwrap();
     let digest = hex(&Sha256::digest(fs::read(&staged_artifact).unwrap()));
+    let file_name = artifact.file_name().unwrap().to_str().unwrap();
+    let quoted_file_name = serde_json::to_string(file_name).unwrap();
     fs::write(
         staged.path().join("modules.toml"),
-        format!(
-            "{} = {:?}\n",
-            artifact.file_name().unwrap().display(),
-            digest
-        ),
+        format!("{quoted_file_name} = {digest:?}\n"),
     )
     .unwrap();
     (staged, staged_artifact)
