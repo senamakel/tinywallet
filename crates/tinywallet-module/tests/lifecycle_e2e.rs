@@ -1024,7 +1024,11 @@ async fn admit_module() -> (
     let digest = hex(&Sha256::digest(fs::read(&staged_artifact).unwrap()));
     fs::write(
         staged.path().join("modules.toml"),
-        format!("{:?} = {:?}\n", artifact.file_name().unwrap(), digest),
+        format!(
+            "{} = {:?}\n",
+            artifact.file_name().unwrap().display(),
+            digest
+        ),
     )
     .unwrap();
 
