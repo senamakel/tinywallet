@@ -1375,7 +1375,7 @@ fn decode_hex(value: &str) -> Result<Vec<u8>, Failure> {
     if body.is_empty() {
         return Ok(Vec::new());
     }
-    if body.len() % 2 != 0 {
+    if !body.len().is_multiple_of(2) {
         return Err(Failure::InvalidInput(
             "call data has an odd number of hex characters".to_string(),
         ));

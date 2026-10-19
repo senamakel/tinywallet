@@ -237,11 +237,11 @@ impl X402Runtime {
         })
         .await?;
         #[cfg(test)]
-        if let Some((pause_once, reached, release)) = &self.commit_handoff {
-            if pause_once.swap(false, std::sync::atomic::Ordering::SeqCst) {
-                reached.notify_one();
-                release.notified().await;
-            }
+        if let Some((pause_once, reached, release)) = &self.commit_handoff
+            && pause_once.swap(false, std::sync::atomic::Ordering::SeqCst)
+        {
+            reached.notify_one();
+            release.notified().await;
         }
         let payment_id = format!("x402_{}", uuid::Uuid::new_v4());
         let response = X402PreparePaymentResponse {
