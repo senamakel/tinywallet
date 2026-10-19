@@ -12,16 +12,11 @@ use tinystoragedrivers_core::{
 };
 
 pub(super) use tinywallet_bus::storage::{
-    BUDGETS_COLLECTION, PAYMENTS_STREAM, StoredPayment, StoredPaymentStatus,
+    BUDGETS_COLLECTION, BUDGETS_VERSION, HOLDS_ID, LEGACY_BUDGET_COLLECTION,
+    LEGACY_PAYMENTS_STREAM, OWNER, PAYMENTS_STREAM, StoredPayment, StoredPaymentStatus,
 };
 use legacy_payment::LegacyPayment;
 use super::types::PaymentStatus;
-
-pub(super) const OWNER: &str = "wallet";
-pub(super) const BUDGETS_VERSION: u32 = 2;
-pub(super) const HOLDS_ID: &str = "holds";
-pub(super) const LEGACY_BUDGET_COLLECTION: &str = "x402_budget";
-pub(super) const LEGACY_PAYMENTS_STREAM: &str = "x402.payments";
 
 impl From<PaymentStatus> for StoredPaymentStatus {
     fn from(status: PaymentStatus) -> Self {
