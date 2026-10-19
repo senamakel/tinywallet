@@ -11,7 +11,7 @@ use tinystoragedrivers_core::{
     Blocking, MemoryStorage, MigrateOptions, Registry, Scope, ScopedStorage, StorageBackend,
 };
 
-use super::super::{LedgerStorage, PaymentLedger, PaymentStatus, SpendingBudget};
+use super::super::{LedgerStorage, PaymentLedger, SpendingBudget};
 
 const V1_PAYMENT_MS: i64 = 1_773_576_000_000; // 2026-03-15T12:00:00Z
 
