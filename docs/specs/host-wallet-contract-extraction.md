@@ -18,18 +18,18 @@ behavior.
 ## Storage requirements
 
 The bus publishes the x402 ledger's host-facing `StorageNeeds` declaration
-using the canonical TinyStorageDrivers bus type. Its requirements are derived
-from the ledger implementation's actual stores:
+using the canonical TinyStorageDrivers bus type. It names the ledger's current
+stored resources:
 
-- a document collection named `x402_budget`;
-- a stream prefix named `x402.payments`.
+- a document collection named `wallet.budgets`;
+- a stream prefix named `wallet.payments`.
 
 The declaration adds no indexes, retention policy, time-to-live, or fabricated
 resource identifiers. It describes the minimum storage capability needed by
-the ledger; it does not create or access those resources. The x402 ledger uses
-the shared declaration so its resource names cannot drift from the host
-contract. Existing implementation constant names remain available for the
-compatibility window and resolve to the same values.
+the ledger; it does not create or access those resources. The bus shares the
+current names and stored payment vocabulary, while x402 owns the schema steps
+and executable transformations. The legacy `x402_budget` collection and
+`x402.payments` stream are migration inputs, not the current host grant.
 
 ## Endpoint key mapping
 

@@ -2,17 +2,16 @@
 
 The minimal TinyBus contract for TinyWallet: names, version, shared chain
 identifiers, error vocabulary, transfer types, request/result DTOs, and the
-x402 ledger's data-only storage declaration. The default contract feature set
-has a data-only normal/build graph: serde, serde_json, thiserror, and the
-feature-disabled `tinystoragedrivers-bus` contract. The optional `storage`
-feature adds TinyStorageDrivers' schema/ports crate so the module can declare
-and migrate its owned resources; it does not add a storage backend, client, or
-transport.
+x402 ledger's data-only storage declaration and stored record vocabulary. The
+default and `storage` feature closures contain only serde, serde_json,
+thiserror, and the feature-disabled `tinystoragedrivers-bus` contract. The
+optional `storage` feature exposes the serializable payment record shape and
+resource names; it does not add a schema runner, storage ports, backend,
+client, or transport.
 
-The default, data-only contract supports Rust 1.85 and is checked separately by
-the excluded storage-needs consumer. The optional `storage` schema and the
-migration test targets use TSD core v1.0 and require Rust 1.88; CI tests those
-targets at that feature floor.
+The data-only bus contract, including all features, supports Rust 1.85. The
+excluded storage-needs consumer independently checks the published names and
+canonical TinyStorageDrivers type at that same floor.
 
 Network enums in the bus are identifiers only. RPC endpoints, explorer URLs,
 Solana mint addresses, and display labels remain implementation-owned reference
@@ -89,6 +88,7 @@ only the matching confidential secret; hosts do not parse payment challenges.
 The bus exposes `storage_needs()` for the x402 ledger's host-facing storage
 declaration. It uses the data-only `tinystoragedrivers-bus` type and requests
 the current `wallet.budgets` collection and `wallet.payments` stream. Those
-names come from the same bus-owned constants as the optional `storage` schema.
-The legacy `x402_budget` collection and `x402.payments` stream remain migration
-sources; the module's grant covers only the current names.
+names come from the same bus-owned constants as the stored record vocabulary.
+The x402 ledger owns the executable `storage_schema()` and migration from the
+legacy `x402_budget` collection and `x402.payments` stream; the module's grant
+covers only the current names.
