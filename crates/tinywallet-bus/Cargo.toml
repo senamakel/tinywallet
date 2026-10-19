@@ -18,17 +18,30 @@ publish = false
 serde = { version = "1", optional = true }
 # The wire host callback DTOs carry opaque JSON payloads.
 serde_json = { version = "1", optional = true }
-# The storage-needs contract only; disabling its defaults avoids TinyBus/client.
+# The data-only storage-needs contract; disabling defaults avoids TinyBus/client.
 tinystoragedrivers-bus-contract = { workspace = true }
 # Error vocabulary derives; no crypto execution crosses this dependency.
 thiserror = "2"
+# The storage schema's declarations (`Schema`, `Step`, `CollectionSpec`). This
+# is the ports crate only: no backend, no driver, and with default features off
+# its only tokio features are io-util and time, so the contract stays free of
+# I/O and a runtime. Optional, behind `storage`.
+tinystoragedrivers-core = { git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v1.0.0", default-features = false, optional = true }
 
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Migration tests run the steps over `MemoryStorage` through the sync bridge.
+tinystoragedrivers-core = { git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v1.0.0", default-features = false, features = ["blocking"] }
 
 [features]
 default = ["wire"]
+# `storage::storage_schema()` and the pure v1 to v2 steps behind it. OFF by
+# default: it is the only way `tinystoragedrivers-core` (ports, and with it
+# tokio and zstd) enters this crate, so the default closure stays pure. Only a
+# host that composes the schema enables it. `scripts/check-bus-boundaries.py`
+# audits the default closure strictly and this feature under a named exemption.
+storage = ["serde", "dep:serde_json", "dep:tinystoragedrivers-core"]
 serde = ["dep:serde", "serde/derive"]
 wire = ["serde", "dep:serde_json"]
 # Legacy feature names accepted for a transition release; none links behavior.

@@ -68,6 +68,21 @@ pub struct PaymentRecord {
     pub thread_id: Option<String>,
 }
 
+impl PaymentRecord {
+    /// This record with every instant cut to whole milliseconds, the precision
+    /// storage keeps. The ledger holds records in this form, so what it has in
+    /// memory is exactly what a reopened ledger reads back.
+    pub(super) fn at_millisecond_precision(mut self) -> Self {
+        fn cut(at: DateTime<Utc>) -> DateTime<Utc> {
+            DateTime::from_timestamp_millis(at.timestamp_millis()).unwrap_or(at)
+        }
+        self.timestamp = cut(self.timestamp);
+        self.authorization_valid_until = self.authorization_valid_until.map(cut);
+        self.authorization_expired_at = self.authorization_expired_at.map(cut);
+        self
+    }
+}
+
 /// Where a payment attempt stands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

@@ -200,11 +200,13 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
 
     def test_every_workspace_package_is_at_the_feature_release_version(self):
         manifests = [ROOT / "Cargo.toml", *sorted((ROOT / "crates").glob("*/Cargo.toml"))]
+        workspace_version = tomllib.loads((ROOT / "Cargo.toml").read_text())["package"]["version"]
         versions = {
             tomllib.loads(manifest.read_text())["package"]["version"]
             for manifest in manifests
         }
-        self.assertEqual(versions, {"0.25.0"})
+        self.assertEqual(versions, {workspace_version})
+        self.assertNotIn("0.24.1", versions, "stale pre-epic package versions must not ship")
 
     def validation_run_block(self):
         lines = self.workflow.splitlines()

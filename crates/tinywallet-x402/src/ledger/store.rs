@@ -116,6 +116,7 @@ impl PaymentLedger {
         record: PaymentRecord,
         committed_hold: Option<String>,
     ) -> Result<(), String> {
+        let record = record.at_millisecond_precision();
         let offset = self.persist.append(&record, committed_hold.as_deref())?;
         if let Some(key) = committed_hold {
             self.committed_holds.insert(key);
@@ -272,7 +273,7 @@ impl PaymentLedger {
             // counted.
             self.refresh_records()?;
             doc.holds.retain(|key, hold| {
-                hold.expires_at_ms > now_ms && !self.committed_holds.contains(key)
+                hold.expires_ms > now_ms && !self.committed_holds.contains(key)
             });
             self.holds.clone_from(&doc.holds);
             if let Some(refusal) = self.check_budget_at(now, amount).refusal() {
@@ -293,7 +294,7 @@ impl PaymentLedger {
                 key.clone(),
                 Hold {
                     amount,
-                    expires_at_ms: now_ms.saturating_add(HOLD_TTL_MS),
+                    expires_ms: now_ms.saturating_add(HOLD_TTL_MS),
                 },
             );
             if self.persist.store_holds(version, &doc)? {
@@ -362,16 +363,16 @@ impl PaymentLedger {
             return Ok(0);
         }
         let now_ms = now.timestamp_millis();
-        let expires_at_ms = now_ms.saturating_add(HOLD_TTL_MS);
+        let expires_ms = now_ms.saturating_add(HOLD_TTL_MS);
         for _ in 0..HOLD_CAS_ATTEMPTS {
             let (version, mut doc) = self.persist.load_holds()?;
-            doc.holds.retain(|_, hold| hold.expires_at_ms > now_ms);
+            doc.holds.retain(|_, hold| hold.expires_ms > now_ms);
             for own in self.reservations.values() {
                 doc.holds.insert(
                     own.key.clone(),
                     Hold {
                         amount: own.amount,
-                        expires_at_ms,
+                        expires_ms,
                     },
                 );
             }
@@ -391,7 +392,7 @@ impl PaymentLedger {
         let key = self.reservations.get(&id).map(|hold| hold.key.clone());
         if let Err(error) = self.append_record(record.clone(), key) {
             warn!("{LOG_PREFIX} record append failed: {error}");
-            self.records.push(record);
+            self.records.push(record.at_millisecond_precision());
         }
         self.release(id);
     }
@@ -412,7 +413,7 @@ impl PaymentLedger {
     pub fn record_payment(&mut self, record: PaymentRecord) {
         if let Err(error) = self.append_record(record.clone(), None) {
             warn!("{LOG_PREFIX} record append failed: {error}");
-            self.records.push(record);
+            self.records.push(record.at_millisecond_precision());
         }
     }
 

@@ -1,4 +1,4 @@
-//! The ledger's storage: a payments stream and one budget-hold document, both
+//! The ledger's storage: the `wallet.payments` stream and one `wallet.budgets` hold document, both
 //! through the `tinystoragedrivers-core` ports.
 //!
 //! The ports are async and the ledger's API is synchronous (it runs under a
@@ -10,24 +10,22 @@ use std::collections::BTreeMap;
 use std::future::Future;
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use log::debug;
 use serde::{Deserialize, Serialize};
 use tinystoragedrivers_core::{
-    Blocking, CollectionSpec, DocumentStore, ErrorKind, MemoryStorage, Precondition, Scope,
-    ScopedStorage, StorageBackend, StreamStore, Version,
+    Blocking, DocumentStore, ErrorKind, MemoryStorage, Precondition, Scope, ScopedStorage,
+    StorageBackend, StreamStore, Version, WriteOptions,
 };
 
+use super::schema::{
+    BUDGETS_COLLECTION, BUDGETS_VERSION, HOLDS_ID, LEGACY_BUDGET_COLLECTION,
+    LEGACY_PAYMENTS_STREAM, OWNER, PAYMENTS_STREAM, StoredPayment,
+};
 use super::types::PaymentRecord;
 
 const LOG_PREFIX: &str = "[x402::persist]";
 
-/// Append-only stream of payment records. A payment that changes status is
-/// appended again with the same id; readers fold to the latest per id.
-pub(super) const PAYMENTS_STREAM: &str = tinywallet_bus::X402_PAYMENTS_STREAM_PREFIX;
-/// Collection holding the single budget-hold document.
-pub(super) const BUDGET_COLLECTION: &str = tinywallet_bus::X402_BUDGET_COLLECTION;
-/// Id of the budget-hold document.
-pub(super) const HOLDS_ID: &str = "holds";
 /// How long a hold survives without being released or committed. A process that
 /// dies between signing and recording must not lock budget forever.
 pub(super) const HOLD_TTL_MS: i64 = 15 * 60 * 1000;
@@ -71,7 +69,7 @@ impl LedgerStorage {
         reason = "fixed valid scope on the memory backend"
     )]
     pub fn memory() -> Self {
-        let scope = Scope::new("x402").expect("valid scope");
+        let scope = Scope::local().module(OWNER).expect("valid scope");
         let scoped = MemoryStorage::new()
             .for_scope(&scope)
             .expect("memory backend opens any scope");
@@ -83,7 +81,7 @@ impl LedgerStorage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct Hold {
     pub amount: u64,
-    pub expires_at_ms: i64,
+    pub expires_ms: i64,
 }
 
 /// The budget-hold document: every outstanding hold, across all processes
@@ -94,13 +92,75 @@ pub(super) struct HoldsDoc {
     pub holds: BTreeMap<String, Hold>,
 }
 
-/// Internal stream envelope. Flattening keeps old payment entries readable and
-/// leaves the public payment wire type unchanged.
-#[derive(Debug, Serialize, Deserialize)]
-pub(super) struct StoredPayment {
-    #[serde(flatten)]
+fn from_ms(field: &str, ms: i64) -> Result<DateTime<Utc>, String> {
+    DateTime::from_timestamp_millis(ms).ok_or_else(|| format!("{field} {ms} is out of range"))
+}
+
+/// The storage shape of `record`, with the hold its entry committed, if any.
+pub(super) fn stored_payment(
+    record: &PaymentRecord,
+    committed_hold: Option<&str>,
+) -> StoredPayment {
+    StoredPayment {
+        id: record.id.clone(),
+        url: record.url.clone(),
+        asset: record.asset.clone(),
+        amount_atomic: record.amount_atomic,
+        amount_display: record.amount_display.clone(),
+        recipient: record.recipient.clone(),
+        network: record.network.clone(),
+        tx_signature: record.tx_signature.clone(),
+        status: record.status.into(),
+        timestamp_ms: record.timestamp.timestamp_millis(),
+        authorization_valid_until_ms: record
+            .authorization_valid_until
+            .map(|at| at.timestamp_millis()),
+        solana_last_valid_block_height: record.solana_last_valid_block_height,
+        authorization_expired_at_ms: record
+            .authorization_expired_at
+            .map(|at| at.timestamp_millis()),
+        authorization_expiry_observed_height: record.authorization_expiry_observed_height,
+        session_id: record.session_id.clone(),
+        thread_id: record.thread_id.clone(),
+        committed_hold: committed_hold.map(str::to_owned),
+    }
+}
+
+/// The public record and the hold this entry committed, if any.
+pub(super) fn into_record(
+    stored: StoredPayment,
+) -> Result<(PaymentRecord, Option<String>), String> {
+    let record = PaymentRecord {
+        id: stored.id,
+        url: stored.url,
+        asset: stored.asset,
+        amount_atomic: stored.amount_atomic,
+        amount_display: stored.amount_display,
+        recipient: stored.recipient,
+        network: stored.network,
+        tx_signature: stored.tx_signature,
+        status: stored.status.into(),
+        timestamp: from_ms("timestamp_ms", stored.timestamp_ms)?,
+        authorization_valid_until: stored
+            .authorization_valid_until_ms
+            .map(|ms| from_ms("authorization_valid_until_ms", ms))
+            .transpose()?,
+        solana_last_valid_block_height: stored.solana_last_valid_block_height,
+        authorization_expired_at: stored
+            .authorization_expired_at_ms
+            .map(|ms| from_ms("authorization_expired_at_ms", ms))
+            .transpose()?,
+        authorization_expiry_observed_height: stored.authorization_expiry_observed_height,
+        session_id: stored.session_id,
+        thread_id: stored.thread_id,
+    };
+    Ok((record, stored.committed_hold))
+}
+
+/// A payment read back from the stream, with the hold its entry committed.
+#[derive(Debug)]
+pub(super) struct LoadedPayment {
     pub record: PaymentRecord,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub committed_hold: Option<String>,
 }
 
@@ -128,18 +188,39 @@ impl Persist {
     pub(super) fn open(storage: LedgerStorage) -> Result<Self, String> {
         let bridge = Blocking::new().map_err(|e| format!("start storage bridge: {e}"))?;
         let persist = Self { storage, bridge };
-        let documents = Arc::clone(&persist.storage.documents);
-        persist.run("declare x402 budget collection", async move {
-            documents
-                .ensure_collection(&CollectionSpec::new(BUDGET_COLLECTION))
-                .await
-        })?;
+        persist.refuse_unmigrated()?;
         Ok(persist)
+    }
+
+    /// Fail when v1 data is still in place: opening would read only the v2
+    /// names and admit spend without counting that history. Migration is the
+    /// host's job (`storage_schema()`), so the ledger refuses rather than guess.
+    fn refuse_unmigrated(&self) -> Result<(), String> {
+        let streams = Arc::clone(&self.storage.streams);
+        let legacy = self.run("read legacy payments stream", async move {
+            streams.len(LEGACY_PAYMENTS_STREAM).await
+        })?;
+        if legacy > 0 {
+            return Err(format!(
+                "{legacy} unmigrated x402.payments entries: compose storage_schema() and migrate before opening the ledger"
+            ));
+        }
+        let documents = Arc::clone(&self.storage.documents);
+        let holds = self.run("check legacy budget holds", async move {
+            documents.get(LEGACY_BUDGET_COLLECTION, HOLDS_ID).await
+        })?;
+        if holds.is_some() {
+            return Err(
+                "legacy x402 budget holds remain: complete storage migration before opening the ledger"
+                    .to_string(),
+            );
+        }
+        Ok(())
     }
 
     /// Records from stream offset `from` to the end, with the next offset.
     /// Entries that no longer parse are skipped with a warning.
-    pub(super) fn read_from(&self, from: u64) -> Result<(Vec<StoredPayment>, u64), String> {
+    pub(super) fn read_from(&self, from: u64) -> Result<(Vec<LoadedPayment>, u64), String> {
         let mut records = Vec::new();
         let mut next = from;
         loop {
@@ -150,8 +231,14 @@ impl Persist {
             let Some(last) = window.last() else { break };
             next = last.offset.saturating_add(1);
             for entry in window {
-                match serde_json::from_value::<StoredPayment>(entry.value) {
-                    Ok(record) => records.push(record),
+                let parsed = serde_json::from_value::<StoredPayment>(entry.value)
+                    .map_err(|error| error.to_string())
+                    .and_then(into_record);
+                match parsed {
+                    Ok((record, committed_hold)) => records.push(LoadedPayment {
+                        record,
+                        committed_hold,
+                    }),
                     Err(error) => log::warn!(
                         "{LOG_PREFIX} corrupt record at offset {}: {error}",
                         entry.offset
@@ -168,11 +255,8 @@ impl Persist {
         record: &PaymentRecord,
         committed_hold: Option<&str>,
     ) -> Result<u64, String> {
-        let value = serde_json::to_value(StoredPayment {
-            record: record.clone(),
-            committed_hold: committed_hold.map(str::to_owned),
-        })
-        .map_err(|error| error.to_string())?;
+        let value = serde_json::to_value(stored_payment(record, committed_hold))
+            .map_err(|error| error.to_string())?;
         let streams = Arc::clone(&self.storage.streams);
         self.run("append ledger record", async move {
             streams.append(PAYMENTS_STREAM, value).await
@@ -183,7 +267,7 @@ impl Persist {
     pub(super) fn load_holds(&self) -> Result<(Option<Version>, HoldsDoc), String> {
         let documents = Arc::clone(&self.storage.documents);
         let found = self.run("read budget holds", async move {
-            documents.get(BUDGET_COLLECTION, HOLDS_ID).await
+            documents.get(BUDGETS_COLLECTION, HOLDS_ID).await
         })?;
         match found {
             None => Ok((None, HoldsDoc::default())),
@@ -207,7 +291,13 @@ impl Persist {
         let documents = Arc::clone(&self.storage.documents);
         let result = self.bridge.run(async move {
             documents
-                .put(BUDGET_COLLECTION, HOLDS_ID, body, precondition)
+                .put_with(
+                    BUDGETS_COLLECTION,
+                    HOLDS_ID,
+                    body,
+                    precondition,
+                    WriteOptions::new().schema(BUDGETS_VERSION),
+                )
                 .await
         });
         match result.map_err(|error| format!("write budget holds: {error}"))? {

@@ -101,9 +101,9 @@ async fn configure_persists_payments_and_budget_holds_on_the_host_storage() {
     // The host's own storage holds both, under the documented names.
     let streams = Arc::clone(fixture.host.streams());
     let documents = Arc::clone(fixture.host.documents());
-    assert_eq!(streams.len("x402.payments").await.unwrap(), 1);
+    assert_eq!(streams.len("wallet.payments").await.unwrap(), 1);
     let holds = documents
-        .get("x402_budget", "holds")
+        .get("wallet.budgets", "holds")
         .await
         .unwrap()
         .unwrap();
@@ -280,14 +280,14 @@ async fn the_lease_task_extends_the_hold_expiry_in_host_storage() {
             .as_object()
             .unwrap()
             .values()
-            .map(|hold| hold["expires_at_ms"].as_i64().unwrap())
+            .map(|hold| hold["expires_ms"].as_i64().unwrap())
             .max()
             .unwrap()
     };
     let documents = Arc::clone(fixture.host.documents());
     let before = expiry(
         &documents
-            .get("x402_budget", "holds")
+            .get("wallet.budgets", "holds")
             .await
             .unwrap()
             .unwrap()
@@ -296,17 +296,17 @@ async fn the_lease_task_extends_the_hold_expiry_in_host_storage() {
 
     // Age the stored lease deterministically instead of sleeping on the clock.
     let stored = documents
-        .get("x402_budget", "holds")
+        .get("wallet.budgets", "holds")
         .await
         .unwrap()
         .unwrap();
     let mut aged = stored.doc.clone();
     for hold in aged["holds"].as_object_mut().unwrap().values_mut() {
-        hold["expires_at_ms"] = serde_json::json!(before - 1_000);
+        hold["expires_ms"] = serde_json::json!(before - 1_000);
     }
     documents
         .put(
-            "x402_budget",
+            "wallet.budgets",
             "holds",
             aged,
             Precondition::Version(stored.version),
@@ -317,7 +317,7 @@ async fn the_lease_task_extends_the_hold_expiry_in_host_storage() {
 
     let after = expiry(
         &documents
-            .get("x402_budget", "holds")
+            .get("wallet.budgets", "holds")
             .await
             .unwrap()
             .unwrap()

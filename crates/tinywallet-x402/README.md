@@ -51,7 +51,7 @@ and host contract cannot silently drift.
   `Reservation` on `X402PaymentResult::reservation`: `commit(record)` records the
   outcome and ends the hold in one step; dropping it releases the hold. A hold
   counts toward the caps like a settled payment. Holds are stored in the shared
-  `x402_budget/holds` document (compare-and-swap across processes) and expire
+  `wallet.budgets/holds` document (compare-and-swap across processes) and expire
   after 15 minutes unless the owner renews them (`PaymentLedger::renew_holds`)
   or releases/commits them.
 - **Allowlist.** Only USDC on the networks of `wire::SUPPORTED_USDC` (Solana

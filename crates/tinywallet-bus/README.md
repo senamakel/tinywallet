@@ -80,6 +80,8 @@ shape. The module parses the challenge, selects the payment chain, and uses
 only the matching confidential secret; hosts do not parse payment challenges.
 
 The bus exposes `storage_needs()` for the x402 ledger's host-facing storage
-declaration. It uses the canonical `tinystoragedrivers-bus` type and requests
-only the `x402_budget` collection and `x402.payments` stream prefix. The ledger's
-persistence constants alias these shared names.
+declaration. It uses the data-only `tinystoragedrivers-bus` type and requests
+the current `wallet.budgets` collection and `wallet.payments` stream. Those
+names come from the same bus-owned constants as the optional `storage` schema.
+The legacy `x402_budget` collection and `x402.payments` stream remain migration
+sources; the module's grant covers only the current names.

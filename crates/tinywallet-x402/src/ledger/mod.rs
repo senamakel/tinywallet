@@ -9,11 +9,16 @@
 //!
 //! The ledger persists through the `tinystoragedrivers-core` ports only; the
 //! host hands in a [`LedgerStorage`] and decides the backend. Records are
-//! appended to the `x402.payments` stream. It is append-only: a payment that
+//! appended to the `wallet.payments` stream. It is append-only: a payment that
 //! changes status is appended again with the same id, and readers see every
 //! entry. Entries that no longer parse are skipped with a warning rather than
 //! failing the load. A storage that cannot be read refuses to open, since a
 //! ledger blind to its history would admit payments past the budget.
+//!
+//! Entries are `snake_case` objects with every instant an epoch-millisecond
+//! `*_ms` field, and the ledger holds records at that precision. The names and
+//! the steps that migrate the v1 `x402_budget` collection and `x402.payments`
+//! stream are declared by [`storage_schema`].
 //!
 //! # Budgets
 //!
@@ -37,7 +42,7 @@
 //! signed. The hold is a [`Reservation`]: dropped, it releases; committed with
 //! [`Reservation::commit`], it turns into the recorded payment.
 //!
-//! Holds live in one `x402_budget/holds` document that every writer on the
+//! Holds live in one `wallet.budgets/holds` document that every writer on the
 //! storage updates by compare-and-swap, so the check-and-hold is atomic across
 //! processes, not only across threads. A hold expires after 15 minutes so a
 //! crashed process cannot lock budget forever, and a live owner extends the lease
@@ -59,6 +64,7 @@ pub(crate) mod faulty;
 mod global;
 mod persist;
 mod reservation;
+mod schema;
 mod store;
 mod types;
 
@@ -70,6 +76,7 @@ pub use global::{
 };
 pub use persist::{HOLD_RENEW_EVERY, LedgerStorage};
 pub use reservation::{Reservation, reserve};
+pub use schema::storage_schema;
 pub use store::PaymentLedger;
 pub use types::{
     BudgetCheck, BudgetRefusal, PaymentRecord, PaymentStatus, ReservationId, SpendingBudget,

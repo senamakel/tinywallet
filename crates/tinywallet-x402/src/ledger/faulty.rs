@@ -86,7 +86,7 @@ pub(crate) fn append_raw(storage: &LedgerStorage, values: Vec<Value>) {
         .run(async move {
             for value in values {
                 streams
-                    .append(super::persist::PAYMENTS_STREAM, value)
+                    .append(super::schema::PAYMENTS_STREAM, value)
                     .await
                     .unwrap();
             }
