@@ -25,17 +25,10 @@ TSD_BUS_TREE_SOURCES = {
     "?rev=c9ea6ff1615b77b55d7269403af5fd11bedc9ce8#c9ea6ff1",
 }
 
-# The `storage` feature (OFF by default) is the one sanctioned way anything
-# beyond ALLOWED enters the closure. It brings `tinystoragedrivers-core`, the
-# storage ports crate, and with it that crate's own registry dependencies
-# (tokio, zstd, ...). The exemption is deliberately narrow:
-#   * only when `storage` is enabled; the default closure is audited strictly
-#     and must not contain any of it,
-#   * only that git crate, pinned to the tinystoragedrivers repository, plus
-#     registry crates; a path or other git crate (any implementation) is
-#     still a violation.
+# The optional `storage` feature exposes only wallet storage names and stored
+# record vocabulary. It must not add an implementation/runtime dependency to
+# the data-only bus closure.
 STORAGE_FEATURE = "storage"
-STORAGE_EXEMPT_GIT = {"tinystoragedrivers-core": "https://github.com/tinyhumansai/tinystoragedrivers"}
 
 # Chain, key and crypto implementations never enter the bus closure, not even
 # through the `storage` feature's registry-crate exemption.
@@ -181,8 +174,8 @@ def tree_packages(feature=None):
     return packages
 
 
-def audit_tree(packages, storage=False):
-    """Violations for a `cargo tree` listing; `storage` applies the exemption."""
+def audit_tree(packages):
+    """Violations for a `cargo tree` listing of a bus feature closure."""
     violations = []
     for name, source in packages:
         if forbidden(name):
@@ -191,10 +184,6 @@ def audit_tree(packages, storage=False):
         if name == TSD_BUS and source in TSD_BUS_TREE_SOURCES:
             continue
         if name in ALLOWED and not source:
-            continue
-        if storage and not source:
-            continue  # a registry crate reached through the storage feature
-        if storage and name in STORAGE_EXEMPT_GIT and source.startswith(STORAGE_EXEMPT_GIT[name]):
             continue
         violations.append(f"tinywallet-bus -> {name} ({source or 'registry'})")
     return violations
@@ -241,7 +230,7 @@ if __name__ == "__main__":
             file=sys.stderr,
         )
         sys.exit(1)
-    failures = audit_tree(tree_packages(STORAGE_FEATURE), storage=True)
+    failures = audit_tree(tree_packages(STORAGE_FEATURE))
     if failures:
         print(
             "Forbidden contract dependencies (storage feature):\n"
@@ -250,6 +239,6 @@ if __name__ == "__main__":
         )
         sys.exit(1)
     print(
-        "tinywallet-bus default closure is pure; the storage feature only adds "
-        "the pinned ports crate and registry crates; the excluded consumer stays data-only"
+        "tinywallet-bus default and storage-feature closures are data-only; "
+        "the excluded consumer stays data-only"
     )
