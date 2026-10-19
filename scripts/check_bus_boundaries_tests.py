@@ -1,6 +1,7 @@
 """Regression fixtures for implementation edges and registry identity."""
 import importlib.util
 from pathlib import Path
+import tomllib
 import unittest
 
 spec = importlib.util.spec_from_file_location("boundary", Path(__file__).with_name("check-bus-boundaries.py"))
@@ -224,8 +225,7 @@ class StorageContractClosureTests(unittest.TestCase):
         "?rev=c9ea6ff1615b77b55d7269403af5fd11bedc9ce8#c9ea6ff1",
     )
 
-    def test_pinned_data_only_storage_contract_is_allowed_in_each_feature_closure(self):
-        self.assertEqual(boundary.audit_tree([self.DATA_CONTRACT]), [])
+    def test_pinned_data_only_storage_contract_is_allowed(self):
         self.assertEqual(boundary.audit_tree([self.DATA_CONTRACT]), [])
 
     def test_wrong_data_contract_revision_is_rejected_in_both_closures(self):
@@ -253,20 +253,27 @@ class StorageContractClosureTests(unittest.TestCase):
 
     def test_storage_feature_rejects_forbidden_registry_crates(self):
         for name in ("coins-bip32", "coins_bip32", "coins-core", "k256", "bitcoin"):
-            self.assertEqual(len(boundary.audit_tree([(name, "")]), 1), 1, name)
+            self.assertEqual(len(boundary.audit_tree([(name, "")])), 1, name)
 
     def test_storage_feature_rejects_a_foreign_git_source(self):
-        fake = ("tinystoragedrivers-bus", "https://example.com/evil")
+        fake = ("tinystoragedrivers-core", "https://example.com/evil")
         self.assertEqual(len(boundary.audit_tree([fake])), 1)
 
     def test_storage_feature_must_not_link_the_runtime_or_its_native_closure(self):
-        for package in (self.PORTS, self.REGISTRY_CRATE, ("tokio", "")):
+        for package in (self.IMPLEMENTATION, ("zstd", ""), ("tokio", "")):
             name, source = package
             with self.subTest(package=name):
                 self.assertEqual(
                     boundary.audit_tree([package]),
                     [f"tinywallet-bus -> {name} ({source or 'registry'})"],
                 )
+
+    def test_bus_manifest_keeps_tinystoragedrivers_core_out_of_runtime_and_test_graphs(self):
+        manifest = tomllib.loads(
+            (Path(__file__).resolve().parent.parent / "crates/tinywallet-bus/Cargo.toml").read_text()
+        )
+        self.assertNotIn("tinystoragedrivers-core", manifest.get("dependencies", {}))
+        self.assertNotIn("tinystoragedrivers-core", manifest.get("dev-dependencies", {}))
 
 
 if __name__ == "__main__":
