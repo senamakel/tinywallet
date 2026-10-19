@@ -7,6 +7,11 @@ are limited to serde, serde_json, thiserror, and the feature-disabled
 `tinystoragedrivers-bus` contract. No feature links crypto, x402, web3, a
 storage client, transport, or native libraries.
 
+The default, data-only contract supports Rust 1.85 and is checked separately by
+the excluded storage-needs consumer. The optional `storage` schema and the
+migration test targets use TSD core v1.0 and require Rust 1.88; CI tests those
+targets at that feature floor.
+
 Network enums in the bus are identifiers only. RPC endpoints, explorer URLs,
 Solana mint addresses, and display labels remain implementation-owned reference
 data in `tinywallet-crypto`.

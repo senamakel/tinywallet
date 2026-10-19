@@ -25,7 +25,9 @@ thiserror = "2"
 # The storage schema's declarations (`Schema`, `Step`, `CollectionSpec`). This
 # is the ports crate only: no backend, no driver, and with default features off
 # its only tokio features are io-util and time, so the contract stays free of
-# I/O and a runtime. Optional, behind `storage`.
+# I/O and a runtime. Optional, behind `storage`; TSD core v1.0 makes this
+# feature and the migration test targets require Rust 1.88. The default,
+# data-only wire contract remains Rust 1.85.
 tinystoragedrivers-core = { git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v1.0.0", default-features = false, optional = true }
 
 [dev-dependencies]
