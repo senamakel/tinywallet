@@ -163,3 +163,7 @@ fn unsupported_operation() -> TransformError {
         message: "TinyWallet migration operation unsupported".to_owned(),
     }
 }
+
+#[cfg(test)]
+#[path = "migration_tests.rs"]
+mod tests;

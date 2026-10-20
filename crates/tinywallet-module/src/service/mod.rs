@@ -41,7 +41,7 @@
 //! as the second — telling a model its input was wrong when it was not sends it
 //! into a rewrite loop over something that was already correct.
 
-use tinybus::{Error as BusError, Result as BusResult};
+use tinybus::{Connection, Error as BusError, Result as BusResult};
 use tinywallet::wire::{
     AttachRequest, DerivedAccount, ExportRequest, ExportedKey, PublicKey, Scheme, SecretMaterial,
     SignMessageRequest, SignRequest, Signature, SignedTransaction, SigningPayload, SigningRequest,
@@ -1432,10 +1432,13 @@ fn base64(bytes: &[u8]) -> String {
     out
 }
 
-async fn setup(context: tinybus_module::ModuleSetupContext) -> BusResult<()> {
+async fn setup_with_context(context: tinybus_module::ModuleSetupContext) -> BusResult<()> {
     migration::serve(&context).await?;
-    let connection = context.connection();
-    let callbacks = host::HostCallbacks::new(connection)?;
+    setup(context.connection().clone()).await
+}
+
+async fn setup(connection: Connection) -> BusResult<()> {
+    let callbacks = host::HostCallbacks::new(&connection)?;
     let wallet = Wallet {
         callbacks: Some(callbacks.clone()),
         web3: tokio::sync::RwLock::new(None),
@@ -1506,7 +1509,7 @@ fn host_build_failed(message: String) -> BusError {
 )]
 mod exports {
     tinybus_module::module_export_optional_static! {
-        setup_with_context = super::setup,
+        setup_with_context = super::setup_with_context,
         worker_threads = 2,
         provides = [
             "ai.tinyhumans.tinywallet.Wallet",
