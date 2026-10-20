@@ -114,7 +114,7 @@ async fn configured_storage_fails_closed_when_its_bound_peer_has_no_storage_serv
     );
     let ledger_error = callbacks.ledger_storage().await.unwrap_err();
     assert!(
-        ledger_error.contains("configured x402 ledger storage is unavailable"),
+        ledger_error.contains("bound storage route is unavailable"),
         "configured storage must not fall back to memory: {ledger_error}"
     );
     broker_task.abort();
