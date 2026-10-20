@@ -1,8 +1,8 @@
 //! Data-only x402 storage vocabulary shared by `TinyWallet` and its host.
 //!
 //! This module names the current wallet resources and stores the payment
-//! record shape. Schema declarations and migration behavior belong to the
-//! x402 implementation crate.
+//! record shape plus the host-authored readiness record. Schema declarations
+//! and migration behavior belong to the x402 implementation crate.
 
 mod payment;
 mod readiness;

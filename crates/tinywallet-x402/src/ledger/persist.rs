@@ -57,8 +57,9 @@ impl LedgerStorage {
         Self::new(storage.documents().clone(), storage.streams().clone())
     }
 
-    /// A private in-memory store. Nothing survives the process: for tests and
-    /// hosts that deliberately want an ephemeral ledger.
+    /// A fresh private in-memory store with host readiness prepared. Nothing
+    /// survives the process: for tests and hosts that deliberately want an
+    /// ephemeral current-only ledger.
     ///
     /// # Panics
     ///
@@ -67,7 +68,7 @@ impl LedgerStorage {
     #[must_use]
     #[allow(
         clippy::expect_used,
-        reason = "fixed valid scope on the memory backend"
+        reason = "fixed memory scope and a newly owned readiness document"
     )]
     pub fn memory() -> Self {
         let scope = Scope::local().module(OWNER).expect("valid scope");
