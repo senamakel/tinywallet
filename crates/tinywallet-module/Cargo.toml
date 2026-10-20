@@ -79,7 +79,7 @@ ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
 zeroize = "1"
 # Storage over the bus: the module reaches the host's storage (x402 payments
 # stream and budget-hold documents) through the ports crate's bus transport, not
-# a process-local registry. TSD core v1.0 sets this module's Rust 1.88 floor.
+# a process-local registry. TSD core v1.9 sets this module's Rust 1.88 floor.
 tinystoragedrivers-core = { workspace = true }
 tinystoragedrivers-bus = { workspace = true }
 tinystoragedrivers-client = { workspace = true }
