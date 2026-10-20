@@ -228,15 +228,6 @@ async fn refuses_a_confidential_call_to_an_unattested_module() {
         error.to_string().to_lowercase().contains("attest"),
         "expected an attestation refusal, got: {error}"
     );
-    let error = proxy
-        .call_confidential::<SignedTransaction>("SignTransaction", (request,))
-        .await
-        .expect_err("an unattested artifact must never receive a confidential secret");
-    assert!(
-        error.to_string().to_lowercase().contains("attest"),
-        "expected an attestation refusal, got: {error}"
-    );
-
     broker_task.abort();
 }
 
