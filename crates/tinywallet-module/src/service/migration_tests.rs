@@ -36,7 +36,14 @@ fn v1_payment() -> Value {
 #[test]
 fn declaration_exports_both_steps_and_only_the_wallet_items() {
     let schema = tinywallet_x402::ledger::storage_schema();
-    let declaration = declaration_from_schema(&schema, operation_for_step).unwrap();
+    let declaration_result = declaration_from_schema(&schema, operation_for_step);
+    assert!(
+        declaration_result.is_ok(),
+        "the Wallet schema must produce a valid migration declaration"
+    );
+    let Ok(declaration) = declaration_result else {
+        return;
+    };
     assert_eq!(declaration.owner.as_str(), "wallet");
     assert_eq!(
         declaration
@@ -94,9 +101,15 @@ fn budget_dispatch_reuses_the_schema_closure_and_preserves_metadata() {
             },
         }],
     }));
-    let MigrationPayloadReply::Documents(Ok(records)) = reply else {
-        panic!("the wallet budget operation should return transformed records");
+    assert!(
+        matches!(&reply, MigrationPayloadReply::Documents(_)),
+        "wallet budget migration returned an unexpected response: {reply:?}"
+    );
+    let MigrationPayloadReply::Documents(result) = reply else {
+        return;
     };
+    assert!(result.is_ok(), "wallet budget migration should succeed");
+    let Ok(records) = result else { return };
     assert_eq!(records.len(), 1);
     assert_eq!(records[0].collection, "wallet.budgets");
     assert_eq!(records[0].id, "holds");
@@ -126,9 +139,15 @@ fn payments_dispatch_filters_unreadable_entries_through_the_schema_closure() {
         version: OPERATION_VERSION,
         entries: vec![v1_payment(), json!("unreadable"), json!({"id": 7})],
     }));
-    let MigrationPayloadReply::StreamEntries(Ok(entries)) = entries else {
-        panic!("the wallet payment operation should return filtered entries");
+    assert!(
+        matches!(&entries, MigrationPayloadReply::StreamEntries(_)),
+        "wallet payment migration returned an unexpected response: {entries:?}"
+    );
+    let MigrationPayloadReply::StreamEntries(result) = entries else {
+        return;
     };
+    assert!(result.is_ok(), "wallet payment migration should succeed");
+    let Ok(entries) = result else { return };
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0]["id"], "pay-1");
     assert_eq!(entries[0]["amount_atomic"], 2500);
