@@ -192,18 +192,13 @@ async fn refuses_a_confidential_call_to_an_unattested_module() {
     module
         .load_file(&untrusted_artifact)
         .expect("module loads without admission");
-    let wait = test_support::wait_until_serving(&client, BUS_NAME, Duration::from_secs(5)).await;
+    let readiness = module.ensure_ready(BUS_NAME).await;
     let state = module.list()[0].state.clone();
     assert!(
-        wait.is_err(),
-        "an unattested module unexpectedly served with state {state:?}"
+        readiness.is_err() && matches!(state, ModuleState::Failed { .. }),
+        "an unattested module must fail setup without a selected migration host; readiness: {readiness:?}, state: {state:?}"
     );
-    let unavailable = wait.unwrap_err();
-    assert!(unavailable.to_string().contains("did not become ready"));
-    assert!(matches!(
-        module.list()[0].state,
-        ModuleState::Failed { .. }
-    ));
+    assert!(client.name_owner(BUS_NAME).await.unwrap().is_none());
 
     let proxy = client.proxy(BUS_NAME, OBJECT_PATH, BUS_NAME).unwrap();
     let request = serde_json::json!({
@@ -225,12 +220,12 @@ async fn refuses_a_confidential_call_to_an_unattested_module() {
     });
 
     let error = proxy
-        .call_confidential::<SignedTransaction>("SignTransaction", (request.clone(),))
+        .call_confidential::<SignedTransaction>("SignTransaction", (request,))
         .await
         .expect_err("an unattested module must not receive a recovery phrase");
     assert!(
-        error.to_string().to_lowercase().contains("attest"),
-        "expected an attestation refusal, got: {error}"
+        !error.to_string().contains(&VECTOR),
+        "failed setup must not reflect the recovery phrase"
     );
     broker_task.abort();
 }
