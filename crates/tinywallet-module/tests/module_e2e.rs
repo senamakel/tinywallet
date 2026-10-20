@@ -25,7 +25,11 @@ use tinybus::{
     test_support,
     transport::memory::{MemoryBus, MemoryTransport},
 };
-use tinystoragedrivers_busproxy::PerCallerEndpoint;
+use tinystoragedrivers_bus::{StorageNeeds};
+use tinystoragedrivers_busproxy::{
+    AuditEvent, AuditSink, Environment, GovernedEndpointLimits, GovernedStorage, GrantPolicy,
+    HostContext, HostFailure, HostStorageContext, ResolvedStorage, StorageGrant,
+};
 use tinystoragedrivers_client::StorageServer;
 use tinystoragedrivers_core::schema::delivery::MigrationDeliveryClient;
 use tinystoragedrivers_core::{
@@ -379,7 +383,7 @@ async fn migrate_wallet_storage(fixture: &RestrictedBus, migration: MigrationMod
     assert_eq!(declaration.steps[1].transform.kind, TransformKind::Stream);
     assert_eq!(declaration.steps[1].transform.version, 1);
 
-    let backend = MemoryStorage::with_clock(Arc::new(|| 1_000));
+    let backend = Arc::new(MemoryStorage::with_clock(Arc::new(|| 1_000)));
     let scoped = backend.for_scope(&Scope::local()).unwrap();
     let documents = Arc::clone(scoped.documents());
     documents
@@ -409,7 +413,7 @@ async fn migrate_wallet_storage(fixture: &RestrictedBus, migration: MigrationMod
 
     let registry =
         Registry::compose_with_declarations(std::iter::empty::<Schema>(), [declaration]).unwrap();
-    registry.prepare(&backend).await.unwrap();
+    registry.prepare(backend.as_ref()).await.unwrap();
     let executor = MigrationDeliveryClient::new(Arc::new(migration));
     registry
         .migrate_with_executor(&scoped, &MigrateOptions::new(), &executor)
@@ -439,7 +443,66 @@ async fn migrate_wallet_storage(fixture: &RestrictedBus, migration: MigrationMod
     assert_eq!(payments[0].value["id"], "pay-1");
 
     write_migration_readiness(&scoped).await;
-    serve_current_storage_and_open_wallet_service(fixture, scoped).await;
+    serve_current_storage_and_open_wallet_service(fixture, backend).await;
+}
+
+#[derive(Clone)]
+struct WalletStorageContext(String);
+
+impl HostContext for WalletStorageContext {}
+
+struct WalletStorageEnvironment {
+    backend: Arc<MemoryStorage>,
+}
+
+#[async_trait::async_trait]
+impl Environment<WalletStorageContext> for WalletStorageEnvironment {
+    async fn resolve(
+        &self,
+        context: &WalletStorageContext,
+        _module: &tinybus::module::ModuleId,
+    ) -> Result<ResolvedStorage, HostFailure> {
+        let scope = Scope::new(&context.0).map_err(|_| HostFailure::Denied("invalid-wallet-scope"))?;
+        let storage = self
+            .backend
+            .for_scope(&scope)
+            .map_err(|_| HostFailure::Denied("wallet-test-storage-unavailable"))?;
+        let collections = [CollectionSpec::new("wallet.budgets")];
+        let stream_prefixes = ["wallet.payments"];
+        let grant = StorageGrant::from_needs(
+            StorageNeeds {
+                collections: &collections,
+                stream_prefixes: &stream_prefixes,
+                ..StorageNeeds::default()
+            },
+            &GrantPolicy {
+                writable: true,
+                ..GrantPolicy::default()
+            },
+        )
+        .map_err(|_| HostFailure::Denied("wallet-test-grant-invalid"))?;
+        Ok(ResolvedStorage {
+            backend_identity: "wallet-memory-test".to_owned(),
+            binding_epoch: 1,
+            canonical_scope: context.0.clone(),
+            grant,
+            server: Arc::new(StorageServer::new(storage)),
+        })
+    }
+
+    async fn admit_write(
+        &self,
+        _context: &WalletStorageContext,
+        _module: &tinybus::module::ModuleId,
+    ) -> Result<(), HostFailure> {
+        Ok(())
+    }
+}
+
+struct WalletTestAudit;
+
+impl AuditSink for WalletTestAudit {
+    fn record(&self, _event: AuditEvent) {}
 }
 
 fn v1_payment() -> serde_json::Value {
@@ -480,18 +543,39 @@ async fn write_migration_readiness(scoped: &tinystoragedrivers_core::ScopedStora
 
 async fn serve_current_storage_and_open_wallet_service(
     fixture: &RestrictedBus,
-    scoped: tinystoragedrivers_core::ScopedStorage,
+    backend: Arc<MemoryStorage>,
 ) {
     let module_peer = fixture.client.name_owner(BUS_NAME).await.unwrap().unwrap();
-    let endpoint = Arc::new(PerCallerEndpoint::new(move |sender: &tinybus::BusName| {
-        (sender == &module_peer).then(|| StorageServer::new(scoped.clone()))
-    }));
     let storage_host = Connection::connect(fixture.bus.connect().await.unwrap())
         .await
         .unwrap();
-    let _served = tinystoragedrivers_busproxy::serve(&storage_host, endpoint)
+    let registration = tinystoragedrivers_tinybus::attach_storage(
+        &fixture.modules,
+        &storage_host,
+        GovernedStorage::new(
+            Arc::new(WalletStorageEnvironment { backend }),
+            Arc::new(WalletTestAudit),
+            GovernedEndpointLimits::default(),
+        ),
+        tokio::runtime::Handle::current(),
+    )
+    .await
+    .expect("governed module storage should register after migration");
+    let (lease_a, descriptor_a) = registration
+        .register_lease(
+            HostStorageContext::new(WalletStorageContext("local".to_owned())),
+            module_peer.clone(),
+        )
         .await
-        .expect("ordinary module storage service should register after migration");
+        .expect("the admitted wallet module should receive its current-only lease");
+    fixture
+        .modules
+        .reinitialize(
+            "tinywallet-module",
+            serde_json::json!({"storage_descriptor": descriptor_a}),
+        )
+        .await
+        .expect("the module should bind its configured descriptor before serving");
 
     let proxy = fixture
         .client
@@ -519,6 +603,80 @@ async fn serve_current_storage_and_open_wallet_service(
         )
         .await
         .unwrap();
+
+    let (lease_b, descriptor_b) = registration
+        .register_lease(
+            HostStorageContext::new(WalletStorageContext("wallet-other-profile".to_owned())),
+            module_peer.clone(),
+        )
+        .await
+        .expect("one module peer may receive a distinct scope lease");
+    fixture
+        .modules
+        .reinitialize(
+            "tinywallet-module",
+            serde_json::json!({"storage_descriptor": descriptor_b}),
+        )
+        .await
+        .expect("the same module instance should bind the second descriptor");
+    let isolated = proxy
+        .call::<tinywallet_bus::wire::X402ServiceHandle>(
+            "X402Configure",
+            (tinywallet_bus::wire::X402ConfigureRequest {
+                config: tinywallet_bus::wire::X402ConfigResponse {
+                    workspace_dir: "wallet-other-profile".to_owned(),
+                    session_id: "migration-test".to_owned(),
+                    per_request_max_atomic: 1_000,
+                    daily_max_atomic: 10_000,
+                    monthly_max_atomic: 100_000,
+                },
+            },),
+        )
+        .await
+        .expect_err("a second lease must not see the first scope's migration marker");
+    assert_eq!(
+        isolated.wire_name(),
+        "ai.tinyhumans.tinywallet.Error.X402OperationFailed"
+    );
+
+    let (lease_revoked, descriptor_revoked) = registration
+        .register_lease(
+            HostStorageContext::new(WalletStorageContext("wallet-revoked-profile".to_owned())),
+            module_peer,
+        )
+        .await
+        .expect("a third test lease should be independently registered");
+    assert!(registration.revoke(&lease_revoked).await);
+    assert!(fixture
+        .modules
+        .reinitialize(
+            "tinywallet-module",
+            serde_json::json!({"storage_descriptor": descriptor_revoked}),
+        )
+        .await
+        .is_err(), "a revoked descriptor must fail before replacing the live service");
+    let still_isolated = proxy
+        .call::<tinywallet_bus::wire::X402ServiceHandle>(
+            "X402Configure",
+            (tinywallet_bus::wire::X402ConfigureRequest {
+                config: tinywallet_bus::wire::X402ConfigResponse {
+                    workspace_dir: "wallet-other-profile".to_owned(),
+                    session_id: "migration-test".to_owned(),
+                    per_request_max_atomic: 1_000,
+                    daily_max_atomic: 10_000,
+                    monthly_max_atomic: 100_000,
+                },
+            },),
+        )
+        .await
+        .expect_err("failed descriptor reinitialization must leave the prior bound service");
+    assert_eq!(
+        still_isolated.wire_name(),
+        "ai.tinyhumans.tinywallet.Error.X402OperationFailed"
+    );
+
+    registration.shutdown().await.unwrap();
+    drop((lease_a, lease_b, lease_revoked));
 }
 
 /// The load-bearing case: through the bus must equal in-process.
