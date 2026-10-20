@@ -401,7 +401,7 @@ async fn current_only_grant_opens_from_host_ready_current_history_without_legacy
     history.status = PaymentStatus::Settled;
     history.amount_atomic = 60;
     seed.record_payment(history);
-    let host_hold = seed.reserve(30).unwrap().unwrap();
+    let _host_hold = seed.reserve(30).unwrap().unwrap();
     let documents = Arc::clone(fixture.host.documents());
     documents
         .ensure_collection(&tinystoragedrivers_core::CollectionSpec::new(
@@ -445,9 +445,7 @@ async fn current_only_grant_opens_from_host_ready_current_history_without_legacy
             .unwrap()
             .is_err()
     );
-    let module_hold = ledger::with_ledger_mut(|ledger| ledger.reserve(10))
-        .unwrap()
-        .unwrap();
+    let module_hold = ledger::reserve(10).unwrap().unwrap();
     let holds = documents
         .get(CURRENT_BUDGETS, "holds")
         .await
@@ -466,7 +464,6 @@ async fn current_only_grant_opens_from_host_ready_current_history_without_legacy
     assert_eq!(denied.load(Ordering::Relaxed), 0);
 
     drop(module_hold);
-    drop(host_hold);
     fixture
         .wallet
         .x402_close(X402CloseRequest { service })
