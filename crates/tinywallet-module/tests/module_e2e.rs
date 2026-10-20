@@ -119,6 +119,11 @@ async fn the_built_module_signs_every_chain_over_a_real_broker() {
     test_support::wait_until_serving(&fixture.client, BUS_NAME, Duration::from_secs(5))
         .await
         .unwrap();
+    fixture
+        .modules
+        .ensure_ready(BUS_NAME)
+        .await
+        .expect("wallet module must finish setup before config compatibility checks");
 
     let owner_before = fixture.client.name_owner(BUS_NAME).await.unwrap();
     for config in [serde_json::Value::Null, serde_json::json!({})] {
