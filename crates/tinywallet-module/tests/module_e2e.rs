@@ -192,9 +192,13 @@ async fn refuses_a_confidential_call_to_an_unattested_module() {
     module
         .load_file(&untrusted_artifact)
         .expect("module loads without admission");
-    let unavailable = test_support::wait_until_serving(&client, BUS_NAME, Duration::from_secs(5))
-        .await
-        .expect_err("an unattested module must fail setup without a selected migration host");
+    let wait = test_support::wait_until_serving(&client, BUS_NAME, Duration::from_secs(5)).await;
+    let state = module.list()[0].state.clone();
+    assert!(
+        wait.is_err(),
+        "an unattested module unexpectedly served with state {state:?}"
+    );
+    let unavailable = wait.unwrap_err();
     assert!(unavailable.to_string().contains("did not become ready"));
     assert!(matches!(
         module.list()[0].state,
