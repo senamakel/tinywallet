@@ -36,9 +36,9 @@ use tinywallet_module::{BUS_NAME, OBJECT_PATH};
 use tinystoragedrivers_busproxy::PerCallerEndpoint;
 use tinystoragedrivers_client::StorageServer;
 use tinystoragedrivers_core::{
-    CollectionSpec, DocumentStore, MemoryStorage, MigrateOptions, Precondition, Scope,
-    StorageBackend, StreamStore, WriteOptions,
-    schema::{MigrateOptions as SchemaMigrateOptions, Registry, Schema, TransformKind},
+    CollectionSpec, DocumentStore, MemoryStorage, Precondition, Scope, StorageBackend,
+    StreamStore, WriteOptions,
+    schema::{MigrateOptions, Registry, Schema, TransformKind},
 };
 use tinystoragedrivers_core::schema::delivery::MigrationDeliveryClient;
 use tinystoragedrivers_tinybus::migration::{
@@ -380,7 +380,7 @@ async fn migrate_wallet_storage(fixture: &RestrictedBus, migration: MigrationMod
     registry.prepare(&backend).await.unwrap();
     let executor = MigrationDeliveryClient::new(Arc::new(migration));
     registry
-        .migrate_with_executor(&scoped, &SchemaMigrateOptions::new(), &executor)
+        .migrate_with_executor(&scoped, &MigrateOptions::new(), &executor)
         .await
         .unwrap();
 
