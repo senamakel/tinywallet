@@ -1,4 +1,4 @@
-//! Coverage for the module's storage callback bound to a live host lease.
+//! Exercise the storage callback against a live, host-issued storage lease.
 
 use super::*;
 
@@ -72,8 +72,8 @@ type BoundStorageRegistration = tinystoragedrivers_tinybus::StorageRegistration<
 >;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn selected_linked_wallet_uses_and_caches_its_current_only_ledger_route(
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn selected_linked_wallet_uses_and_caches_its_current_only_ledger_route()
+-> Result<(), Box<dyn std::error::Error>> {
     let bus = MemoryBus::new();
     let broker = Broker::new_restricted_module_control();
     let (broker_transport, controller_transport) = MemoryTransport::pair();
@@ -102,43 +102,45 @@ async fn selected_linked_wallet_uses_and_caches_its_current_only_ledger_route(
     let (lease_tx, lease_rx) = tokio::sync::oneshot::channel();
     let registration_for_setup = Arc::clone(&registration);
     let info = host
-        .attach_linked_with_setup(crate::linked_module()?, serde_json::json!({}), move |connection| {
-            Box::pin(async move {
-                let peer = connection
-                    .unique_name()
-                    .ok_or_else(|| tinybus::Error::failed("wallet module has no unique peer"))?;
-                let (lease, descriptor) = registration_for_setup
-                    .register_lease(
-                        tinystoragedrivers_busproxy::HostStorageContext::new(
-                            BoundStorageContext,
-                        ),
-                        peer.clone(),
-                    )
-                    .await
-                    .map_err(|_| tinybus::Error::failed("wallet storage lease was refused"))?;
-                let callbacks = HostCallbacks::with_storage_descriptor(
-                    &connection,
-                    Some(descriptor),
-                )?;
-                callbacks
-                    .validate_configured_storage()
-                    .await
-                    .map_err(|_| tinybus::Error::failed("wallet storage route was unavailable"))?;
-                callbacks
-                    .storage()
-                    .await
-                    .map_err(|_| tinybus::Error::failed("wallet storage route was unavailable"))?
-                    .ok_or_else(|| tinybus::Error::failed("wallet storage route was absent"))?;
-                callbacks
-                    .ledger_storage()
-                    .await
-                    .map_err(|_| tinybus::Error::failed("wallet ledger storage was unavailable"))?;
-                lease_tx
-                    .send((lease, peer))
-                    .map_err(|_| tinybus::Error::failed("wallet lease observer was dropped"))?;
-                crate::service::setup_with_callbacks(connection, callbacks).await
-            })
-        })
+        .attach_linked_with_setup(
+            crate::linked_module()?,
+            serde_json::json!({}),
+            move |connection| {
+                Box::pin(async move {
+                    let peer = connection.unique_name().ok_or_else(|| {
+                        tinybus::Error::failed("wallet module has no unique peer")
+                    })?;
+                    let (lease, descriptor) = registration_for_setup
+                        .register_lease(
+                            tinystoragedrivers_busproxy::HostStorageContext::new(
+                                BoundStorageContext,
+                            ),
+                            peer.clone(),
+                        )
+                        .await
+                        .map_err(|_| tinybus::Error::failed("wallet storage lease was refused"))?;
+                    let callbacks =
+                        HostCallbacks::with_storage_descriptor(&connection, Some(descriptor))?;
+                    callbacks.validate_configured_storage().await.map_err(|_| {
+                        tinybus::Error::failed("wallet storage route was unavailable")
+                    })?;
+                    callbacks
+                        .storage()
+                        .await
+                        .map_err(|_| {
+                            tinybus::Error::failed("wallet storage route was unavailable")
+                        })?
+                        .ok_or_else(|| tinybus::Error::failed("wallet storage route was absent"))?;
+                    callbacks.ledger_storage().await.map_err(|_| {
+                        tinybus::Error::failed("wallet ledger storage was unavailable")
+                    })?;
+                    lease_tx
+                        .send((lease, peer))
+                        .map_err(|_| tinybus::Error::failed("wallet lease observer was dropped"))?;
+                    crate::service::setup_with_callbacks(connection, callbacks).await
+                })
+            },
+        )
         .await?;
     host.ensure_ready(info.manifest.bus_name.as_str()).await?;
     let (_lease, module_peer) = lease_rx.await?;

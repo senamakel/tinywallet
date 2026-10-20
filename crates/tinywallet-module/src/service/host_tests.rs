@@ -98,14 +98,13 @@ async fn configured_storage_fails_closed_when_its_bound_peer_has_no_storage_serv
         .await
         .unwrap();
     let service_peer = connection.unique_name().unwrap();
-    let descriptor: tinystoragedrivers_busproxy::StorageDescriptor = serde_json::from_value(
-        serde_json::json!({
+    let descriptor: tinystoragedrivers_busproxy::StorageDescriptor =
+        serde_json::from_value(serde_json::json!({
             "service_peer": service_peer.as_str(),
             "registration_id": 1,
             "object_root": "/ai/tinyhumans/tinystorage/Leases/1",
-        }),
-    )
-    .unwrap();
+        }))
+        .unwrap();
     let callbacks = HostCallbacks::with_storage_descriptor(&connection, Some(descriptor)).unwrap();
 
     let setup_error = callbacks.validate_configured_storage().await.unwrap_err();
@@ -117,38 +116,6 @@ async fn configured_storage_fails_closed_when_its_bound_peer_has_no_storage_serv
     assert!(
         ledger_error.contains("configured x402 ledger storage is unavailable"),
         "configured storage must not fall back to memory: {ledger_error}"
-    );
-    broker_task.abort();
-}
-
-#[tokio::test]
-async fn configured_storage_fails_closed_when_its_bound_peer_is_not_a_storage_host() {
-    let bus = tinybus::transport::memory::MemoryBus::new();
-    let broker = tinybus::broker::Broker::new();
-    let broker_task = broker.spawn(bus.clone());
-    let connection = Connection::connect(bus.connect().await.unwrap())
-        .await
-        .unwrap();
-    let service_peer = connection.unique_name().unwrap();
-    let descriptor: tinystoragedrivers_busproxy::StorageDescriptor = serde_json::from_value(
-        serde_json::json!({
-            "service_peer": service_peer.as_str(),
-            "registration_id": 1,
-            "object_root": "/ai/tinyhumans/tinystorage/Leases/1",
-        }),
-    )
-    .unwrap();
-    let callbacks = HostCallbacks::with_storage_descriptor(&connection, Some(descriptor)).unwrap();
-
-    let setup_error = callbacks.validate_configured_storage().await.unwrap_err();
-    assert!(
-        setup_error.contains("bound storage route is unavailable"),
-        "configured storage must fail before a service can be installed: {setup_error}"
-    );
-    let ledger_error = callbacks.ledger_storage().await.unwrap_err();
-    assert!(
-        ledger_error.contains("configured x402 ledger storage is unavailable"),
-        "configured storage must never fall back to process-local memory: {ledger_error}"
     );
     broker_task.abort();
 }
