@@ -641,7 +641,9 @@ async fn serve_current_storage_and_open_wallet_service(
         &fixture.modules,
         &storage_host,
         GovernedStorage::new(
-            Arc::new(WalletStorageEnvironment { backend }),
+            Arc::new(WalletStorageEnvironment {
+                backend: Arc::clone(&backend),
+            }),
             Arc::new(WalletTestAudit),
             GovernedEndpointLimits::default(),
         ),
@@ -711,7 +713,7 @@ async fn serve_current_storage_and_open_wallet_service(
     let (lease_revoked, descriptor_revoked) = registration
         .register_lease(
             HostStorageContext::new(WalletStorageContext("wallet-revoked-profile".to_owned())),
-            module_peer,
+            module_peer.clone(),
         )
         .await
         .expect("a third test lease should be independently registered");
