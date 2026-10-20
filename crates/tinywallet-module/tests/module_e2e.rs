@@ -25,6 +25,17 @@ use tinybus::{
     test_support,
     transport::memory::{MemoryBus, MemoryTransport},
 };
+use tinystoragedrivers_busproxy::PerCallerEndpoint;
+use tinystoragedrivers_client::StorageServer;
+use tinystoragedrivers_core::schema::delivery::MigrationDeliveryClient;
+use tinystoragedrivers_core::{
+    CollectionSpec, MemoryStorage, Precondition, Scope, StorageBackend, WriteOptions,
+    schema::{MigrateOptions, Registry, Schema, TransformKind},
+};
+use tinystoragedrivers_tinybus::migration::{
+    EXCHANGE_MEMBER, GET_SCHEMA_MEMBER, MIGRATION_INTERFACE, MIGRATION_OBJECT_PATH,
+    MigrationModuleClient,
+};
 use tinywallet::wire::{
     AttachRequest, DerivedAccount, ExportRequest, ExportedKey, PublicKey, Scheme, SecretMaterial,
     SignMessageRequest, SignRequest, Signature, SignedTransaction, SigningRequest, TransactionSpec,
@@ -33,18 +44,6 @@ use tinywallet::wire::{
 use tinywallet::{Chain, tx};
 use tinywallet_bus::wire::{EncodeErc20TransferRequest, EncodeErc20TransferResponse};
 use tinywallet_module::{BUS_NAME, OBJECT_PATH};
-use tinystoragedrivers_busproxy::PerCallerEndpoint;
-use tinystoragedrivers_client::StorageServer;
-use tinystoragedrivers_core::{
-    CollectionSpec, DocumentStore, MemoryStorage, Precondition, Scope, StorageBackend,
-    StreamStore, WriteOptions,
-    schema::{MigrateOptions, Registry, Schema, TransformKind},
-};
-use tinystoragedrivers_core::schema::delivery::MigrationDeliveryClient;
-use tinystoragedrivers_tinybus::migration::{
-    EXCHANGE_MEMBER, GET_SCHEMA_MEMBER, MIGRATION_INTERFACE, MIGRATION_OBJECT_PATH,
-    MigrationModuleClient,
-};
 
 /// Every method the manifest must declare, in order.
 ///
@@ -104,9 +103,12 @@ async fn the_built_module_signs_every_chain_over_a_real_broker() {
     // load of the same artifact would collide on the well-known name, so every
     // chain is exercised against the one admitted instance.
     let fixture = start_restricted_bus().await.unwrap();
-    let loaded =
-        test_support::admit_module(&fixture.modules, "TINYWALLET_TEST_MODULE", "tinywallet-module")
-            .expect("digest-pinned module should load");
+    let loaded = test_support::admit_module(
+        &fixture.modules,
+        "TINYWALLET_TEST_MODULE",
+        "tinywallet-module",
+    )
+    .expect("digest-pinned module should load");
     test_support::wait_until_serving(&fixture.client, BUS_NAME, Duration::from_secs(5))
         .await
         .unwrap();
@@ -119,7 +121,10 @@ async fn the_built_module_signs_every_chain_over_a_real_broker() {
     assert_migration_discovery_is_confidential(&fixture, &module_peer).await;
     migrate_wallet_storage(&fixture, migration).await;
 
-    let proxy = fixture.client.proxy(BUS_NAME, OBJECT_PATH, BUS_NAME).unwrap();
+    let proxy = fixture
+        .client
+        .proxy(BUS_NAME, OBJECT_PATH, BUS_NAME)
+        .unwrap();
 
     validates_addresses_inside_the_artifact(&proxy).await;
     constructs_evm_transactions_inside_the_artifact(&proxy).await;
@@ -133,7 +138,10 @@ async fn the_built_module_signs_every_chain_over_a_real_broker() {
     signs_an_opaque_message_confidentially(&proxy).await;
     refuses_a_request_the_module_cannot_build(&proxy).await;
 
-    assert!(matches!(fixture.modules.list()[0].state, ModuleState::Ready));
+    assert!(matches!(
+        fixture.modules.list()[0].state,
+        ModuleState::Ready
+    ));
     fixture.broker_task.abort();
 }
 
@@ -312,8 +320,9 @@ async fn assert_migration_discovery_is_confidential(
     let outsider = Connection::connect(fixture.bus.connect().await.unwrap())
         .await
         .unwrap();
-    let outsider_proxy =
-        outsider.proxy(BUS_NAME, MIGRATION_OBJECT_PATH, MIGRATION_INTERFACE).unwrap();
+    let outsider_proxy = outsider
+        .proxy(BUS_NAME, MIGRATION_OBJECT_PATH, MIGRATION_INTERFACE)
+        .unwrap();
     let error = outsider_proxy
         .call_confidential::<serde_json::Value>(
             EXCHANGE_MEMBER,
@@ -338,7 +347,10 @@ async fn migrate_wallet_storage(fixture: &RestrictedBus, migration: MigrationMod
     assert_eq!(declaration.owner.as_str(), "wallet");
     assert_eq!(declaration.steps.len(), 2);
     assert_eq!(declaration.steps[0].id, "budgets_v2");
-    assert_eq!(declaration.steps[0].transform.kind, TransformKind::Documents);
+    assert_eq!(
+        declaration.steps[0].transform.kind,
+        TransformKind::Documents
+    );
     assert_eq!(declaration.steps[0].transform.version, 1);
     assert_eq!(declaration.steps[1].id, "payments_v2");
     assert_eq!(declaration.steps[1].transform.kind, TransformKind::Stream);
@@ -372,11 +384,8 @@ async fn migrate_wallet_storage(fixture: &RestrictedBus, migration: MigrationMod
         streams.append("x402.payments", entry).await.unwrap();
     }
 
-    let registry = Registry::compose_with_declarations(
-        std::iter::empty::<Schema>(),
-        [declaration],
-    )
-    .unwrap();
+    let registry =
+        Registry::compose_with_declarations(std::iter::empty::<Schema>(), [declaration]).unwrap();
     registry.prepare(&backend).await.unwrap();
     let executor = MigrationDeliveryClient::new(Arc::new(migration));
     registry
@@ -407,7 +416,7 @@ async fn migrate_wallet_storage(fixture: &RestrictedBus, migration: MigrationMod
     assert_eq!(payments[0].value["id"], "pay-1");
 
     write_migration_readiness(&scoped).await;
-    serve_current_storage_and_open_wallet_service(fixture, backend, scoped).await;
+    serve_current_storage_and_open_wallet_service(fixture, scoped).await;
 }
 
 fn v1_payment() -> serde_json::Value {
@@ -448,7 +457,6 @@ async fn write_migration_readiness(scoped: &tinystoragedrivers_core::ScopedStora
 
 async fn serve_current_storage_and_open_wallet_service(
     fixture: &RestrictedBus,
-    backend: MemoryStorage,
     scoped: tinystoragedrivers_core::ScopedStorage,
 ) {
     let module_peer = fixture.client.name_owner(BUS_NAME).await.unwrap().unwrap();
@@ -462,7 +470,10 @@ async fn serve_current_storage_and_open_wallet_service(
         .await
         .expect("ordinary module storage service should register after migration");
 
-    let proxy = fixture.client.proxy(BUS_NAME, OBJECT_PATH, BUS_NAME).unwrap();
+    let proxy = fixture
+        .client
+        .proxy(BUS_NAME, OBJECT_PATH, BUS_NAME)
+        .unwrap();
     let service: tinywallet_bus::wire::X402ServiceHandle = proxy
         .call(
             "X402Configure",
@@ -485,7 +496,6 @@ async fn serve_current_storage_and_open_wallet_service(
         )
         .await
         .unwrap();
-    let _ = backend;
 }
 
 /// The load-bearing case: through the bus must equal in-process.

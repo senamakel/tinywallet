@@ -41,7 +41,7 @@
 //! as the second — telling a model its input was wrong when it was not sends it
 //! into a rewrite loop over something that was already correct.
 
-use tinybus::{Connection, Error as BusError, Result as BusResult};
+use tinybus::{Error as BusError, Result as BusResult};
 use tinywallet::wire::{
     AttachRequest, DerivedAccount, ExportRequest, ExportedKey, PublicKey, Scheme, SecretMaterial,
     SignMessageRequest, SignRequest, Signature, SignedTransaction, SigningPayload, SigningRequest,
