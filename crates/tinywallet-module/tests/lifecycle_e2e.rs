@@ -32,7 +32,7 @@ use sha2::{Digest, Sha256};
 use tinybus::Connection;
 use tinybus::broker::Broker;
 use tinybus::module::{ModuleHost, ModuleState};
-use tinybus::transport::memory::MemoryBus;
+use tinybus::transport::memory::{MemoryBus, MemoryTransport};
 use tinywallet::wire::{
     AttachRequest, PublicKey, Scheme, Signature, SignedTransaction, SigningRequest,
     TransactionSpec, UnsignedTransaction,
@@ -128,6 +128,7 @@ async fn the_built_module_signs_every_chain_over_a_real_broker() {
         x402_approved,
         x402_gate,
         modules,
+        _controller,
         broker_task,
         staged,
     ) = admit_module().await;
@@ -1007,6 +1008,7 @@ async fn admit_module() -> (
     Arc<AtomicBool>,
     Arc<X402TestGate>,
     ModuleHost,
+    Connection,
     tokio::task::JoinHandle<tinybus::Result<()>>,
     tempfile::TempDir,
 ) {
@@ -1015,8 +1017,15 @@ async fn admit_module() -> (
     let artifact = PathBuf::from(artifact);
     let (staged, staged_artifact) = stage_artifact(&artifact);
     let bus = MemoryBus::new();
-    let broker = Broker::new();
+    let broker = Broker::new_restricted_module_control();
     let broker_task = broker.spawn(bus.clone());
+    let (broker_transport, controller_transport) = MemoryTransport::pair();
+    broker
+        .attach_module_controller(Arc::new(broker_transport))
+        .unwrap();
+    let controller = Connection::connect(Box::new(controller_transport))
+        .await
+        .unwrap();
     let modules = ModuleHost::new(broker);
 
     let host = Connection::connect(bus.connect().await.unwrap())
@@ -1101,6 +1110,7 @@ async fn admit_module() -> (
         x402_approved,
         x402_gate,
         modules,
+        controller,
         broker_task,
         staged,
     )
