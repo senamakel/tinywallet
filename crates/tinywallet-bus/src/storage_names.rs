@@ -11,6 +11,15 @@ pub const BUDGETS_VERSION: u32 = 2;
 /// Id of the budget-hold document.
 #[cfg(feature = "storage")]
 pub const HOLDS_ID: &str = "holds";
+/// Id of the host-written schema and legacy-import readiness document.
+#[cfg(feature = "storage")]
+pub const MIGRATION_READY_ID: &str = "migration_ready";
+/// Wallet storage version whose migrations and imports must be complete.
+#[cfg(feature = "storage")]
+pub const STORAGE_SCHEMA_VERSION: u32 = BUDGETS_VERSION;
+/// Host importer epoch required before opening the module's current-only ledger.
+#[cfg(feature = "storage")]
+pub const PAYMENTS_IMPORT_EPOCH: &str = "x402-payments-jsonl-v1";
 /// Append-only stream of payment records.
 pub const PAYMENTS_STREAM: &str = "wallet.payments";
 

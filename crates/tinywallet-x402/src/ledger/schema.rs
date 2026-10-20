@@ -15,7 +15,8 @@ use super::types::PaymentStatus;
 use legacy_payment::LegacyPayment;
 pub(super) use tinywallet_bus::storage::{
     BUDGETS_COLLECTION, BUDGETS_VERSION, HOLDS_ID, LEGACY_BUDGET_COLLECTION,
-    LEGACY_PAYMENTS_STREAM, OWNER, PAYMENTS_STREAM, StoredPayment, StoredPaymentStatus,
+    LEGACY_PAYMENTS_STREAM, MIGRATION_READY_ID, OWNER, PAYMENTS_IMPORT_EPOCH, PAYMENTS_STREAM,
+    STORAGE_SCHEMA_VERSION, StoredPayment, StoredPaymentStatus, StorageMigrationReady,
 };
 
 impl From<PaymentStatus> for StoredPaymentStatus {

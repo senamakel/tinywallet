@@ -20,7 +20,8 @@ use tinystoragedrivers_core::{
 
 use super::schema::{
     BUDGETS_COLLECTION, BUDGETS_VERSION, HOLDS_ID, LEGACY_BUDGET_COLLECTION,
-    LEGACY_PAYMENTS_STREAM, OWNER, PAYMENTS_STREAM, StoredPayment,
+    LEGACY_PAYMENTS_STREAM, MIGRATION_READY_ID, OWNER, PAYMENTS_IMPORT_EPOCH, PAYMENTS_STREAM,
+    STORAGE_SCHEMA_VERSION, StorageMigrationReady, StoredPayment,
 };
 use super::types::PaymentRecord;
 
@@ -73,6 +74,33 @@ impl LedgerStorage {
         let scoped = MemoryStorage::new()
             .for_scope(&scope)
             .expect("memory backend opens any scope");
+        let documents = Arc::clone(scoped.documents());
+        let ready = serde_json::to_value(StorageMigrationReady {
+            schema_version: STORAGE_SCHEMA_VERSION,
+            import_epoch: PAYMENTS_IMPORT_EPOCH.to_owned(),
+        })
+        .expect("readiness DTO serializes");
+        Blocking::new()
+            .expect("start fresh memory storage bridge")
+            .run(async move {
+                documents
+                    .ensure_collection(&tinystoragedrivers_core::CollectionSpec::new(
+                        BUDGETS_COLLECTION,
+                    ))
+                    .await?;
+                documents
+                    .put_with(
+                        BUDGETS_COLLECTION,
+                        MIGRATION_READY_ID,
+                        ready,
+                        Precondition::Absent,
+                        WriteOptions::new().schema(BUDGETS_VERSION),
+                    )
+                    .await?;
+                Ok::<_, tinystoragedrivers_core::StorageError>(())
+            })
+            .expect("fresh memory storage bridge completes")
+            .expect("fresh memory storage is ready");
         Self::from_scoped(&scoped)
     }
 }
@@ -190,6 +218,34 @@ impl Persist {
         let persist = Self { storage, bridge };
         persist.refuse_unmigrated()?;
         Ok(persist)
+    }
+
+    /// Open a current-only module grant after validating the host's readiness
+    /// record in the same scoped storage handle.
+    pub(super) fn open_current(storage: LedgerStorage) -> Result<Self, String> {
+        let bridge = Blocking::new().map_err(|e| format!("start storage bridge: {e}"))?;
+        let persist = Self { storage, bridge };
+        persist.require_migration_ready()?;
+        Ok(persist)
+    }
+
+    fn require_migration_ready(&self) -> Result<(), String> {
+        let documents = Arc::clone(&self.storage.documents);
+        let found = self.run("read wallet migration readiness", async move {
+            documents.get(BUDGETS_COLLECTION, MIGRATION_READY_ID).await
+        })?;
+        let Some(found) = found else {
+            return Err("wallet storage migration readiness is missing".to_string());
+        };
+        let ready = serde_json::from_value::<StorageMigrationReady>(found.doc)
+            .map_err(|_| "wallet storage migration readiness is malformed".to_string())?;
+        if ready.schema_version != STORAGE_SCHEMA_VERSION {
+            return Err("wallet storage migration readiness has the wrong schema version".into());
+        }
+        if ready.import_epoch != PAYMENTS_IMPORT_EPOCH {
+            return Err("wallet legacy payment import is not complete".into());
+        }
+        Ok(())
     }
 
     /// Fail when v1 data is still in place: opening would read only the v2
