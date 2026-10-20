@@ -45,7 +45,7 @@ async fn fixture() -> Fixture {
     fixture_with_storage(host.clone(), host).await
 }
 
-/// A fixture whose storage ports accept only the names in TinyWallet's current
+/// A fixture whose storage ports accept only the names in `TinyWallet`'s current
 /// storage declaration and record every request outside that grant.
 async fn current_only_fixture() -> (Fixture, Arc<AtomicUsize>) {
     let (fixture, denied, _backend) = current_only_fixture_with_backend().await;
