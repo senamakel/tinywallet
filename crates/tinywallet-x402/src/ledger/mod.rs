@@ -60,7 +60,7 @@
 //! # The process-wide handle
 //!
 //! Direct hosts initialise one ledger with [`init_global`]. The compiled
-//! TinyBus module uses [`init_global_current`] after the host has completed its
+//! `TinyBus` module uses [`init_global_current`] after the host has completed its
 //! scoped schema migration and legacy payment import. Both use
 //! [`with_ledger`] / [`with_ledger_mut`] to reach the process-wide handle, the
 //! only shared state in this crate.
