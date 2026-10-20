@@ -25,7 +25,7 @@ use tinybus::{
     test_support,
     transport::memory::{MemoryBus, MemoryTransport},
 };
-use tinystoragedrivers_bus::{StorageNeeds};
+use tinystoragedrivers_bus::StorageNeeds;
 use tinystoragedrivers_busproxy::{
     AuditEvent, AuditSink, Environment, GovernedEndpointLimits, GovernedStorage, GrantPolicy,
     HostContext, HostFailure, HostStorageContext, ResolvedStorage, StorageGrant,
@@ -462,7 +462,8 @@ impl Environment<WalletStorageContext> for WalletStorageEnvironment {
         context: &WalletStorageContext,
         _module: &tinybus::module::ModuleId,
     ) -> Result<ResolvedStorage, HostFailure> {
-        let scope = Scope::new(&context.0).map_err(|_| HostFailure::Denied("invalid-wallet-scope"))?;
+        let scope =
+            Scope::new(&context.0).map_err(|_| HostFailure::Denied("invalid-wallet-scope"))?;
         let storage = self
             .backend
             .for_scope(&scope)
@@ -652,14 +653,17 @@ async fn serve_current_storage_and_open_wallet_service(
         .await
         .expect("a third test lease should be independently registered");
     assert!(registration.revoke(&lease_revoked).await);
-    assert!(fixture
-        .modules
-        .reinitialize(
-            "tinywallet-module",
-            serde_json::json!({"storage_descriptor": descriptor_revoked}),
-        )
-        .await
-        .is_err(), "a revoked descriptor must fail before replacing the live service");
+    assert!(
+        fixture
+            .modules
+            .reinitialize(
+                "tinywallet-module",
+                serde_json::json!({"storage_descriptor": descriptor_revoked}),
+            )
+            .await
+            .is_err(),
+        "a revoked descriptor must fail before replacing the live service"
+    );
     let still_isolated = proxy
         .call::<tinywallet_bus::wire::X402ServiceHandle>(
             "X402Configure",

@@ -1443,10 +1443,8 @@ async fn setup_with_context(
     config: WalletModuleConfig,
 ) -> BusResult<()> {
     let connection = context.connection().clone();
-    let callbacks = host::HostCallbacks::with_storage_descriptor(
-        &connection,
-        config.storage_descriptor,
-    )?;
+    let callbacks =
+        host::HostCallbacks::with_storage_descriptor(&connection, config.storage_descriptor)?;
     callbacks
         .validate_configured_storage()
         .await

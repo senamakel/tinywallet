@@ -5,8 +5,8 @@ use std::sync::Arc;
 use log::debug;
 use tinybus::{Connection, Error as BusError, Proxy};
 use tinystoragedrivers_busproxy::StorageDescriptor;
-use tinystoragedrivers_core::{ScopedStorage, StorageBackend};
 use tinystoragedrivers_client::BusStorage;
+use tinystoragedrivers_core::{ScopedStorage, StorageBackend};
 use tinywallet_bus::wire::{
     AuthorizationResult, AuthorizeNativeWalletExecutionRequest, AuthorizeWeb3ExecutionRequest,
     AuthorizeX402PaymentRequest, ChainTransportRequest, ChainTransportResult, HostResponse,
@@ -83,17 +83,17 @@ impl HostCallbacks {
                     .await
                     .map_err(|error| format!("bound storage route is unavailable: {error}"))?
             }
-            None => match tinystoragedrivers_busproxy::connect_storage(self.connection.clone())
-                .await
-            {
-                Ok(bus) => bus,
-                Err(error) => {
-                    // Preserve the existing no-storage behavior only for the
-                    // legacy configuration that did not receive a descriptor.
-                    log::debug!("[wallet::host] legacy storage route unavailable: {error}");
-                    return Ok(None);
+            None => {
+                match tinystoragedrivers_busproxy::connect_storage(self.connection.clone()).await {
+                    Ok(bus) => bus,
+                    Err(error) => {
+                        // Preserve the existing no-storage behavior only for the
+                        // legacy configuration that did not receive a descriptor.
+                        log::debug!("[wallet::host] legacy storage route unavailable: {error}");
+                        return Ok(None);
+                    }
                 }
-            },
+            }
         };
         let scoped = match bus.for_scope(&scope) {
             Ok(scoped) => scoped,
@@ -142,9 +142,9 @@ impl HostCallbacks {
             Ok(None) if self.storage_descriptor.is_none() => {
                 #[cfg(feature = "e2e-memory-storage")]
                 {
-                static MEMORY: std::sync::OnceLock<LedgerStorage> = std::sync::OnceLock::new();
-                log::warn!("[wallet::host] legacy host storage unavailable; using memory");
-                Ok(MEMORY.get_or_init(LedgerStorage::memory).clone())
+                    static MEMORY: std::sync::OnceLock<LedgerStorage> = std::sync::OnceLock::new();
+                    log::warn!("[wallet::host] legacy host storage unavailable; using memory");
+                    Ok(MEMORY.get_or_init(LedgerStorage::memory).clone())
                 }
                 #[cfg(not(feature = "e2e-memory-storage"))]
                 {
