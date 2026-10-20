@@ -1455,6 +1455,7 @@ async fn setup_with_context(
     setup_with_callbacks(connection, callbacks).await
 }
 
+#[cfg(test)]
 async fn setup(connection: Connection) -> BusResult<()> {
     let callbacks = host::HostCallbacks::new(&connection)?;
     setup_with_callbacks(connection, callbacks).await

@@ -39,6 +39,7 @@ impl std::fmt::Debug for HostCallbacks {
 
 impl HostCallbacks {
     /// Bind the callback handle to the host interface on the module connection.
+    #[cfg(test)]
     pub(crate) fn new(connection: &Connection) -> Result<Self, BusError> {
         Self::with_storage_descriptor(connection, None)
     }
