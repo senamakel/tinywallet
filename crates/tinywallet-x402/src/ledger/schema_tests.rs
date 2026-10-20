@@ -110,6 +110,40 @@ fn a_ledger_refuses_to_open_while_unmigrated_payments_remain() {
 }
 
 #[test]
+fn a_host_readiness_marker_does_not_bypass_direct_legacy_refusal() {
+    let (_backend, scoped) = scoped();
+    append_v1(&scoped, vec![v1_payment()]);
+    let documents = Arc::clone(scoped.documents());
+    Blocking::new()
+        .unwrap()
+        .run(async move {
+            documents
+                .put(
+                    BUDGETS_COLLECTION,
+                    MIGRATION_READY_ID,
+                    json!({
+                        "schema_version": STORAGE_SCHEMA_VERSION,
+                        "import_epoch": PAYMENTS_IMPORT_EPOCH,
+                    }),
+                    tinystoragedrivers_core::Precondition::Absent,
+                )
+                .await
+        })
+        .unwrap()
+        .unwrap();
+
+    let opened = PaymentLedger::open(
+        LedgerStorage::from_scoped(&scoped),
+        "session-a",
+        SpendingBudget::default(),
+    );
+    let Err(error) = opened else {
+        panic!("a readiness marker cannot hide legacy payments from direct callers");
+    };
+    assert!(error.contains("unmigrated x402.payments"), "{error}");
+}
+
+#[test]
 fn a_ledger_refuses_to_open_while_legacy_budget_holds_remain() {
     let (_backend, scoped) = scoped();
     let documents = Arc::clone(scoped.documents());
