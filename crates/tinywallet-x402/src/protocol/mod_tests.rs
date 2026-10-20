@@ -325,10 +325,12 @@ async fn stale_height_evidence_cannot_mutate_a_reopened_ledger() {
     pending.id = "reopened-ledger-refresh".into();
     pending.status = PaymentStatus::Pending;
     pending.solana_last_valid_block_height = Some(9);
-    let issued_at = pending.timestamp;
     ledger::with_ledger_mut(|ledger| ledger.try_record_payment(pending))
         .unwrap()
         .unwrap();
+    let issued_at =
+        ledger::with_ledger(|ledger| ledger.payment("reopened-ledger-refresh").unwrap().timestamp)
+            .unwrap();
 
     refresh_solana_authorizations(&ReopenLedgerDuringHeightRefresh { storage: dir })
         .await

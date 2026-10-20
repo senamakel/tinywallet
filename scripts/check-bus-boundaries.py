@@ -17,6 +17,29 @@ TSD_BUS_SOURCE = (
     "?rev=c9ea6ff1615b77b55d7269403af5fd11bedc9ce8"
     "#c9ea6ff1615b77b55d7269403af5fd11bedc9ce8"
 )
+TSD_BUS_TREE_SOURCES = {
+    "https://github.com/tinyhumansai/tinystoragedrivers"
+    "?rev=c9ea6ff1615b77b55d7269403af5fd11bedc9ce8"
+    "#c9ea6ff1615b77b55d7269403af5fd11bedc9ce8",
+    "https://github.com/tinyhumansai/tinystoragedrivers"
+    "?rev=c9ea6ff1615b77b55d7269403af5fd11bedc9ce8#c9ea6ff1",
+}
+
+# The optional `storage` feature exposes only wallet storage names and stored
+# record vocabulary. It must not add an implementation/runtime dependency to
+# the data-only bus closure.
+STORAGE_FEATURE = "storage"
+
+# Chain, key and crypto implementations never enter the bus closure, not even
+# through the `storage` feature's registry-crate exemption.
+FORBIDDEN_NAMES = {"bitcoin", "k256"}
+FORBIDDEN_PREFIXES = ("coins-",)
+
+
+def forbidden(name):
+    """Whether `name` is a chain/key implementation the bus must never link."""
+    normalized = name.replace("_", "-")
+    return normalized in FORBIDDEN_NAMES or normalized.startswith(FORBIDDEN_PREFIXES)
 
 
 def audit(metadata, root_name="tinywallet-bus", wallet_bus_manifest=None):
@@ -128,43 +151,94 @@ def audit(metadata, root_name="tinywallet-bus", wallet_bus_manifest=None):
     return violations
 
 
+def tree_packages(feature=None):
+    """(name, source) of every normal/build dependency of the bus alone.
+
+    `cargo tree -p` resolves features for the selected package only, so a
+    workspace sibling that enables `storage` cannot leak into the default run
+    the way it does in `cargo metadata`.
+    """
+    command = ["cargo", "tree", "-p", "tinywallet-bus", "-e", "normal,build", "--prefix", "none", "-f", "{p}"]
+    if feature:
+        command += ["--features", feature]
+    out = subprocess.run(command, check=True, capture_output=True, text=True).stdout
+    packages = []
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) < 2 or parts[0] == "tinywallet-bus":
+            continue
+        # Markers such as `(proc-macro)` and `(*)` are not sources; a path or
+        # git source is the parenthesised URL or absolute path.
+        source = next((part.strip("()") for part in parts[2:] if part.startswith("(") and part not in ("(proc-macro)", "(*)", "(build)")), "")
+        packages.append((parts[0], source))
+    return packages
+
+
+def audit_tree(packages):
+    """Violations for a `cargo tree` listing of a bus feature closure."""
+    violations = []
+    for name, source in packages:
+        if forbidden(name):
+            violations.append(f"tinywallet-bus -> {name} (forbidden)")
+            continue
+        if name == TSD_BUS and source in TSD_BUS_TREE_SOURCES:
+            continue
+        if name in ALLOWED and not source:
+            continue
+        violations.append(f"tinywallet-bus -> {name} ({source or 'registry'})")
+    return violations
+
+
+def _audit_metadata(manifest, package_name, root):
+    result = subprocess.run(
+        [
+            "cargo", "metadata", "--locked", "--format-version", "1",
+            "--manifest-path", str(manifest),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    failures = audit(
+        json.loads(result.stdout),
+        package_name,
+        root / "crates/tinywallet-bus/Cargo.toml",
+    )
+    if failures:
+        print(
+            f"Forbidden normal/build dependencies from {package_name}:\n"
+            + "\n".join(failures),
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     root = Path(__file__).resolve().parents[1]
-    targets = [
-        (root / "Cargo.toml", "tinywallet-bus", ([], ["--all-features"])),
-        (
-            root / "proof-workspaces/storage-needs/Cargo.toml",
-            "tinywallet-storage-needs-consumer",
-            ([], ["--all-features"]),
-        ),
-    ]
-    for manifest, package_name, feature_sets in targets:
-        for features in feature_sets:
-            result = subprocess.run(
-                [
-                    "cargo",
-                    "metadata",
-                    "--locked",
-                    "--format-version",
-                    "1",
-                    "--manifest-path",
-                    str(manifest),
-                    *features,
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            failures = audit(
-                json.loads(result.stdout),
-                package_name,
-                root / "crates/tinywallet-bus/Cargo.toml",
-            )
-            if failures:
-                print(
-                    f"Forbidden normal/build dependencies from {package_name}:\n"
-                    + "\n".join(failures),
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-    print("tinywallet-bus and the excluded storage-needs consumer stay data-only")
+    # This isolated consumer resolves its own graph and lockfile, so metadata
+    # proves the published data-only contract without workspace feature bleed.
+    _audit_metadata(
+        root / "proof-workspaces/storage-needs/Cargo.toml",
+        "tinywallet-storage-needs-consumer",
+        root,
+    )
+    failures = audit_tree(tree_packages())
+    if failures:
+        print(
+            "Forbidden contract dependencies (default features):\n"
+            + "\n".join(failures),
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    failures = audit_tree(tree_packages(STORAGE_FEATURE))
+    if failures:
+        print(
+            "Forbidden contract dependencies (storage feature):\n"
+            + "\n".join(failures),
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    print(
+        "tinywallet-bus default and storage-feature closures are data-only; "
+        "the excluded consumer stays data-only"
+    )

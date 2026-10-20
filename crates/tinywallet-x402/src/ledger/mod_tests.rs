@@ -8,7 +8,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use chrono::{DateTime, Duration, TimeZone, Utc};
 
 use super::faulty::{append_raw, faulty_storage};
-use super::persist::{BUDGET_COLLECTION, HOLDS_ID, HoldsDoc, PAYMENTS_STREAM, Persist};
+use super::persist::{HoldsDoc, Persist, stored_payment};
+use super::schema::{BUDGETS_COLLECTION, HOLDS_ID, PAYMENTS_STREAM};
 use super::*;
 use tinystoragedrivers_core::{Blocking, Version};
 
@@ -32,7 +33,7 @@ fn persistence_resource_names_match_the_bus_storage_declaration() {
     let needs = tinywallet_bus::storage_needs();
 
     assert_eq!(needs.collections.len(), 1);
-    assert_eq!(needs.collections[0].name, BUDGET_COLLECTION);
+    assert_eq!(needs.collections[0].name, BUDGETS_COLLECTION);
     assert_eq!(needs.collections[0].indexes, Vec::new());
     assert_eq!(needs.collections[0].ttl_field, None);
     assert_eq!(needs.collections[0].search, None);
@@ -563,7 +564,11 @@ fn a_thread_is_written_only_when_there_is_one() {
 #[test]
 fn unparseable_and_foreign_stream_entries_are_skipped_on_load() {
     let dir = LedgerStorage::memory();
-    let good = serde_json::to_value(record(1, PaymentStatus::Settled, now(), SESSION)).unwrap();
+    let good = serde_json::to_value(stored_payment(
+        &record(1, PaymentStatus::Settled, now(), SESSION),
+        None,
+    ))
+    .unwrap();
     append_raw(
         &dir,
         vec![
@@ -577,9 +582,9 @@ fn unparseable_and_foreign_stream_entries_are_skipped_on_load() {
 }
 
 #[test]
-fn a_record_written_before_threads_existed_still_loads() {
+fn a_record_written_without_a_thread_still_loads() {
     let dir = LedgerStorage::memory();
-    let old = serde_json::json!({"id":"old","url":"https://x","asset":"USDC","amountAtomic":5,"amountDisplay":"5","recipient":"r","network":"n","txSignature":null,"status":"settled","timestamp":"2026-03-15T12:00:00Z","sessionId":"session-a"});
+    let old = serde_json::json!({"id":"old","url":"https://x","asset":"USDC","amount_atomic":5,"amount_display":"5","recipient":"r","network":"n","status":"settled","timestamp_ms":1_773_576_000_000_i64,"session_id":"session-a"});
     append_raw(&dir, vec![old]);
 
     let records = ledger_in(&dir).recent_payments(5);
@@ -769,7 +774,7 @@ fn corrupt_the_hold_document(storage: &LedgerStorage) {
         .run(async move {
             documents
                 .put(
-                    BUDGET_COLLECTION,
+                    BUDGETS_COLLECTION,
                     HOLDS_ID,
                     serde_json::json!({"holds": 5}),
                     tinystoragedrivers_core::Precondition::None,
@@ -842,4 +847,20 @@ fn the_fault_injecting_streams_pass_everything_else_through() {
             assert!(streams.delete_stream("s").await.unwrap());
         })
         .unwrap();
+}
+
+#[test]
+fn a_recorded_payment_is_held_at_the_millisecond_precision_storage_keeps() {
+    let dir = LedgerStorage::memory();
+    let mut ledger = ledger_in(&dir);
+    let mut payment = record(5, PaymentStatus::Pending, now(), SESSION);
+    payment.timestamp = now() + Duration::nanoseconds(123_456_789);
+    payment.authorization_valid_until = Some(now() + Duration::nanoseconds(987_654_321));
+    let id = payment.id.clone();
+    ledger.record_payment(payment);
+
+    let in_memory = ledger.payment(&id).unwrap().clone();
+    let reopened = ledger_in(&dir);
+    assert_eq!(reopened.payment(&id), Some(&in_memory));
+    assert_eq!(in_memory.timestamp.timestamp_subsec_nanos(), 123_000_000);
 }

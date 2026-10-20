@@ -68,7 +68,10 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "serd
 uuid = { version = "1", features = ["v4"], optional = true }
 
 # The storage ports the ledger persists through (payments stream, budget hold
-# document). Ports only; the host chooses the backend.
+# document). Ports only; the host chooses the backend. The ledger feature
+# requires Rust 1.88 through TSD core v1.0; pay includes ledger, and tools also
+# uses TinyTools, which requires 1.88. The wire/ABI-only feature set retains the
+# Rust 1.85 floor below.
 tinystoragedrivers-core = { workspace = true, optional = true }
 # `block_in_place` only: the ledger's synchronous API blocks on storage calls,
 # and on a multi-thread runtime that must hand its worker off first, or a
@@ -107,7 +110,7 @@ eip712 = ["dep:sha3", "dep:thiserror"]
 abi = ["eip712", "dep:tinywallet-crypto", "tinywallet-crypto/evm", "tinywallet-crypto/keccak"]
 # The rail-neutral spending ledger: records, budgets, the JSONL file, and the
 # process-wide handle.
-ledger = ["dep:serde", "dep:serde_json", "dep:chrono", "dep:log", "dep:tinywallet-bus", "dep:tinystoragedrivers-core", "dep:tokio"]
+ledger = ["dep:serde", "dep:serde_json", "dep:chrono", "dep:log", "dep:tinystoragedrivers-core", "dep:tokio", "dep:tinywallet-bus", "tinywallet-bus/storage"]
 # Paying a 402 challenge: header codec, the client, and the EVM and Solana
 # payment builders behind the `PaymentSigner` seam. Solana reads the recent
 # blockhash through `tinywallet_crypto::rpc::Transport`.

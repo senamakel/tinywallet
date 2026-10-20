@@ -118,7 +118,8 @@ impl X402Runtime {
     /// # Errors
     ///
     /// The storage cannot be opened or read. The previous process-wide ledger,
-    /// if any, is left in place.
+    /// if any, is left in place. The host must have completed wallet migrations
+    /// and the legacy import in this module's scope.
     pub(crate) fn new(
         callbacks: HostCallbacks,
         config: X402ConfigResponse,
@@ -129,7 +130,7 @@ impl X402Runtime {
             daily_max_atomic: config.daily_max_atomic,
             monthly_max_atomic: config.monthly_max_atomic,
         };
-        ledger::init_global(storage, &config.session_id, budget)?;
+        ledger::init_global_current(storage, &config.session_id, budget)?;
         let lease = spawn_lease_renewal();
         Ok(Self {
             lease,
@@ -237,11 +238,11 @@ impl X402Runtime {
         })
         .await?;
         #[cfg(test)]
-        if let Some((pause_once, reached, release)) = &self.commit_handoff {
-            if pause_once.swap(false, std::sync::atomic::Ordering::SeqCst) {
-                reached.notify_one();
-                release.notified().await;
-            }
+        if let Some((pause_once, reached, release)) = &self.commit_handoff
+            && pause_once.swap(false, std::sync::atomic::Ordering::SeqCst)
+        {
+            reached.notify_one();
+            release.notified().await;
         }
         let payment_id = format!("x402_{}", uuid::Uuid::new_v4());
         let response = X402PreparePaymentResponse {

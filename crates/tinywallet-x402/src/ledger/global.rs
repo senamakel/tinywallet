@@ -13,7 +13,7 @@ const NOT_INITIALISED: &str = "x402 payment ledger not initialized";
 
 static GLOBAL_LEDGER: Mutex<Option<PaymentLedger>> = Mutex::new(None);
 
-/// Storage a module-style host provisioned for later [`init_global`] calls that
+/// Storage a module-style host provisioned for later [`init_global_current`] calls that
 /// do not carry their own handles (the `TinyBus` module configures the ledger
 /// over a wire request that can only name a session and a budget).
 static PROVISIONED: Mutex<Option<LedgerStorage>> = Mutex::new(None);
@@ -80,6 +80,28 @@ pub fn init_global(
     let ledger = blocking(|| PaymentLedger::open(storage, session_id, budget))?;
     blocking(|| *lock() = Some(ledger));
     debug!("{LOG_PREFIX} global ledger initialized");
+    Ok(())
+}
+
+/// Open the process-wide ledger through the current-only module storage grant.
+///
+/// The host must write a valid migration readiness document in this storage
+/// scope only after wallet schema migration and the legacy payment import have
+/// both completed. Unlike [`init_global`], this path never probes legacy names
+/// that the module's current grant cannot access.
+///
+/// # Errors
+///
+/// The current ledger cannot be read or the host readiness document is missing,
+/// malformed, stale, or unreadable. The previous process-wide ledger remains.
+pub fn init_global_current(
+    storage: LedgerStorage,
+    session_id: &str,
+    budget: SpendingBudget,
+) -> Result<(), String> {
+    let ledger = blocking(|| PaymentLedger::open_current(storage, session_id, budget))?;
+    blocking(|| *lock() = Some(ledger));
+    debug!("{LOG_PREFIX} current-only module ledger initialized");
     Ok(())
 }
 

@@ -124,11 +124,11 @@ fn storage_needs_publish_only_the_x402_ledger_resources() {
 
     assert_eq!(needs.collections.len(), 1);
     let collection = &needs.collections[0];
-    assert_eq!(collection.name, "x402_budget");
+    assert_eq!(collection.name, super::X402_BUDGET_COLLECTION);
     assert_eq!(collection.indexes, Vec::new());
     assert_eq!(collection.ttl_field, None);
     assert_eq!(collection.search, None);
-    assert_eq!(needs.stream_prefixes, ["x402.payments"]);
+    assert_eq!(needs.stream_prefixes, [super::X402_PAYMENTS_STREAM_PREFIX]);
     assert_eq!(needs.blob_prefixes, &[] as &[&str]);
     assert_eq!(needs.secret_prefixes, &[] as &[&str]);
 }

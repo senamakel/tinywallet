@@ -331,7 +331,7 @@ async fn x402_service_lifecycle_records_approval_denial_and_cancellation() {
         .callbacks
         .as_ref()
         .unwrap()
-        .set_test_ledger_storage(failing_append_storage());
+        .set_test_ledger_storage(failing_append_storage().await);
     let blocked_handle = wallet
         .x402_configure(X402ConfigureRequest {
             config: X402ConfigResponse {
@@ -375,7 +375,7 @@ async fn x402_service_lifecycle_records_approval_denial_and_cancellation() {
 
 /// In-memory storage whose payments stream refuses every append: the ledger
 /// opens, holds budget, and then cannot durably record the authorization.
-fn failing_append_storage() -> tinywallet_x402::ledger::LedgerStorage {
+async fn failing_append_storage() -> tinywallet_x402::ledger::LedgerStorage {
     use tinystoragedrivers_core::{
         MemoryStorage, Result as StorageResult, Scope, StorageBackend, StorageError, StreamEntry,
         StreamStore, async_trait,
@@ -411,6 +411,27 @@ fn failing_append_storage() -> tinywallet_x402::ledger::LedgerStorage {
 
     let scoped = MemoryStorage::new()
         .for_scope(&Scope::new("x402-fail").unwrap())
+        .unwrap();
+    scoped
+        .documents()
+        .ensure_collection(&tinystoragedrivers_core::CollectionSpec::new(
+            "wallet.budgets",
+        ))
+        .await
+        .unwrap();
+    scoped
+        .documents()
+        .put_with(
+            "wallet.budgets",
+            "migration_ready",
+            serde_json::json!({
+                "schema_version": 2,
+                "import_epoch": "x402-payments-jsonl-v1",
+            }),
+            tinystoragedrivers_core::Precondition::Absent,
+            tinystoragedrivers_core::WriteOptions::new().schema(2),
+        )
+        .await
         .unwrap();
     tinywallet_x402::ledger::LedgerStorage::new(
         Arc::clone(scoped.documents()),

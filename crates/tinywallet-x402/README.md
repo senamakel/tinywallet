@@ -11,7 +11,7 @@ This crate is everything about that flow that is not specific to one host.
 | --- | --- | --- | --- |
 | `wire` | `wire` (default) | neutral | Header payload types, CAIP-2 and asset constants, challenge selection. |
 | `eip712`, `abi` | `eip712`, `abi` | crypto | EIP-712 / EIP-3009 hashing and ERC-20 `transfer` calldata. Pure hashing, no signer. |
-| `ledger` | `ledger` | neutral | `PaymentRecord`, `SpendingBudget`, the `PaymentLedger` over the storage ports (payments stream, compare-and-swap budget holds), budget `Reservation`s (`reserve`), and the process-wide handle (`init_global`, `with_ledger`, `with_ledger_mut`). Imports no chain type. |
+| `ledger` | `ledger` | neutral | `PaymentRecord`, `SpendingBudget`, the `PaymentLedger` over the storage ports (payments stream, compare-and-swap budget holds), budget `Reservation`s (`reserve`), and the process-wide handle (`init_global`, `init_global_current`, `with_ledger`, `with_ledger_mut`). Imports no chain type. |
 | `thread` | `ledger` | neutral | The `ThreadScope` seam (which conversation thread is running this call) and its `NoThread` default. |
 | `protocol` | `pay` | neutral | Header codec, `X402Error`, `X402Client`, `handle_402`, `handle_402_and_pay`, and the `PaymentBuilder` and `ProxyPolicy` seams. |
 | `crypto` | `pay` | crypto | `CryptoPayments` (the `PaymentBuilder` for the crypto rail), EVM EIP-3009 and Solana SPL payment construction, and the `PaymentSigner` seam. |
@@ -45,13 +45,22 @@ The ledger's host-facing resource declaration is `tinywallet_bus::storage_needs(
 Its persisted resource names come from the same bus constants, so the module
 and host contract cannot silently drift.
 
+The executable `storage_schema()` and its v1-to-v2 record transformations are
+owned by this ledger implementation. The bus crate carries only the shared
+resource names, `StorageNeeds` declaration, stored payment vocabulary, and the
+strictly decoded `StorageMigrationReady` host marker. Direct trusted library
+callers use `PaymentLedger::open`, which retains the legacy-resource refusal.
+The compiled module uses `PaymentLedger::open_current`, which requires the
+host-written readiness marker in the same scoped storage and never probes
+legacy names outside its grant.
+
 - **Budget reservation.** `handle_402_and_pay` checks the daily and monthly caps
   and holds the amount (`ledger::reserve`) in one critical section *before*
   signing, so concurrent payments cannot together overspend. The hold is a
   `Reservation` on `X402PaymentResult::reservation`: `commit(record)` records the
   outcome and ends the hold in one step; dropping it releases the hold. A hold
   counts toward the caps like a settled payment. Holds are stored in the shared
-  `x402_budget/holds` document (compare-and-swap across processes) and expire
+  `wallet.budgets/holds` document (compare-and-swap across processes) and expire
   after 15 minutes unless the owner renews them (`PaymentLedger::renew_holds`)
   or releases/commits them.
 - **Allowlist.** Only USDC on the networks of `wire::SUPPORTED_USDC` (Solana
@@ -88,8 +97,10 @@ and host contract cannot silently drift.
 ## Constraints
 
 - Not `bitcoin`, `k256` or `coins-*` in the normal dependency graph (CI guard).
-- The ledger owns one process-wide handle; hosts choose the budget when they
-  call `ledger::init_global`.
+- The ledger owns one process-wide handle. Direct trusted callers use
+  `ledger::init_global`; the module calls `ledger::init_global_current` only
+  when the host has completed schema migration and the legacy payment import
+  for that storage scope.
 - `tools` needs a compiler new enough for `tinytools` (1.88), and `ledger` for
   `tinystoragedrivers-core` (1.88). The other features
   build on the crate's MSRV, except that `pay` pulls `reqwest`, whose `icu`

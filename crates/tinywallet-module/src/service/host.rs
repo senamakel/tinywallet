@@ -61,8 +61,8 @@ impl HostCallbacks {
         Ok(scoped)
     }
 
-    /// The ports the x402 ledger persists through: the host's payments stream
-    /// and budget-hold documents.
+    /// The ports the x402 ledger persists through: the host's payments stream,
+    /// budget-hold document, and readiness document in the same scope.
     ///
     /// # Errors
     ///

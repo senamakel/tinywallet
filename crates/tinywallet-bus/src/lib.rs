@@ -25,6 +25,9 @@
 pub mod intent;
 pub mod mnemonic;
 pub mod names;
+#[cfg(feature = "storage")]
+pub mod storage;
+mod storage_names;
 mod storage_needs;
 #[cfg(feature = "wire")]
 pub mod tools;
@@ -47,6 +50,7 @@ pub use names::{
     BUS_NAME, CONFIDENTIAL_METHODS, HOST_INTERFACE, HOST_METHODS, HOST_OBJECT_PATH, METHODS,
     OBJECT_PATH,
 };
+pub use storage_names::{BUDGETS_COLLECTION, PAYMENTS_STREAM};
 pub use storage_needs::{X402_BUDGET_COLLECTION, X402_PAYMENTS_STREAM_PREFIX, storage_needs};
 pub use version::{CONTRACT_VERSION, is_compatible};
 
