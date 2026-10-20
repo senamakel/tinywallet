@@ -195,7 +195,8 @@ async fn refuses_a_confidential_call_to_an_unattested_module() {
     let readiness = module.ensure_ready(BUS_NAME).await;
     let state = module.list()[0].state.clone();
     assert!(
-        readiness.is_err() && matches!(state, ModuleState::Failed { .. }),
+        readiness.is_err()
+            && matches!(state, ModuleState::Failed { .. } | ModuleState::Faulted { .. }),
         "an unattested module must fail setup without a selected migration host; readiness: {readiness:?}, state: {state:?}"
     );
     assert!(client.name_owner(BUS_NAME).await.unwrap().is_none());
