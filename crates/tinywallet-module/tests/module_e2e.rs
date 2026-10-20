@@ -467,7 +467,12 @@ impl Environment<WalletStorageContext> for WalletStorageEnvironment {
             .backend
             .for_scope(&scope)
             .map_err(|_| HostFailure::Denied("wallet-test-storage-unavailable"))?;
-        let collections = [tinystoragedrivers_bus::CollectionSpec::new("wallet.budgets")];
+        let collections = [tinystoragedrivers_bus::CollectionSpec {
+            name: "wallet.budgets".to_owned(),
+            indexes: Vec::new(),
+            ttl_field: None,
+            search: None,
+        }];
         let stream_prefixes = ["wallet.payments"];
         let grant = StorageGrant::from_needs(
             StorageNeeds {
