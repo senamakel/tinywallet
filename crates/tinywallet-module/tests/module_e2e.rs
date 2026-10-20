@@ -19,7 +19,7 @@ use std::{sync::Arc, time::Duration};
 
 use bitcoin::secp256k1::{Message, Secp256k1, SecretKey};
 use tinybus::{
-    Connection,
+    BusName, Connection,
     broker::Broker,
     module::{ModuleHost, ModuleState},
     test_support,
@@ -590,6 +590,7 @@ async fn reinitialize_wallet_with_descriptor(
     fixture: &RestrictedBus,
     descriptor: tinystoragedrivers_busproxy::StorageDescriptor,
 ) {
+    let owner_before = fixture.client.name_owner(BUS_NAME).await.unwrap();
     fixture
         .modules
         .reinitialize(
@@ -598,16 +599,33 @@ async fn reinitialize_wallet_with_descriptor(
         )
         .await
         .expect("wallet should reinitialize with its configured storage descriptor");
+    assert_eq!(
+        fixture.client.name_owner(BUS_NAME).await.unwrap(),
+        owner_before,
+        "descriptor reinitialization keeps the same module peer"
+    );
 }
 
-async fn assert_wallet_b_remains_served(proxy: &tinybus::Proxy) {
-    let still_isolated = configure_x402(proxy, "wallet-other-profile")
-        .await
-        .expect_err("failed descriptor reinitialization must leave the prior bound service");
+async fn assert_wallet_b_remains_served(
+    fixture: &RestrictedBus,
+    proxy: &tinybus::Proxy,
+    module_peer: &BusName,
+) {
     assert_eq!(
-        still_isolated.wire_name(),
-        "ai.tinyhumans.tinywallet.Error.X402OperationFailed"
+        fixture.client.name_owner(BUS_NAME).await.unwrap().as_ref(),
+        Some(module_peer),
+        "failed descriptor reinitialization keeps the same peer"
     );
+    let service = configure_x402(proxy, "wallet-other-profile")
+        .await
+        .expect("failed descriptor reinitialization preserves B's live storage route");
+    proxy
+        .call::<()>(
+            "X402Close",
+            (tinywallet_bus::wire::X402CloseRequest { service },),
+        )
+        .await
+        .unwrap();
     validates_addresses_inside_the_artifact(proxy).await;
 }
 
@@ -638,12 +656,13 @@ async fn serve_current_storage_and_open_wallet_service(
         )
         .await
         .expect("the admitted wallet module should receive its current-only lease");
-    reinitialize_wallet_with_descriptor(fixture, descriptor_a).await;
+    reinitialize_wallet_with_descriptor(fixture, descriptor_a.clone()).await;
 
     let proxy = fixture
         .client
         .proxy(BUS_NAME, OBJECT_PATH, BUS_NAME)
         .unwrap();
+    let module_peer = fixture.client.name_owner(BUS_NAME).await.unwrap().unwrap();
     let service = configure_x402(&proxy, "wallet-migration-test")
         .await
         .expect("x402 should open through the current-only lease after migrations");
@@ -654,15 +673,6 @@ async fn serve_current_storage_and_open_wallet_service(
         )
         .await
         .unwrap();
-    assert!(registration.revoke(&lease_a).await);
-    let revoked = configure_x402(&proxy, "wallet-migration-test")
-        .await
-        .expect_err("a cached governed route must refuse calls after its lease is revoked");
-    assert_eq!(
-        revoked.wire_name(),
-        "ai.tinyhumans.tinywallet.Error.X402OperationFailed"
-    );
-    validates_addresses_inside_the_artifact(&proxy).await;
 
     let (lease_b, descriptor_b) = registration
         .register_lease(
@@ -671,7 +681,7 @@ async fn serve_current_storage_and_open_wallet_service(
         )
         .await
         .expect("one module peer may receive a distinct scope lease");
-    reinitialize_wallet_with_descriptor(fixture, descriptor_b).await;
+    reinitialize_wallet_with_descriptor(fixture, descriptor_b.clone()).await;
     let isolated = configure_x402(&proxy, "wallet-other-profile")
         .await
         .expect_err("a second lease must not see the first scope's migration marker");
@@ -679,6 +689,24 @@ async fn serve_current_storage_and_open_wallet_service(
         isolated.wire_name(),
         "ai.tinyhumans.tinywallet.Error.X402OperationFailed"
     );
+
+    // The B profile's readiness marker is added only after the initial A/B
+    // isolation check, so a prior A revocation cannot explain B's first error.
+    let b_scope = backend
+        .for_scope(&Scope::new("wallet-other-profile").unwrap())
+        .unwrap();
+    write_migration_readiness(&b_scope).await;
+    reinitialize_wallet_with_descriptor(fixture, descriptor_b.clone()).await;
+    let service_b = configure_x402(&proxy, "wallet-other-profile")
+        .await
+        .expect("B opens once its fixture readiness marker is present");
+    proxy
+        .call::<()>(
+            "X402Close",
+            (tinywallet_bus::wire::X402CloseRequest { service: service_b },),
+        )
+        .await
+        .unwrap();
 
     let (lease_revoked, descriptor_revoked) = registration
         .register_lease(
@@ -700,7 +728,7 @@ async fn serve_current_storage_and_open_wallet_service(
             .is_err(),
         "a malformed route must fail before replacing the live service"
     );
-    assert_wallet_b_remains_served(&proxy).await;
+    assert_wallet_b_remains_served(fixture, &proxy, &module_peer).await;
 
     assert!(registration.revoke(&lease_revoked).await);
     assert!(
@@ -714,7 +742,39 @@ async fn serve_current_storage_and_open_wallet_service(
             .is_err(),
         "a revoked descriptor must fail before replacing the live service"
     );
-    assert_wallet_b_remains_served(&proxy).await;
+    assert_wallet_b_remains_served(fixture, &proxy, &module_peer).await;
+
+    reinitialize_wallet_with_descriptor(fixture, descriptor_a).await;
+    let service_a = configure_x402(&proxy, "wallet-migration-test")
+        .await
+        .expect("profile A remains usable before its lease is revoked");
+    proxy
+        .call::<()>(
+            "X402Close",
+            (tinywallet_bus::wire::X402CloseRequest { service: service_a },),
+        )
+        .await
+        .unwrap();
+    assert!(registration.revoke(&lease_a).await);
+    let revoked = configure_x402(&proxy, "wallet-migration-test")
+        .await
+        .expect_err("a cached governed route must refuse calls after its lease is revoked");
+    assert_eq!(
+        revoked.wire_name(),
+        "ai.tinyhumans.tinywallet.Error.X402OperationFailed"
+    );
+
+    reinitialize_wallet_with_descriptor(fixture, descriptor_b).await;
+    let service_b = configure_x402(&proxy, "wallet-other-profile")
+        .await
+        .expect("revoking A does not affect profile B's current-only lease");
+    proxy
+        .call::<()>(
+            "X402Close",
+            (tinywallet_bus::wire::X402CloseRequest { service: service_b },),
+        )
+        .await
+        .unwrap();
 
     registration.shutdown().await.unwrap();
     drop((lease_a, lease_b, lease_revoked));

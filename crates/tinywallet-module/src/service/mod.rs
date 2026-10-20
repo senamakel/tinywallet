@@ -1440,8 +1440,9 @@ struct WalletModuleConfig {
 
 async fn setup_with_context(
     context: tinybus_module::ModuleSetupContext,
-    config: WalletModuleConfig,
+    config: Option<WalletModuleConfig>,
 ) -> BusResult<()> {
+    let config = config.unwrap_or_default();
     let connection = context.connection().clone();
     let callbacks =
         host::HostCallbacks::with_storage_descriptor(&connection, config.storage_descriptor)?;
@@ -1534,7 +1535,7 @@ fn host_build_failed(message: String) -> BusError {
 mod exports {
     tinybus_module::module_export_optional_static! {
         setup_with_context = super::setup_with_context,
-        config = super::WalletModuleConfig,
+        config = Option<super::WalletModuleConfig>,
         worker_threads = 2,
         provides = [
             "ai.tinyhumans.tinywallet.Wallet",
