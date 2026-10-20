@@ -42,7 +42,10 @@ use tinywallet::wire::{
     UnsignedTransaction,
 };
 use tinywallet::{Chain, tx};
-use tinywallet_bus::wire::{EncodeErc20TransferRequest, EncodeErc20TransferResponse};
+use tinywallet_bus::wire::{
+    EncodeErc20TransferRequest, EncodeErc20TransferResponse, ValidateAddressRequest,
+    ValidateAddressResponse,
+};
 use tinywallet_module::{BUS_NAME, OBJECT_PATH};
 
 /// Every method the manifest must declare, in order.
@@ -188,20 +191,24 @@ async fn refuses_a_confidential_call_to_an_unattested_module() {
             .expect("module artifact has a filename"),
     );
     std::fs::copy(&artifact, &untrusted_artifact).expect("copy un-attested test module");
-    let (module, client, broker_task) = test_support::start_bus().await.unwrap();
-    module
+    let fixture = start_restricted_bus().await.unwrap();
+    fixture
+        .modules
         .load_file(&untrusted_artifact)
         .expect("module loads without admission");
-    let readiness = module.ensure_ready(BUS_NAME).await;
-    let state = module.list()[0].state.clone();
-    assert!(
-        readiness.is_err()
-            && matches!(state, ModuleState::Failed { .. } | ModuleState::Faulted { .. }),
-        "an unattested module must fail setup without a selected migration host; readiness: {readiness:?}, state: {state:?}"
-    );
-    assert!(client.name_owner(BUS_NAME).await.unwrap().is_none());
+    test_support::wait_until_serving(&fixture.client, BUS_NAME, Duration::from_secs(5))
+        .await
+        .unwrap();
+    fixture.modules.ensure_ready(BUS_NAME).await.unwrap();
+    assert!(matches!(
+        fixture.modules.list()[0].state,
+        ModuleState::Ready
+    ));
 
-    let proxy = client.proxy(BUS_NAME, OBJECT_PATH, BUS_NAME).unwrap();
+    let proxy = fixture
+        .client
+        .proxy(BUS_NAME, OBJECT_PATH, BUS_NAME)
+        .unwrap();
     let request = serde_json::json!({
         "secret": {
             "mnemonic": VECTOR,
@@ -226,9 +233,29 @@ async fn refuses_a_confidential_call_to_an_unattested_module() {
         .expect_err("an unattested module must not receive a recovery phrase");
     assert!(
         !error.to_string().contains(&VECTOR),
-        "failed setup must not reflect the recovery phrase"
+        "an unattested module must not receive or reflect the recovery phrase"
     );
-    broker_task.abort();
+    let error = proxy
+        .call::<SignedTransaction>("SignTransaction", (request,))
+        .await
+        .expect_err("the broker must refuse a nonconfidential secret call");
+    assert!(
+        error.to_string().contains("ConfidentialityRequired"),
+        "expected a confidentiality refusal, got: {error}"
+    );
+    let response: ValidateAddressResponse = proxy
+        .call(
+            "ValidateAddress",
+            (ValidateAddressRequest {
+                chain: Chain::Evm,
+                address: "0x3535353535353535353535353535353535353535".into(),
+                sender: false,
+            },),
+        )
+        .await
+        .expect("unattested modules retain harmless ordinary RPC");
+    assert!(response.result.is_ok());
+    fixture.broker_task.abort();
 }
 
 /// Check the loaded manifest against the module and wire contracts.
