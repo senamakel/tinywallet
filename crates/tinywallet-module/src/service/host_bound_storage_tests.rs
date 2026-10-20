@@ -163,6 +163,8 @@ async fn selected_linked_wallet_uses_and_caches_its_current_only_ledger_route()
         return Err(std::io::Error::other("wallet safe operation failed after lease setup").into());
     }
 
+    let registration = Arc::try_unwrap(registration)
+        .map_err(|_| std::io::Error::other("wallet storage registration remained in use"))?;
     registration.shutdown().await?;
     host.shutdown(Duration::from_secs(2)).await;
     broker_task.abort();
