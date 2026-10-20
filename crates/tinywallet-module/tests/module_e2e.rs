@@ -526,6 +526,12 @@ impl Environment<WalletStorageContext> for WalletStorageEnvironment {
 
 struct WalletTestAudit;
 
+type WalletStorageRegistration = tinystoragedrivers_tinybus::StorageRegistration<
+    WalletStorageEnvironment,
+    WalletTestAudit,
+    WalletStorageContext,
+>;
+
 impl AuditSink for WalletTestAudit {
     fn record(&self, _event: AuditEvent) {}
 }
@@ -616,9 +622,17 @@ async fn assert_wallet_b_remains_served(
         Some(module_peer),
         "failed descriptor reinitialization keeps the same peer"
     );
-    let service = configure_x402(proxy, "wallet-other-profile")
-        .await
-        .expect("failed descriptor reinitialization preserves B's live storage route");
+    open_and_close_x402(
+        proxy,
+        "wallet-other-profile",
+        "failed descriptor reinitialization preserves B's live storage route",
+    )
+    .await;
+    validates_addresses_inside_the_artifact(proxy).await;
+}
+
+async fn open_and_close_x402(proxy: &tinybus::Proxy, workspace: &str, reason: &str) {
+    let service = configure_x402(proxy, workspace).await.expect(reason);
     proxy
         .call::<()>(
             "X402Close",
@@ -626,7 +640,77 @@ async fn assert_wallet_b_remains_served(
         )
         .await
         .unwrap();
-    validates_addresses_inside_the_artifact(proxy).await;
+}
+
+async fn reject_bad_c_descriptors_and_preserve_b(
+    fixture: &RestrictedBus,
+    registration: &WalletStorageRegistration,
+    proxy: &tinybus::Proxy,
+    module_peer: &BusName,
+    lease_c: &tinystoragedrivers_busproxy::StorageLease,
+    descriptor_c: tinystoragedrivers_busproxy::StorageDescriptor,
+) {
+    let mut forged_wire = serde_json::to_value(&descriptor_c).unwrap();
+    forged_wire["registration_id"] = serde_json::json!(u64::MAX);
+    assert!(
+        fixture
+            .modules
+            .reinitialize(
+                "tinywallet-module",
+                serde_json::json!({"storage_descriptor": forged_wire}),
+            )
+            .await
+            .is_err(),
+        "a malformed route must fail before replacing the live service"
+    );
+    assert_wallet_b_remains_served(fixture, proxy, module_peer).await;
+
+    assert!(registration.revoke(lease_c).await);
+    assert!(
+        fixture
+            .modules
+            .reinitialize(
+                "tinywallet-module",
+                serde_json::json!({"storage_descriptor": descriptor_c}),
+            )
+            .await
+            .is_err(),
+        "a revoked descriptor must fail before replacing the live service"
+    );
+    assert_wallet_b_remains_served(fixture, proxy, module_peer).await;
+}
+
+async fn revoke_a_and_verify_b_survives(
+    fixture: &RestrictedBus,
+    registration: &WalletStorageRegistration,
+    proxy: &tinybus::Proxy,
+    lease_a: &tinystoragedrivers_busproxy::StorageLease,
+    descriptor_a: tinystoragedrivers_busproxy::StorageDescriptor,
+    descriptor_b: tinystoragedrivers_busproxy::StorageDescriptor,
+) {
+    reinitialize_wallet_with_descriptor(fixture, descriptor_a).await;
+    open_and_close_x402(
+        proxy,
+        "wallet-migration-test",
+        "profile A remains usable before its lease is revoked",
+    )
+    .await;
+    assert!(registration.revoke(lease_a).await);
+    let revoked = configure_x402(proxy, "wallet-migration-test")
+        .await
+        .expect_err("a cached governed route must refuse calls after its lease is revoked");
+    assert_eq!(
+        revoked.wire_name(),
+        "ai.tinyhumans.tinywallet.Error.X402OperationFailed"
+    );
+
+    reinitialize_wallet_with_descriptor(fixture, descriptor_b).await;
+    open_and_close_x402(
+        proxy,
+        "wallet-other-profile",
+        "revoking A does not affect profile B's current-only lease",
+    )
+    .await;
 }
 
 async fn serve_current_storage_and_open_wallet_service(
@@ -665,16 +749,12 @@ async fn serve_current_storage_and_open_wallet_service(
         .proxy(BUS_NAME, OBJECT_PATH, BUS_NAME)
         .unwrap();
     let module_peer = fixture.client.name_owner(BUS_NAME).await.unwrap().unwrap();
-    let service = configure_x402(&proxy, "wallet-migration-test")
-        .await
-        .expect("x402 should open through the current-only lease after migrations");
-    proxy
-        .call::<()>(
-            "X402Close",
-            (tinywallet_bus::wire::X402CloseRequest { service },),
-        )
-        .await
-        .unwrap();
+    open_and_close_x402(
+        &proxy,
+        "wallet-migration-test",
+        "x402 should open through the current-only lease after migrations",
+    )
+    .await;
 
     let (lease_b, descriptor_b) = registration
         .register_lease(
@@ -699,16 +779,12 @@ async fn serve_current_storage_and_open_wallet_service(
         .unwrap();
     write_migration_readiness(&b_scope).await;
     reinitialize_wallet_with_descriptor(fixture, descriptor_b.clone()).await;
-    let service_b = configure_x402(&proxy, "wallet-other-profile")
-        .await
-        .expect("B opens once its fixture readiness marker is present");
-    proxy
-        .call::<()>(
-            "X402Close",
-            (tinywallet_bus::wire::X402CloseRequest { service: service_b },),
-        )
-        .await
-        .unwrap();
+    open_and_close_x402(
+        &proxy,
+        "wallet-other-profile",
+        "B opens once its fixture readiness marker is present",
+    )
+    .await;
 
     let (lease_revoked, descriptor_revoked) = registration
         .register_lease(
@@ -717,66 +793,24 @@ async fn serve_current_storage_and_open_wallet_service(
         )
         .await
         .expect("a third test lease should be independently registered");
-    let mut forged_wire = serde_json::to_value(&descriptor_revoked).unwrap();
-    forged_wire["registration_id"] = serde_json::json!(u64::MAX);
-    assert!(
-        fixture
-            .modules
-            .reinitialize(
-                "tinywallet-module",
-                serde_json::json!({"storage_descriptor": forged_wire}),
-            )
-            .await
-            .is_err(),
-        "a malformed route must fail before replacing the live service"
-    );
-    assert_wallet_b_remains_served(fixture, &proxy, &module_peer).await;
-
-    assert!(registration.revoke(&lease_revoked).await);
-    assert!(
-        fixture
-            .modules
-            .reinitialize(
-                "tinywallet-module",
-                serde_json::json!({"storage_descriptor": descriptor_revoked}),
-            )
-            .await
-            .is_err(),
-        "a revoked descriptor must fail before replacing the live service"
-    );
-    assert_wallet_b_remains_served(fixture, &proxy, &module_peer).await;
-
-    reinitialize_wallet_with_descriptor(fixture, descriptor_a).await;
-    let service_a = configure_x402(&proxy, "wallet-migration-test")
-        .await
-        .expect("profile A remains usable before its lease is revoked");
-    proxy
-        .call::<()>(
-            "X402Close",
-            (tinywallet_bus::wire::X402CloseRequest { service: service_a },),
-        )
-        .await
-        .unwrap();
-    assert!(registration.revoke(&lease_a).await);
-    let revoked = configure_x402(&proxy, "wallet-migration-test")
-        .await
-        .expect_err("a cached governed route must refuse calls after its lease is revoked");
-    assert_eq!(
-        revoked.wire_name(),
-        "ai.tinyhumans.tinywallet.Error.X402OperationFailed"
-    );
-
-    reinitialize_wallet_with_descriptor(fixture, descriptor_b).await;
-    let service_b = configure_x402(&proxy, "wallet-other-profile")
-        .await
-        .expect("revoking A does not affect profile B's current-only lease");
-    proxy
-        .call::<()>(
-            "X402Close",
-            (tinywallet_bus::wire::X402CloseRequest { service: service_b },),
-        )
-        .await
-        .unwrap();
+    reject_bad_c_descriptors_and_preserve_b(
+        fixture,
+        &registration,
+        &proxy,
+        &module_peer,
+        &lease_revoked,
+        descriptor_revoked.clone(),
+    )
+    .await;
+    revoke_a_and_verify_b_survives(
+        fixture,
+        &registration,
+        &proxy,
+        &lease_a,
+        descriptor_a,
+        descriptor_b,
+    )
+    .await;
 
     registration.shutdown().await.unwrap();
     drop((lease_a, lease_b, lease_revoked));
