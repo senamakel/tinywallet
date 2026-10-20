@@ -89,6 +89,9 @@ The bus exposes `storage_needs()` for the x402 ledger's host-facing storage
 declaration. It uses the data-only `tinystoragedrivers-bus` type and requests
 the current `wallet.budgets` collection and `wallet.payments` stream. Those
 names come from the same bus-owned constants as the stored record vocabulary.
-The x402 ledger owns the executable `storage_schema()` and migration from the
+The bus also defines the data-only `StorageMigrationReady` record stored at
+`wallet.budgets/migration_ready`; its required schema version and payment-import
+epoch let a module reject a missing or stale host migration attestation. The
+x402 ledger owns the executable `storage_schema()` and migration from the
 legacy `x402_budget` collection and `x402.payments` stream; the module's grant
 covers only the current names.

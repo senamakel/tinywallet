@@ -31,6 +31,24 @@ current names and stored payment vocabulary, while x402 owns the schema steps
 and executable transformations. The legacy `x402_budget` collection and
 `x402.payments` stream are migration inputs, not the current host grant.
 
+The current grant also carries a host-written readiness document at
+`wallet.budgets/migration_ready`; this is a document inside the already granted
+`wallet.budgets` collection, not permission to the legacy names. Its strict DTO
+requires schema version 2 and the `x402-payments-jsonl-v1` import epoch. The
+host must revoke the module's storage binding and remove this document before
+starting any wallet schema migration or legacy payment import. It writes a new
+readiness document only after every migration and import step for that module
+scope succeeds. A missing, malformed, old-version, or wrong-epoch document
+keeps `X402Configure` closed. The module never writes or repairs readiness.
+
+The host's boot report and importer result must be authoritative: warnings from
+a failed migration or import do not establish readiness. A host must propagate
+those failures, keep the binding revoked, and retry. Host integration obtains
+the migration result through the released compiled-module schema/executor
+contract; it must not link the x402 implementation library or infer completion
+from empty current data. Until that released contract and adapter are available,
+the module fails closed when the readiness document is absent.
+
 ## Endpoint key mapping
 
 `chain::endpoint_key` is a pure mapping from the shared `Chain` enum and an

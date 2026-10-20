@@ -18,7 +18,11 @@
 //! Entries are `snake_case` objects with every instant an epoch-millisecond
 //! `*_ms` field, and the ledger holds records at that precision. The names and
 //! the steps that migrate the v1 `x402_budget` collection and `x402.payments`
-//! stream are declared by [`storage_schema`].
+//! stream are declared by [`storage_schema`]. Direct trusted callers use
+//! [`PaymentLedger::open`], which checks accessible legacy names and refuses to
+//! open while old data remains. A compiled module uses
+//! [`PaymentLedger::open_current`] instead; it opens only after validating the
+//! host-written `wallet.budgets/migration_ready` record in the same scope.
 //!
 //! # Budgets
 //!
@@ -55,9 +59,11 @@
 //!
 //! # The process-wide handle
 //!
-//! Hosts initialise one ledger at boot with [`init_global`] and reach it with
-//! [`with_ledger`] / [`with_ledger_mut`]. The handle is the only shared state in
-//! this crate.
+//! Direct hosts initialise one ledger with [`init_global`]. The compiled
+//! TinyBus module uses [`init_global_current`] after the host has completed its
+//! scoped schema migration and legacy payment import. Both use
+//! [`with_ledger`] / [`with_ledger_mut`] to reach the process-wide handle, the
+//! only shared state in this crate.
 
 #[cfg(test)]
 pub(crate) mod faulty;
