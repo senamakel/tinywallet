@@ -1612,8 +1612,15 @@ async fn refuses_confidential_secret_delivery_to_an_unattested_artifact() {
         fixture_dir.join(artifact.file_name().expect("test artifact has a filename"));
     fs::copy(&artifact, &untrusted_artifact).expect("copy untrusted test module");
     let bus = MemoryBus::new();
-    let broker = Broker::new();
+    let broker = Broker::new_restricted_module_control();
     let broker_task = broker.spawn(bus.clone());
+    let (broker_transport, controller_transport) = MemoryTransport::pair();
+    broker
+        .attach_module_controller(Arc::new(broker_transport))
+        .unwrap();
+    let _controller = Connection::connect(Box::new(controller_transport))
+        .await
+        .unwrap();
     let modules = ModuleHost::new(broker);
     modules
         .load_file(&untrusted_artifact)
