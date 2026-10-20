@@ -46,12 +46,12 @@ tinywallet = { path = "../..", default-features = false, features = [
     "abi",
 ] }
 # TinyBus provides the typed service interface and the dynamic module host ABI.
-tinybus = { version = ">=0.3.3, <0.4.0", git = "https://github.com/tinyhumansai/tinybus", rev = "207a9a7df15e44fdba00a807d0f7eaf21904ba0e", default-features = false, features = [
+tinybus = { version = ">=0.3.9, <0.4.0", git = "https://github.com/tinyhumansai/tinybus", rev = "3792a1d85f3dd171682dc45d310ee0f03836f038", default-features = false, features = [
     "macros",
     "modules",
 ] }
 # The module-side SDK owns its runtime and exports the stable C entrypoints.
-tinybus-module = { version = ">=0.3.3, <0.4.0", git = "https://github.com/tinyhumansai/tinybus", rev = "207a9a7df15e44fdba00a807d0f7eaf21904ba0e" }
+tinybus-module = { version = ">=0.3.9, <0.4.0", git = "https://github.com/tinyhumansai/tinybus", rev = "3792a1d85f3dd171682dc45d310ee0f03836f038" }
 # The module runtime drives asynchronous host callbacks and serializes service
 # lifecycle changes against in-flight operations.
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
@@ -84,6 +84,7 @@ tinystoragedrivers-core = { workspace = true }
 tinystoragedrivers-bus = { workspace = true }
 tinystoragedrivers-client = { workspace = true }
 tinystoragedrivers-busproxy = { workspace = true }
+tinystoragedrivers-tinybus = { workspace = true }
 # Diagnostics for the storage connection and hold-lease renewal.
 log = "0.4"
 # Generates opaque service, quote, and pending-payment identifiers.

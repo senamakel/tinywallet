@@ -56,7 +56,7 @@ resolver = "3"
 [workspace.dependencies]
 # Typed host calls use the published strict attestation API. The client needs
 # no loader or transport features; its host supplies those features.
-tinybus = { version = ">=0.3.3, <0.4.0", git = "https://github.com/tinyhumansai/tinybus", rev = "207a9a7df15e44fdba00a807d0f7eaf21904ba0e", default-features = false }
+tinybus = { version = ">=0.3.9, <0.4.0", git = "https://github.com/tinyhumansai/tinybus", rev = "3792a1d85f3dd171682dc45d310ee0f03836f038", default-features = false }
 # The shared agent `Tool` trait, for the `tools` features of `tinywallet-x402`
 # and `tinywallet-web3`. A git source rather than a path on purpose, matching
 # tinymcp: a host that already links tinytools (OpenHuman, through
@@ -69,15 +69,16 @@ tinytools = { git = "https://github.com/tinyhumansai/tinytools", rev = "bd60b9b5
 # so a host that already links tinystoragedrivers (OpenHuman patches this exact
 # URL to its vendored copy) unifies to one `DocumentStore` trait. `blocking`
 # is the sync bridge the ledger's synchronous API runs the async ports on.
-tinystoragedrivers-core = { git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v1.0.0", default-features = false, features = ["blocking"] }
+tinystoragedrivers-core = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "7354214b8834b71bb0acb4a7c93b3efa051001b8", default-features = false, features = ["blocking", "migration-delivery"] }
 # The data-only storage-needs contract; deliberately distinct from the runtime
 # ports crate so hosts can share its vocabulary without pulling in I/O APIs.
-tinystoragedrivers-bus-contract = { package = "tinystoragedrivers-bus", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "c9ea6ff1615b77b55d7269403af5fd11bedc9ce8", default-features = false }
+tinystoragedrivers-bus-contract = { package = "tinystoragedrivers-bus", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "7354214b8834b71bb0acb4a7c93b3efa051001b8", default-features = false }
 # The storage bus, for the loadable module only: it reaches the host's storage
 # through the same ports over TinyBus rather than a process-local registry.
-tinystoragedrivers-bus = { git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v1.0.0" }
-tinystoragedrivers-client = { git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v1.0.0" }
-tinystoragedrivers-busproxy = { git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v1.0.0" }
+tinystoragedrivers-bus = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "7354214b8834b71bb0acb4a7c93b3efa051001b8" }
+tinystoragedrivers-client = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "7354214b8834b71bb0acb4a7c93b3efa051001b8" }
+tinystoragedrivers-busproxy = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "7354214b8834b71bb0acb4a7c93b3efa051001b8" }
+tinystoragedrivers-tinybus = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "7354214b8834b71bb0acb4a7c93b3efa051001b8", default-features = false, features = ["migration-delivery"] }
 
 [dependencies]
 # The wire contract. Split out so a host that has moved signing into the
