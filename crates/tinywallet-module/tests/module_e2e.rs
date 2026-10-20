@@ -228,7 +228,7 @@ async fn refuses_a_confidential_call_to_an_unattested_module() {
     });
 
     let error = proxy
-        .call_confidential::<SignedTransaction>("SignTransaction", (request,))
+        .call_confidential::<SignedTransaction>("SignTransaction", (request.clone(),))
         .await
         .expect_err("an unattested module must not receive a recovery phrase");
     assert!(
