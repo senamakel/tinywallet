@@ -13,7 +13,7 @@ const NOT_INITIALISED: &str = "x402 payment ledger not initialized";
 
 static GLOBAL_LEDGER: Mutex<Option<PaymentLedger>> = Mutex::new(None);
 
-/// Storage a module-style host provisioned for later [`init_global`] calls that
+/// Storage a module-style host provisioned for later [`init_global_current`] calls that
 /// do not carry their own handles (the `TinyBus` module configures the ledger
 /// over a wire request that can only name a session and a budget).
 static PROVISIONED: Mutex<Option<LedgerStorage>> = Mutex::new(None);
