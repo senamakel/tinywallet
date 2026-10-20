@@ -236,7 +236,7 @@ async fn refuses_a_confidential_call_to_an_unattested_module() {
         .await
         .expect_err("an unattested module must not receive a recovery phrase");
     assert!(
-        !error.to_string().contains(&VECTOR),
+        !error.to_string().contains(VECTOR),
         "an unattested module must not receive or reflect the recovery phrase"
     );
     let error = proxy
@@ -547,6 +547,26 @@ async fn write_migration_readiness(scoped: &tinystoragedrivers_core::ScopedStora
         .unwrap();
 }
 
+async fn configure_x402(
+    proxy: &tinybus::Proxy,
+    workspace_dir: &str,
+) -> tinybus::Result<tinywallet_bus::wire::X402ServiceHandle> {
+    proxy
+        .call(
+            "X402Configure",
+            (tinywallet_bus::wire::X402ConfigureRequest {
+                config: tinywallet_bus::wire::X402ConfigResponse {
+                    workspace_dir: workspace_dir.to_owned(),
+                    session_id: "migration-test".to_owned(),
+                    per_request_max_atomic: 1_000,
+                    daily_max_atomic: 10_000,
+                    monthly_max_atomic: 100_000,
+                },
+            },),
+        )
+        .await
+}
+
 async fn serve_current_storage_and_open_wallet_service(
     fixture: &RestrictedBus,
     backend: Arc<MemoryStorage>,
@@ -587,19 +607,7 @@ async fn serve_current_storage_and_open_wallet_service(
         .client
         .proxy(BUS_NAME, OBJECT_PATH, BUS_NAME)
         .unwrap();
-    let service: tinywallet_bus::wire::X402ServiceHandle = proxy
-        .call(
-            "X402Configure",
-            (tinywallet_bus::wire::X402ConfigureRequest {
-                config: tinywallet_bus::wire::X402ConfigResponse {
-                    workspace_dir: "wallet-migration-test".to_owned(),
-                    session_id: "migration-test".to_owned(),
-                    per_request_max_atomic: 1_000,
-                    daily_max_atomic: 10_000,
-                    monthly_max_atomic: 100_000,
-                },
-            },),
-        )
+    let service = configure_x402(&proxy, "wallet-migration-test")
         .await
         .expect("x402 should open through the current-only lease after migrations");
     proxy
@@ -609,6 +617,15 @@ async fn serve_current_storage_and_open_wallet_service(
         )
         .await
         .unwrap();
+    assert!(registration.revoke(&lease_a).await);
+    let revoked = configure_x402(&proxy, "wallet-migration-test")
+        .await
+        .expect_err("a cached governed route must refuse calls after its lease is revoked");
+    assert_eq!(
+        revoked.wire_name(),
+        "ai.tinyhumans.tinywallet.Error.X402OperationFailed"
+    );
+    validates_addresses_inside_the_artifact(&proxy).await;
 
     let (lease_b, descriptor_b) = registration
         .register_lease(
@@ -625,19 +642,7 @@ async fn serve_current_storage_and_open_wallet_service(
         )
         .await
         .expect("the same module instance should bind the second descriptor");
-    let isolated = proxy
-        .call::<tinywallet_bus::wire::X402ServiceHandle>(
-            "X402Configure",
-            (tinywallet_bus::wire::X402ConfigureRequest {
-                config: tinywallet_bus::wire::X402ConfigResponse {
-                    workspace_dir: "wallet-other-profile".to_owned(),
-                    session_id: "migration-test".to_owned(),
-                    per_request_max_atomic: 1_000,
-                    daily_max_atomic: 10_000,
-                    monthly_max_atomic: 100_000,
-                },
-            },),
-        )
+    let isolated = configure_x402(&proxy, "wallet-other-profile")
         .await
         .expect_err("a second lease must not see the first scope's migration marker");
     assert_eq!(
@@ -664,25 +669,14 @@ async fn serve_current_storage_and_open_wallet_service(
             .is_err(),
         "a revoked descriptor must fail before replacing the live service"
     );
-    let still_isolated = proxy
-        .call::<tinywallet_bus::wire::X402ServiceHandle>(
-            "X402Configure",
-            (tinywallet_bus::wire::X402ConfigureRequest {
-                config: tinywallet_bus::wire::X402ConfigResponse {
-                    workspace_dir: "wallet-other-profile".to_owned(),
-                    session_id: "migration-test".to_owned(),
-                    per_request_max_atomic: 1_000,
-                    daily_max_atomic: 10_000,
-                    monthly_max_atomic: 100_000,
-                },
-            },),
-        )
+    let still_isolated = configure_x402(&proxy, "wallet-other-profile")
         .await
         .expect_err("failed descriptor reinitialization must leave the prior bound service");
     assert_eq!(
         still_isolated.wire_name(),
         "ai.tinyhumans.tinywallet.Error.X402OperationFailed"
     );
+    validates_addresses_inside_the_artifact(&proxy).await;
 
     registration.shutdown().await.unwrap();
     drop((lease_a, lease_b, lease_revoked));
