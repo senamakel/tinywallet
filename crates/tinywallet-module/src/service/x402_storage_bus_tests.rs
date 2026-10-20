@@ -468,6 +468,7 @@ async fn current_only_grant_opens_from_host_ready_current_history_without_legacy
     assert!(
         ledger::with_ledger_mut(|ledger| ledger.reserve(11))
             .unwrap()
+            .unwrap()
             .is_err()
     );
     let module_hold = ledger::reserve(10).unwrap().unwrap();
