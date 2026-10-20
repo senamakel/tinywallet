@@ -389,6 +389,93 @@ fn host_ledger(fixture: &Fixture) -> PaymentLedger {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn current_only_grant_opens_from_host_ready_current_history_without_legacy_reads() {
+    let _guard = LEDGER_TEST_LOCK.lock().await;
+    let (fixture, denied) = current_only_fixture().await;
+
+    // Seed current history and a live reservation as the host after its schema
+    // migration. The literal readiness row models the host's completion record
+    // without coupling this regression test to a not-yet-added bus DTO.
+    let mut seed = host_ledger(&fixture);
+    let mut history = super::tests::pending_record("migrated-payment", None);
+    history.status = PaymentStatus::Settled;
+    history.amount_atomic = 60;
+    seed.record_payment(history);
+    let host_hold = seed.reserve(30).unwrap().unwrap();
+    let documents = Arc::clone(fixture.host.documents());
+    documents
+        .ensure_collection(&tinystoragedrivers_core::CollectionSpec::new(
+            CURRENT_BUDGETS,
+        ))
+        .await
+        .unwrap();
+    documents
+        .put(
+            CURRENT_BUDGETS,
+            "migration_ready",
+            serde_json::json!({
+                "schema_version": 2,
+                "import_epoch": "x402-payments-jsonl-v1",
+            }),
+            Precondition::Absent,
+        )
+        .await
+        .unwrap();
+
+    let configured = fixture
+        .wallet
+        .x402_configure(X402ConfigureRequest {
+            config: config("bus-current-only"),
+        })
+        .await;
+    assert!(
+        configured.is_ok(),
+        "current-only configure should use the host readiness record and current data; error={configured:?}; denied accesses={}",
+        denied.load(Ordering::Relaxed)
+    );
+    let service = configured.unwrap();
+    let history = ledger::with_ledger(|ledger| ledger.recent_payments(10)).unwrap();
+    assert!(history.iter().any(|record| record.id == "migrated-payment"));
+
+    // The migrated 60 payment and 30 live hold leave exactly 10 of the daily
+    // limit. These requests prove the module read current history/holds and can
+    // still write its own hold through the same restricted bus path.
+    assert!(
+        ledger::with_ledger_mut(|ledger| ledger.reserve(11))
+            .unwrap()
+            .is_err()
+    );
+    let module_hold = ledger::with_ledger_mut(|ledger| ledger.reserve(10))
+        .unwrap()
+        .unwrap();
+    let holds = documents
+        .get(CURRENT_BUDGETS, "holds")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(holds.doc["holds"].as_object().unwrap().len(), 2);
+
+    ledger::with_ledger_mut(|ledger| {
+        ledger.record_payment(super::tests::pending_record("module-payment", None));
+    })
+    .unwrap();
+    assert_eq!(
+        fixture.host.streams().len(CURRENT_PAYMENTS).await.unwrap(),
+        2
+    );
+    assert_eq!(denied.load(Ordering::Relaxed), 0);
+
+    drop(module_hold);
+    drop(host_hold);
+    fixture
+        .wallet
+        .x402_close(X402CloseRequest { service })
+        .await
+        .unwrap();
+    fixture.broker.abort();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn configure_persists_payments_and_budget_holds_on_the_host_storage() {
     let _guard = LEDGER_TEST_LOCK.lock().await;
     let fixture = fixture().await;
