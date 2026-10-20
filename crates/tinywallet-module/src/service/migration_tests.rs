@@ -3,7 +3,10 @@
 use super::*;
 
 use serde_json::{Value, json};
-use tinystoragedrivers_core::schema::{Expiry, Item, Meta, ScopeClass, SourceRecord};
+use tinystoragedrivers_core::{
+    Meta,
+    schema::{Expiry, Item, ScopeClass, SourceRecord, TransformKind},
+};
 
 fn handler() -> WalletMigrationHandler {
     WalletMigrationHandler {
