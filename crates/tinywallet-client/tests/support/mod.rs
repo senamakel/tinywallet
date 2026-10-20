@@ -11,7 +11,7 @@ use tinybus::module::{
     AccessFuture, CachedRelease, FailureReporter, FailureSink, ModuleAccess, ModuleCallError,
     ModuleHost, ProxyFailure, ReleaseAsset, ReleaseRecord,
 };
-use tinybus::transport::memory::MemoryBus;
+use tinybus::transport::memory::{MemoryBus, MemoryTransport};
 use tinybus::{Connection, Proxy};
 use tinywallet_client::WalletClient;
 use tokio::sync::OnceCell;
@@ -33,6 +33,7 @@ pub(crate) struct Fixture {
     pub(crate) access: Arc<Access>,
     pub(crate) wallet: WalletClient,
     pub(crate) wrong_pin_wallet: WalletClient,
+    _controller: Connection,
     broker_task: tokio::task::JoinHandle<tinybus::Result<()>>,
 }
 
@@ -187,8 +188,9 @@ pub(crate) async fn fixture() -> Fixture {
     let admitted_record = record(false);
     let release = cached_release();
     let bus = MemoryBus::new();
-    let broker = Broker::new();
+    let broker = Broker::new_restricted_module_control();
     let broker_task = broker.clone().spawn(bus.clone());
+    let controller = attach_module_controller(&broker).await;
     let host = Arc::new(ModuleHost::new(broker));
     let connection = Connection::connect(bus.connect().await.expect("memory bus"))
         .await
@@ -216,6 +218,7 @@ pub(crate) async fn fixture() -> Fixture {
         ))),
         wrong_pin_wallet: WalletClient::new(tinybus::module::ModuleClient::new(wrong_access)),
         access,
+        _controller: controller,
         broker_task,
     }
 }
@@ -224,8 +227,9 @@ pub(crate) async fn unattested_fixture() -> Fixture {
     let admitted_record = record(false);
     let release = cached_release();
     let bus = MemoryBus::new();
-    let broker = Broker::new();
+    let broker = Broker::new_restricted_module_control();
     let broker_task = broker.clone().spawn(bus.clone());
+    let controller = attach_module_controller(&broker).await;
     let host = Arc::new(ModuleHost::new(broker));
     let connection = Connection::connect(bus.connect().await.expect("memory bus"))
         .await
@@ -254,8 +258,19 @@ pub(crate) async fn unattested_fixture() -> Fixture {
         ))),
         wrong_pin_wallet: WalletClient::new(tinybus::module::ModuleClient::new(wrong_access)),
         access,
+        _controller: controller,
         broker_task,
     }
+}
+
+async fn attach_module_controller(broker: &Broker) -> Connection {
+    let (broker_transport, controller_transport) = MemoryTransport::pair();
+    broker
+        .attach_module_controller(Arc::new(broker_transport))
+        .expect("the fixture controller should be selected once");
+    Connection::connect(Box::new(controller_transport))
+        .await
+        .expect("fixture controller should connect")
 }
 
 pub(crate) fn record(wrong_library_pin: bool) -> &'static ReleaseRecord {
