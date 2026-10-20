@@ -192,9 +192,14 @@ async fn refuses_a_confidential_call_to_an_unattested_module() {
     module
         .load_file(&untrusted_artifact)
         .expect("module loads without admission");
-    test_support::wait_until_serving(&client, BUS_NAME, Duration::from_secs(5))
+    let unavailable = test_support::wait_until_serving(&client, BUS_NAME, Duration::from_secs(5))
         .await
-        .unwrap();
+        .expect_err("an unattested module must fail setup without a selected migration host");
+    assert!(unavailable.to_string().contains("did not become ready"));
+    assert!(matches!(
+        module.list()[0].state,
+        ModuleState::Failed { .. }
+    ));
 
     let proxy = client.proxy(BUS_NAME, OBJECT_PATH, BUS_NAME).unwrap();
     let request = serde_json::json!({
@@ -224,12 +229,12 @@ async fn refuses_a_confidential_call_to_an_unattested_module() {
         "expected an attestation refusal, got: {error}"
     );
     let error = proxy
-        .call::<SignedTransaction>("SignTransaction", (request,))
+        .call_confidential::<SignedTransaction>("SignTransaction", (request,))
         .await
-        .expect_err("recovery-phrase methods must reject ordinary bus calls");
+        .expect_err("an unattested artifact must never receive a confidential secret");
     assert!(
-        error.to_string().contains("ConfidentialityRequired"),
-        "expected a confidentiality refusal, got: {error}"
+        error.to_string().to_lowercase().contains("attest"),
+        "expected an attestation refusal, got: {error}"
     );
 
     broker_task.abort();
