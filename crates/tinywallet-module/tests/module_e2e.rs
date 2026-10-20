@@ -120,6 +120,20 @@ async fn the_built_module_signs_every_chain_over_a_real_broker() {
         .await
         .unwrap();
 
+    let owner_before = fixture.client.name_owner(BUS_NAME).await.unwrap();
+    for config in [serde_json::Value::Null, serde_json::json!({})] {
+        fixture
+            .modules
+            .reinitialize("tinywallet-module", config)
+            .await
+            .expect("legacy null and empty-object configs remain valid");
+        assert_eq!(
+            fixture.client.name_owner(BUS_NAME).await.unwrap(),
+            owner_before,
+            "reconfiguration keeps the same module peer"
+        );
+    }
+
     let module_peer = BUS_NAME.parse().unwrap();
     let migration = MigrationModuleClient::discover(&fixture.controller, &module_peer)
         .await
