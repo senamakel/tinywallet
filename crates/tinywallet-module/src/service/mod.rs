@@ -1440,12 +1440,12 @@ struct WalletModuleConfig {
 
 async fn setup_with_context(
     context: tinybus_module::ModuleSetupContext,
-    config: Option<WalletModuleConfig>,
+    config: WalletModuleConfig,
 ) -> BusResult<()> {
     let connection = context.connection().clone();
     let callbacks = host::HostCallbacks::with_storage_descriptor(
         &connection,
-        config.and_then(|config| config.storage_descriptor),
+        config.storage_descriptor,
     )?;
     callbacks
         .validate_configured_storage()
