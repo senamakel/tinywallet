@@ -239,6 +239,26 @@ fn payments_dispatch_fails_closed_if_its_schema_body_is_not_a_stream() {
 }
 
 #[test]
+fn budget_dispatch_fails_closed_if_its_schema_body_is_not_documents() {
+    let mut schema = tinywallet_x402::ledger::storage_schema();
+    schema.steps[0].run = schema.steps[1].run.clone();
+    let handler = WalletMigrationHandler { schema };
+    let reply = handler.transform(MigrationPayload::Documents(DocumentsTransformRequest {
+        operation: BUDGETS_OPERATION.to_owned(),
+        version: OPERATION_VERSION,
+        records: Vec::new(),
+    }));
+
+    assert!(matches!(
+        reply,
+        MigrationPayloadReply::Documents(Err(TransformError {
+            kind: TransformErrorKind::UnsupportedOperation,
+            ..
+        }))
+    ));
+}
+
+#[test]
 fn migration_dispatch_fails_closed_for_unknown_operations_and_versions() {
     let wrong_operation =
         handler().transform(MigrationPayload::Documents(DocumentsTransformRequest {
