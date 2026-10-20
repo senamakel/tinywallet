@@ -32,12 +32,27 @@ struct Fixture {
 async fn fixture() -> Fixture {
     let backend = MemoryStorage::new();
     let host = backend.for_scope(&Scope::local()).unwrap();
+    // This backend is fresh and host-owned; model the host's completed schema
+    // and import setup explicitly before serving the module.
+    host_write_readiness(
+        &host,
+        serde_json::json!({
+            "schema_version": 2,
+            "import_epoch": "x402-payments-jsonl-v1",
+        }),
+    )
+    .await;
     fixture_with_storage(host.clone(), host).await
 }
 
 /// A fixture whose storage ports accept only the names in TinyWallet's current
 /// storage declaration and record every request outside that grant.
 async fn current_only_fixture() -> (Fixture, Arc<AtomicUsize>) {
+    let (fixture, denied, _backend) = current_only_fixture_with_backend().await;
+    (fixture, denied)
+}
+
+async fn current_only_fixture_with_backend() -> (Fixture, Arc<AtomicUsize>, MemoryStorage) {
     let backend = MemoryStorage::new();
     let host = backend.for_scope(&Scope::local()).unwrap();
     let denied = Arc::new(AtomicUsize::new(0));
@@ -54,7 +69,27 @@ async fn current_only_fixture() -> (Fixture, Arc<AtomicUsize>) {
         }),
         Arc::clone(host.blobs()),
     );
-    (fixture_with_storage(host, current).await, denied)
+    (fixture_with_storage(host, current).await, denied, backend)
+}
+
+async fn host_write_readiness(storage: &ScopedStorage, body: serde_json::Value) {
+    let documents = storage.documents();
+    documents
+        .ensure_collection(&tinystoragedrivers_core::CollectionSpec::new(
+            CURRENT_BUDGETS,
+        ))
+        .await
+        .unwrap();
+    documents
+        .put_with(
+            CURRENT_BUDGETS,
+            "migration_ready",
+            body,
+            Precondition::Absent,
+            tinystoragedrivers_core::WriteOptions::new().schema(2),
+        )
+        .await
+        .unwrap();
 }
 
 async fn fixture_with_storage(host: ScopedStorage, served_scope: ScopedStorage) -> Fixture {
@@ -403,24 +438,14 @@ async fn current_only_grant_opens_from_host_ready_current_history_without_legacy
     seed.record_payment(history);
     let _host_hold = seed.reserve(30).unwrap().unwrap();
     let documents = Arc::clone(fixture.host.documents());
-    documents
-        .ensure_collection(&tinystoragedrivers_core::CollectionSpec::new(
-            CURRENT_BUDGETS,
-        ))
-        .await
-        .unwrap();
-    documents
-        .put(
-            CURRENT_BUDGETS,
-            "migration_ready",
-            serde_json::json!({
-                "schema_version": 2,
-                "import_epoch": "x402-payments-jsonl-v1",
-            }),
-            Precondition::Absent,
-        )
-        .await
-        .unwrap();
+    host_write_readiness(
+        &fixture.host,
+        serde_json::json!({
+            "schema_version": 2,
+            "import_epoch": "x402-payments-jsonl-v1",
+        }),
+    )
+    .await;
 
     let configured = fixture
         .wallet
@@ -470,6 +495,83 @@ async fn current_only_grant_opens_from_host_ready_current_history_without_legacy
         .await
         .unwrap();
     fixture.broker.abort();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn current_only_configure_refuses_missing_or_stale_readiness_without_legacy_reads() {
+    let _guard = LEDGER_TEST_LOCK.lock().await;
+    let cases = [
+        ("missing", None, false),
+        (
+            "malformed",
+            Some(serde_json::json!({
+                "schema_version": 2,
+                "import_epoch": 17,
+            })),
+            false,
+        ),
+        (
+            "unknown field",
+            Some(serde_json::json!({
+                "schema_version": 2,
+                "import_epoch": "x402-payments-jsonl-v1",
+                "host_override": true,
+            })),
+            false,
+        ),
+        (
+            "wrong schema",
+            Some(serde_json::json!({
+                "schema_version": 1,
+                "import_epoch": "x402-payments-jsonl-v1",
+            })),
+            false,
+        ),
+        (
+            "wrong import epoch",
+            Some(serde_json::json!({
+                "schema_version": 2,
+                "import_epoch": "x402-payments-jsonl-v0",
+            })),
+            false,
+        ),
+        (
+            "marker in another scope",
+            Some(serde_json::json!({
+                "schema_version": 2,
+                "import_epoch": "x402-payments-jsonl-v1",
+            })),
+            true,
+        ),
+    ];
+
+    for (case, marker, other_scope) in cases {
+        let (fixture, denied, backend) = current_only_fixture_with_backend().await;
+        if let Some(marker) = marker {
+            let marker_scope = if other_scope {
+                backend
+                    .for_scope(&Scope::new("wallet-other-scope").unwrap())
+                    .unwrap()
+            } else {
+                fixture.host.clone()
+            };
+            host_write_readiness(&marker_scope, marker).await;
+        }
+
+        let configured = fixture
+            .wallet
+            .x402_configure(X402ConfigureRequest {
+                config: config("bus-invalid-readiness"),
+            })
+            .await;
+        assert!(configured.is_err(), "{case} readiness must fail closed");
+        assert_eq!(
+            denied.load(Ordering::Relaxed),
+            0,
+            "{case} readiness must fail before probing legacy resources"
+        );
+        fixture.broker.abort();
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -606,7 +708,7 @@ async fn a_failed_reconfigure_keeps_the_previous_service_usable() {
         .callbacks
         .as_ref()
         .unwrap()
-        .set_test_ledger_storage(unreadable_stream_storage());
+        .set_test_ledger_storage(unreadable_stream_storage().await);
     let failed = fixture
         .wallet
         .x402_configure(X402ConfigureRequest {
@@ -768,7 +870,7 @@ async fn concurrent_reservations_over_the_bus_do_not_starve_the_runtime() {
 }
 
 /// Memory storage whose payments stream refuses every read.
-fn unreadable_stream_storage() -> LedgerStorage {
+async fn unreadable_stream_storage() -> LedgerStorage {
     #[derive(Debug)]
     struct NoRead(Arc<dyn StreamStore>);
 
@@ -803,5 +905,24 @@ fn unreadable_stream_storage() -> LedgerStorage {
         .for_scope(&Scope::new("x402-unreadable").unwrap())
         .unwrap();
     let documents: Arc<dyn DocumentStore> = Arc::clone(scoped.documents());
+    documents
+        .ensure_collection(&tinystoragedrivers_core::CollectionSpec::new(
+            CURRENT_BUDGETS,
+        ))
+        .await
+        .unwrap();
+    documents
+        .put_with(
+            CURRENT_BUDGETS,
+            "migration_ready",
+            serde_json::json!({
+                "schema_version": 2,
+                "import_epoch": "x402-payments-jsonl-v1",
+            }),
+            Precondition::Absent,
+            tinystoragedrivers_core::WriteOptions::new().schema(2),
+        )
+        .await
+        .unwrap();
     LedgerStorage::new(documents, Arc::new(NoRead(Arc::clone(scoped.streams()))))
 }
