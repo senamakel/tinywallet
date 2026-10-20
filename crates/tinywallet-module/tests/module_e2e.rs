@@ -581,6 +581,17 @@ async fn reinitialize_wallet_with_descriptor(
         .expect("wallet should reinitialize with its configured storage descriptor");
 }
 
+async fn assert_wallet_b_remains_served(proxy: &tinybus::Proxy) {
+    let still_isolated = configure_x402(proxy, "wallet-other-profile")
+        .await
+        .expect_err("failed descriptor reinitialization must leave the prior bound service");
+    assert_eq!(
+        still_isolated.wire_name(),
+        "ai.tinyhumans.tinywallet.Error.X402OperationFailed"
+    );
+    validates_addresses_inside_the_artifact(proxy).await;
+}
+
 async fn serve_current_storage_and_open_wallet_service(
     fixture: &RestrictedBus,
     backend: Arc<MemoryStorage>,
@@ -657,6 +668,21 @@ async fn serve_current_storage_and_open_wallet_service(
         )
         .await
         .expect("a third test lease should be independently registered");
+    let mut forged_wire = serde_json::to_value(&descriptor_revoked).unwrap();
+    forged_wire["registration_id"] = serde_json::json!(u64::MAX);
+    assert!(
+        fixture
+            .modules
+            .reinitialize(
+                "tinywallet-module",
+                serde_json::json!({"storage_descriptor": forged_wire}),
+            )
+            .await
+            .is_err(),
+        "a malformed route must fail before replacing the live service"
+    );
+    assert_wallet_b_remains_served(&proxy).await;
+
     assert!(registration.revoke(&lease_revoked).await);
     assert!(
         fixture
@@ -669,14 +695,7 @@ async fn serve_current_storage_and_open_wallet_service(
             .is_err(),
         "a revoked descriptor must fail before replacing the live service"
     );
-    let still_isolated = configure_x402(&proxy, "wallet-other-profile")
-        .await
-        .expect_err("failed descriptor reinitialization must leave the prior bound service");
-    assert_eq!(
-        still_isolated.wire_name(),
-        "ai.tinyhumans.tinywallet.Error.X402OperationFailed"
-    );
-    validates_addresses_inside_the_artifact(&proxy).await;
+    assert_wallet_b_remains_served(&proxy).await;
 
     registration.shutdown().await.unwrap();
     drop((lease_a, lease_b, lease_revoked));
