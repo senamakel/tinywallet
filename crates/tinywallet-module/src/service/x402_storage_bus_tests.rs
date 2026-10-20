@@ -652,6 +652,83 @@ async fn current_only_configure_refuses_missing_or_stale_readiness_without_legac
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn current_only_configure_refuses_missing_or_stale_readiness_without_legacy_reads() {
+    let _guard = LEDGER_TEST_LOCK.lock().await;
+    let cases = [
+        ("missing", None, false),
+        (
+            "malformed",
+            Some(serde_json::json!({
+                "schema_version": 2,
+                "import_epoch": 17,
+            })),
+            false,
+        ),
+        (
+            "unknown field",
+            Some(serde_json::json!({
+                "schema_version": 2,
+                "import_epoch": "x402-payments-jsonl-v1",
+                "host_override": true,
+            })),
+            false,
+        ),
+        (
+            "wrong schema",
+            Some(serde_json::json!({
+                "schema_version": 1,
+                "import_epoch": "x402-payments-jsonl-v1",
+            })),
+            false,
+        ),
+        (
+            "wrong import epoch",
+            Some(serde_json::json!({
+                "schema_version": 2,
+                "import_epoch": "x402-payments-jsonl-v0",
+            })),
+            false,
+        ),
+        (
+            "marker in another scope",
+            Some(serde_json::json!({
+                "schema_version": 2,
+                "import_epoch": "x402-payments-jsonl-v1",
+            })),
+            true,
+        ),
+    ];
+
+    for (case, marker, other_scope) in cases {
+        let (fixture, denied, backend) = current_only_fixture_with_backend().await;
+        if let Some(marker) = marker {
+            let marker_scope = if other_scope {
+                backend
+                    .for_scope(&Scope::new("wallet-other-scope").unwrap())
+                    .unwrap()
+            } else {
+                fixture.host.clone()
+            };
+            host_write_readiness(&marker_scope, marker).await;
+        }
+
+        let configured = fixture
+            .wallet
+            .x402_configure(X402ConfigureRequest {
+                config: config("bus-invalid-readiness"),
+            })
+            .await;
+        assert!(configured.is_err(), "{case} readiness must fail closed");
+        assert_eq!(
+            denied.load(Ordering::Relaxed),
+            0,
+            "{case} readiness must fail before probing legacy resources"
+        );
+        fixture.broker.abort();
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn configure_persists_payments_and_budget_holds_on_the_host_storage() {
     let _guard = LEDGER_TEST_LOCK.lock().await;
     let fixture = fixture().await;
