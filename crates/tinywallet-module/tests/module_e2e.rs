@@ -567,6 +567,20 @@ async fn configure_x402(
         .await
 }
 
+async fn reinitialize_wallet_with_descriptor(
+    fixture: &RestrictedBus,
+    descriptor: tinystoragedrivers_busproxy::StorageDescriptor,
+) {
+    fixture
+        .modules
+        .reinitialize(
+            "tinywallet-module",
+            serde_json::json!({"storage_descriptor": descriptor}),
+        )
+        .await
+        .expect("wallet should reinitialize with its configured storage descriptor");
+}
+
 async fn serve_current_storage_and_open_wallet_service(
     fixture: &RestrictedBus,
     backend: Arc<MemoryStorage>,
@@ -594,14 +608,7 @@ async fn serve_current_storage_and_open_wallet_service(
         )
         .await
         .expect("the admitted wallet module should receive its current-only lease");
-    fixture
-        .modules
-        .reinitialize(
-            "tinywallet-module",
-            serde_json::json!({"storage_descriptor": descriptor_a}),
-        )
-        .await
-        .expect("the module should bind its configured descriptor before serving");
+    reinitialize_wallet_with_descriptor(fixture, descriptor_a).await;
 
     let proxy = fixture
         .client
@@ -634,14 +641,7 @@ async fn serve_current_storage_and_open_wallet_service(
         )
         .await
         .expect("one module peer may receive a distinct scope lease");
-    fixture
-        .modules
-        .reinitialize(
-            "tinywallet-module",
-            serde_json::json!({"storage_descriptor": descriptor_b}),
-        )
-        .await
-        .expect("the same module instance should bind the second descriptor");
+    reinitialize_wallet_with_descriptor(fixture, descriptor_b).await;
     let isolated = configure_x402(&proxy, "wallet-other-profile")
         .await
         .expect_err("a second lease must not see the first scope's migration marker");
