@@ -84,6 +84,14 @@ fn declaration_exports_both_steps_and_only_the_wallet_items() {
 }
 
 #[test]
+fn declaration_rejects_a_step_without_an_explicit_wallet_operation_mapping() {
+    let mut schema = tinywallet_x402::ledger::storage_schema();
+    schema.steps[0].id = "unknown-wallet-step";
+
+    assert!(declaration_from_schema(&schema, operation_for_step).is_err());
+}
+
+#[test]
 fn budget_dispatch_reuses_the_schema_closure_and_preserves_metadata() {
     let reply = handler().transform(MigrationPayload::Documents(DocumentsTransformRequest {
         operation: BUDGETS_OPERATION.to_owned(),
@@ -119,6 +127,32 @@ fn budget_dispatch_reuses_the_schema_closure_and_preserves_metadata() {
 }
 
 #[test]
+fn budget_dispatch_rejects_a_malformed_legacy_document() {
+    let reply = handler().transform(MigrationPayload::Documents(DocumentsTransformRequest {
+        operation: BUDGETS_OPERATION.to_owned(),
+        version: OPERATION_VERSION,
+        records: vec![SourceRecord {
+            id: "holds".to_owned(),
+            body: json!({"holds": "not-a-map"}),
+            meta: Meta {
+                schema: 1,
+                created_ms: 11,
+                updated_ms: 13,
+                expires_ms: Some(99),
+            },
+        }],
+    }));
+
+    assert!(matches!(
+        reply,
+        MigrationPayloadReply::Documents(Err(TransformError {
+            kind: TransformErrorKind::InvalidInput,
+            ..
+        }))
+    ));
+}
+
+#[test]
 fn payments_dispatch_filters_unreadable_entries_through_the_schema_closure() {
     let handler = handler();
     let plan = handler.transform(MigrationPayload::StreamPlan(StreamPlanRequest {
@@ -151,6 +185,57 @@ fn payments_dispatch_filters_unreadable_entries_through_the_schema_closure() {
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0]["id"], "pay-1");
     assert_eq!(entries[0]["amount_atomic"], 2500);
+}
+
+#[test]
+fn payments_plan_drops_a_source_outside_the_declared_legacy_stream() {
+    let reply = handler().transform(MigrationPayload::StreamPlan(StreamPlanRequest {
+        operation: PAYMENTS_OPERATION.to_owned(),
+        version: OPERATION_VERSION,
+        source: "unrelated.stream".to_owned(),
+    }));
+
+    assert_eq!(reply, MigrationPayloadReply::StreamPlan(Ok(None)));
+}
+
+#[test]
+fn payments_entries_fail_closed_when_the_schema_has_no_legacy_source() {
+    let mut schema = tinywallet_x402::ledger::storage_schema();
+    schema.steps[1].source = None;
+    let handler = WalletMigrationHandler { schema };
+    let reply = handler.transform(MigrationPayload::StreamEntries(StreamEntriesRequest {
+        operation: PAYMENTS_OPERATION.to_owned(),
+        version: OPERATION_VERSION,
+        entries: vec![v1_payment()],
+    }));
+
+    assert!(matches!(
+        reply,
+        MigrationPayloadReply::StreamEntries(Err(TransformError {
+            kind: TransformErrorKind::UnsupportedOperation,
+            ..
+        }))
+    ));
+}
+
+#[test]
+fn payments_dispatch_fails_closed_if_its_schema_body_is_not_a_stream() {
+    let mut schema = tinywallet_x402::ledger::storage_schema();
+    schema.steps[1].run = schema.steps[0].run.clone();
+    let handler = WalletMigrationHandler { schema };
+    let reply = handler.transform(MigrationPayload::StreamPlan(StreamPlanRequest {
+        operation: PAYMENTS_OPERATION.to_owned(),
+        version: OPERATION_VERSION,
+        source: "x402.payments".to_owned(),
+    }));
+
+    assert!(matches!(
+        reply,
+        MigrationPayloadReply::StreamPlan(Err(TransformError {
+            kind: TransformErrorKind::UnsupportedOperation,
+            ..
+        }))
+    ));
 }
 
 #[test]

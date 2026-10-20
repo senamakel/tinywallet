@@ -248,3 +248,7 @@ fn extract_response<R: serde::de::DeserializeOwned>(
 #[cfg(test)]
 #[path = "host_tests.rs"]
 mod tests;
+
+#[cfg(all(test, feature = "static-link"))]
+#[path = "host_bound_storage_tests.rs"]
+mod bound_storage_tests;
