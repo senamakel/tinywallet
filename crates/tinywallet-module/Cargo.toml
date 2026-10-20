@@ -46,12 +46,12 @@ tinywallet = { path = "../..", default-features = false, features = [
     "abi",
 ] }
 # TinyBus provides the typed service interface and the dynamic module host ABI.
-tinybus = { version = "=0.3.10", git = "https://github.com/tinyhumansai/tinybus", rev = "6b3c5b0cc14b1d07b68055b17a937b11de613efd", default-features = false, features = [
+tinybus = { version = "=0.3.11", git = "https://github.com/tinyhumansai/tinybus", rev = "9e14f65666b11782ec1054aba576114026d180f8", default-features = false, features = [
     "macros",
     "modules",
 ] }
 # The module-side SDK owns its runtime and exports the stable C entrypoints.
-tinybus-module = { version = "=0.3.10", git = "https://github.com/tinyhumansai/tinybus", rev = "6b3c5b0cc14b1d07b68055b17a937b11de613efd" }
+tinybus-module = { version = "=0.3.11", git = "https://github.com/tinyhumansai/tinybus", rev = "9e14f65666b11782ec1054aba576114026d180f8" }
 # The module runtime drives asynchronous host callbacks and serializes service
 # lifecycle changes against in-flight operations.
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
@@ -114,7 +114,7 @@ sha2 = "0.11"
 tempfile = "3"
 # The loader E2E admits the built module from its adjacent digest manifest and
 # uses TinyBus's shared lifecycle helpers.
-tinybus = { version = "=0.3.10", git = "https://github.com/tinyhumansai/tinybus", rev = "6b3c5b0cc14b1d07b68055b17a937b11de613efd", default-features = false, features = [
+tinybus = { version = "=0.3.11", git = "https://github.com/tinyhumansai/tinybus", rev = "9e14f65666b11782ec1054aba576114026d180f8", default-features = false, features = [
     "macros",
     "modules",
     "test-support",
