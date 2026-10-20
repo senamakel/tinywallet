@@ -50,6 +50,7 @@ use tinywallet::wire::{
 use tinywallet::{Chain, key, tx};
 
 mod host;
+mod migration;
 mod native_wallet;
 mod web3;
 mod x402;
@@ -1431,8 +1432,10 @@ fn base64(bytes: &[u8]) -> String {
     out
 }
 
-async fn setup(connection: Connection) -> BusResult<()> {
-    let callbacks = host::HostCallbacks::new(&connection)?;
+async fn setup(context: tinybus_module::ModuleSetupContext) -> BusResult<()> {
+    migration::serve(&context).await?;
+    let connection = context.connection();
+    let callbacks = host::HostCallbacks::new(connection)?;
     let wallet = Wallet {
         callbacks: Some(callbacks.clone()),
         web3: tokio::sync::RwLock::new(None),
@@ -1503,9 +1506,12 @@ fn host_build_failed(message: String) -> BusError {
 )]
 mod exports {
     tinybus_module::module_export_optional_static! {
-        setup = super::setup,
+        setup_with_context = super::setup,
         worker_threads = 2,
-        provides = ["ai.tinyhumans.tinywallet.Wallet"],
+        provides = [
+            "ai.tinyhumans.tinywallet.Wallet",
+            "org.tinystoragedrivers.Migration",
+        ],
         // Hand-maintained, and the compiler cannot check it against the
         // `#[tinybus::interface]` block above — a method missing here is
         // simply not advertised. `the_manifest_advertises_every_method` in
