@@ -37,7 +37,6 @@ pub fn pubkey_to_base58(pubkey: &[u8; 32]) -> String {
 ///
 /// Returns an error if the checked-in program identifier is not a 32-byte
 /// base58 public key.
-#[must_use]
 pub fn token_program_id() -> Result<[u8; 32], String> {
     pubkey_from_base58(TOKEN_PROGRAM_B58)
 }
@@ -48,7 +47,6 @@ pub fn token_program_id() -> Result<[u8; 32], String> {
 ///
 /// Returns an error if a checked-in program identifier is invalid or no
 /// off-curve PDA bump can be found.
-#[must_use]
 pub fn associated_token_address(owner: &[u8; 32], mint: &[u8; 32]) -> Result<[u8; 32], String> {
     let token_program = token_program_id()?;
     let associated_token_program = pubkey_from_base58(ASSOCIATED_TOKEN_PROGRAM_B58)?;
