@@ -18,7 +18,7 @@ use tokio::sync::OnceCell;
 
 pub(crate) const VECTOR: &str = "abandon abandon abandon abandon abandon abandon \
                           abandon abandon abandon abandon abandon about";
-const RELEASE_URL: &str = "https://github.com/tinyhumansai/tinywallet/releases/tag/v0.25.1";
+const RELEASE_URL: &str = "https://github.com/tinyhumansai/tinywallet/releases/tag/v0.25.2";
 
 static RECORD: OnceLock<ReleaseRecord> = OnceLock::new();
 static WRONG_LIBRARY_RECORD: OnceLock<ReleaseRecord> = OnceLock::new();
@@ -307,7 +307,7 @@ pub(crate) fn record(wrong_library_pin: bool) -> &'static ReleaseRecord {
             id: "tinywallet",
             bus_name: tinywallet_bus::BUS_NAME,
             object_path: tinywallet_bus::OBJECT_PATH,
-            version: "0.25.1",
+            version: "0.25.2",
             release_url: RELEASE_URL,
             assets,
         }

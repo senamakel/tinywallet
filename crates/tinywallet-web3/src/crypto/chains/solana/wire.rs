@@ -6,38 +6,13 @@
 //! - <https://docs.solana.com/developing/programming-model/runtime#compact-u16>
 //! - <https://spl.solana.com/token>
 
-use curve25519_dalek::edwards::CompressedEdwardsY;
-use sha2::{Digest, Sha256};
+pub(super) use tinywallet_bus::solana::{
+    associated_token_address as associated_token_account, pubkey_from_base58 as b58_to_pubkey,
+    pubkey_to_base58 as pubkey_to_b58, token_program_id,
+};
 
 /// System Program ID (all zeros).
 pub(super) const SYSTEM_PROGRAM_ID: [u8; 32] = [0u8; 32];
-
-const TOKEN_PROGRAM_B58: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-const ATA_PROGRAM_B58: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
-
-/// The SPL Token program id.
-pub(super) fn token_program_id() -> Result<[u8; 32], String> {
-    b58_to_pubkey(TOKEN_PROGRAM_B58)
-}
-
-/// The Associated Token Account program id.
-fn ata_program_id() -> Result<[u8; 32], String> {
-    b58_to_pubkey(ATA_PROGRAM_B58)
-}
-
-/// Decode a base58 32-byte public key.
-pub(super) fn b58_to_pubkey(addr: &str) -> Result<[u8; 32], String> {
-    let v = bs58::decode(addr)
-        .into_vec()
-        .map_err(|e| format!("invalid base58 '{addr}': {e}"))?;
-    <[u8; 32]>::try_from(v.as_slice())
-        .map_err(|_| format!("expected 32-byte pubkey, got {}", v.len()))
-}
-
-/// Encode a public key as base58.
-pub(super) fn pubkey_to_b58(pubkey: &[u8; 32]) -> String {
-    bs58::encode(pubkey).into_string()
-}
 
 /// Solana compact-u16 (shortvec) encoding.
 pub(super) fn encode_shortvec(value: u16) -> Vec<u8> {
@@ -117,37 +92,6 @@ fn encode_message(
         out.extend(encode_compiled_instruction(ins));
     }
     out
-}
-
-/// Solana `find_program_address`: iterates a bump seed 255..=0, returning the
-/// first off-curve PDA. Used to derive Associated Token Accounts.
-fn find_program_address(seeds: &[&[u8]], program_id: &[u8; 32]) -> Result<[u8; 32], String> {
-    let pda_marker = b"ProgramDerivedAddress";
-    for bump in (0u8..=255).rev() {
-        let mut hasher = Sha256::new();
-        for seed in seeds {
-            hasher.update(seed);
-        }
-        hasher.update([bump]);
-        hasher.update(program_id);
-        hasher.update(pda_marker);
-        let candidate: [u8; 32] = hasher.finalize().into();
-        // Off-curve means it cannot be a public key.
-        if CompressedEdwardsY(candidate).decompress().is_none() {
-            return Ok(candidate);
-        }
-    }
-    Err("no off-curve PDA found".to_string())
-}
-
-/// The Associated Token Account of `owner` for `mint`.
-pub(super) fn associated_token_account(
-    owner: &[u8; 32],
-    mint: &[u8; 32],
-) -> Result<[u8; 32], String> {
-    let token_program = token_program_id()?;
-    let ata_program = ata_program_id()?;
-    find_program_address(&[&owner[..], &token_program[..], &mint[..]], &ata_program)
 }
 
 /// A native SOL transfer message.

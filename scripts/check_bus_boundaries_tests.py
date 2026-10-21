@@ -243,8 +243,38 @@ class StorageContractClosureTests(unittest.TestCase):
                 ("serde", ""),
                 ("serde_json", ""),
                 ("thiserror", ""),
+                ("bs58", ""),
+                ("curve25519-dalek", ""),
+                ("sha2", ""),
+                ("cfg-if", ""),
+                ("subtle", ""),
+                ("rustc_version", ""),
+                ("semver", ""),
+                ("cpufeatures", ""),
+                ("libc", ""),
+                ("digest", ""),
+                ("block-buffer", ""),
+                ("hybrid-array", ""),
+                ("typenum", ""),
+                ("const-oid", ""),
+                ("crypto-common", ""),
             ]),
             [],
+        )
+
+    def test_x86_curve_derive_proc_macro_is_allowed_only_from_registry(self):
+        graph = nested_metadata(
+            "tinywallet-bus",
+            "curve25519-dalek",
+            "curve25519-dalek-derive",
+            boundary.REGISTRY,
+        )
+        self.assertEqual(boundary.audit(graph), [])
+
+        graph["packages"][2]["source"] = "git+https://example.com/derive#deadbeef"
+        self.assertEqual(
+            boundary.audit(graph),
+            ["tinywallet-bus -> curve25519-dalek -> curve25519-dalek-derive"],
         )
 
     def test_storage_feature_rejects_implementation_dependencies(self):

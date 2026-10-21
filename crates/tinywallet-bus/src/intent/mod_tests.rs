@@ -242,72 +242,55 @@ fn native_solana_and_tron_transfers_match_chain_specific_amounts() {
 }
 
 #[test]
-fn native_token_signing_intents_reject_malformed_hex_and_wrong_quote_kinds() {
-    let tron_quote = prepared_quote(
-        "tron-token",
-        WalletChain::Tron,
-        PreparedKind::TokenTransfer,
-        "25",
-        "recipient",
-    );
-    let valid_tron = NativeWalletExecutionIntent::Transaction {
-        transaction: TransactionSpec::Tron {
-            raw_data_hex: "00".into(),
-            expected_to: "recipient".into(),
-            expected_txid: "txid".into(),
-            transfer: TronTransfer::Trc20 {
-                parameter_hex: "deadbeef".into(),
-            },
-        },
-    };
+fn native_token_signing_intents_reject_malformed_bytes_and_mismatched_quote_facts() {
+    let tron_quote = tron_token_quote();
+    let valid_tron = tron_token_intent(TRON_TEST_TOKEN_CONTRACT, TRON_TRC20_PARAMETER);
     assert!(super::native_intent_matches_quote(&tron_quote, &valid_tron));
     for parameter_hex in ["", "abc", "0xgg"] {
-        let malformed = NativeWalletExecutionIntent::Transaction {
-            transaction: TransactionSpec::Tron {
-                raw_data_hex: "00".into(),
-                expected_to: "recipient".into(),
-                expected_txid: "txid".into(),
-                transfer: TronTransfer::Trc20 {
-                    parameter_hex: parameter_hex.into(),
-                },
-            },
-        };
+        let malformed = tron_token_intent(TRON_TEST_TOKEN_CONTRACT, parameter_hex);
         assert!(!super::native_intent_matches_quote(&tron_quote, &malformed));
     }
+    let mut invalid_recipient = tron_quote.clone();
+    invalid_recipient.to_address = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6u".into();
+    assert!(!super::native_intent_matches_quote(
+        &invalid_recipient,
+        &valid_tron
+    ));
+    let mut wrong_contract = tron_quote.clone();
+    wrong_contract.token_address = Some(TRON_RECIPIENT.into());
+    assert!(!super::native_intent_matches_quote(
+        &wrong_contract,
+        &valid_tron
+    ));
+    let mut wrong_tron_chain = tron_quote.clone();
+    wrong_tron_chain.chain = WalletChain::Evm;
+    assert!(!super::native_intent_matches_quote(
+        &wrong_tron_chain,
+        &valid_tron
+    ));
+    let mut wrong_tron_kind = tron_quote.clone();
+    wrong_tron_kind.kind = PreparedKind::NativeTransfer;
+    assert!(!super::native_intent_matches_quote(
+        &wrong_tron_kind,
+        &valid_tron
+    ));
 
-    let solana_token_quote = prepared_quote(
-        "solana-token",
-        WalletChain::Solana,
-        PreparedKind::TokenTransfer,
-        "1",
-        "recipient",
-    );
+    let solana_token_quote = solana_token_quote();
     assert!(super::native_intent_matches_quote(
         &solana_token_quote,
-        &NativeWalletExecutionIntent::SolanaMessage {
-            message_hex: "010203".into(),
-        }
+        &solana_message_intent(SOLANA_SPL_TRANSFER_MESSAGE)
     ));
-    for message_hex in ["", "abc", "01xz"] {
+    for message_hex in ["", "abc", "01xz", "010203"] {
         assert!(!super::native_intent_matches_quote(
             &solana_token_quote,
-            &NativeWalletExecutionIntent::SolanaMessage {
-                message_hex: message_hex.into(),
-            }
+            &solana_message_intent(message_hex)
         ));
     }
-    let wrong_kind = prepared_quote(
-        "solana-native-kind",
-        WalletChain::Solana,
-        PreparedKind::NativeTransfer,
-        "1",
-        "recipient",
-    );
+    let mut wrong_kind = solana_token_quote.clone();
+    wrong_kind.kind = PreparedKind::NativeTransfer;
     assert!(!super::native_intent_matches_quote(
         &wrong_kind,
-        &NativeWalletExecutionIntent::SolanaMessage {
-            message_hex: "010203".into(),
-        }
+        &solana_message_intent(SOLANA_SPL_TRANSFER_MESSAGE)
     ));
 }
 
@@ -603,4 +586,289 @@ fn optional_quote_network_is_checked_only_when_it_is_a_string() {
         web3_evm("ethereum_mainnet", contract, Some("0x01"), "0", 1),
     );
     assert!(super::web3_approval_matches_request(&quote, &request));
+}
+
+const TRON_RECIPIENT: &str = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+const TRON_TEST_TOKEN_CONTRACT: &str = "TLyqzVGLV1srkB7dToTAEqgDSfPtXRJZYH";
+// `encode_trc20_transfer_param(recipient, 12_345)` from the wallet's Tron
+// producer: 12-byte ABI padding, the 20-byte Base58Check payload, then uint128.
+const TRON_TRC20_PARAMETER: &str = "000000000000000000000000a614f803b6fd780986a42c78ec9c7f77e6ded13c0000000000000000000000000000000000000000000000000000000000003039";
+const TRON_OTHER_RECIPIENT_PARAMETER: &str = "00000000000000000000000078c842ee63b253f8f0d2955bbc582c661a078c9d0000000000000000000000000000000000000000000000000000000000003039";
+
+const SOLANA_TOKEN_OWNER: &str = "HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk";
+const SOLANA_TOKEN_RECIPIENT: &str = "Vote111111111111111111111111111111111111111";
+const SOLANA_USDC_MINT: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+const SOLANA_SPL_TOKEN_PROGRAM_HEX: &str =
+    "06ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a9";
+// Golden legacy message emitted by the current producer for the accounts
+// above, amount 1_000_000, and a 32-byte 0x04 blockhash.
+const SOLANA_SPL_TRANSFER_MESSAGE: &str = concat!(
+    "01000104",
+    "f036276246a75b9de3349ed42b15e232f6518fc20f5fcd4f1d64e81f9bd258f7",
+    "40d2f27c461f29e9feba1ab8acd39496a9c65b0ae62a713f01f941a993bf55ed",
+    "a1cec0f53f78e59d435676236c81394f5240e8ff0163683daab51d3680258932",
+    "06ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a9",
+    "0404040404040404040404040404040404040404040404040404040404040404",
+    "010303010200090340420f0000000000"
+);
+
+fn tron_token_quote() -> PreparedTransaction {
+    let mut quote = prepared_quote(
+        "tron-trc20-quote",
+        WalletChain::Tron,
+        PreparedKind::TokenTransfer,
+        "12345",
+        TRON_RECIPIENT,
+    );
+    quote.token_address = Some(TRON_TEST_TOKEN_CONTRACT.into());
+    quote
+}
+
+fn tron_token_intent(expected_to: &str, parameter_hex: &str) -> NativeWalletExecutionIntent {
+    NativeWalletExecutionIntent::Transaction {
+        transaction: TransactionSpec::Tron {
+            raw_data_hex: "00".into(),
+            expected_to: expected_to.into(),
+            expected_txid: "txid".into(),
+            transfer: TronTransfer::Trc20 {
+                parameter_hex: parameter_hex.into(),
+            },
+        },
+    }
+}
+
+fn solana_token_quote() -> PreparedTransaction {
+    let mut quote = prepared_quote(
+        "solana-spl-quote",
+        WalletChain::Solana,
+        PreparedKind::TokenTransfer,
+        "1000000",
+        SOLANA_TOKEN_RECIPIENT,
+    );
+    quote.from_address = SOLANA_TOKEN_OWNER.into();
+    quote.token_address = Some(SOLANA_USDC_MINT.into());
+    quote
+}
+
+fn solana_message_intent(message_hex: &str) -> NativeWalletExecutionIntent {
+    NativeWalletExecutionIntent::SolanaMessage {
+        message_hex: message_hex.into(),
+    }
+}
+
+fn replace_hex_byte(message_hex: &str, byte_offset: usize, replacement: u8) -> String {
+    let start = byte_offset * 2;
+    format!(
+        "{}{:02x}{}",
+        &message_hex[..start],
+        replacement,
+        &message_hex[start + 2..]
+    )
+}
+
+#[test]
+fn native_tron_trc20_intent_binds_contract_recipient_and_raw_amount() {
+    let quote = tron_token_quote();
+    assert_ne!(quote.to_address, quote.token_address.as_deref().unwrap());
+    assert!(super::native_intent_matches_quote(
+        &quote,
+        &tron_token_intent(TRON_TEST_TOKEN_CONTRACT, TRON_TRC20_PARAMETER)
+    ));
+
+    // The transaction pays the token contract; the ABI parameter pays the
+    // quoted recipient. Both facts must agree with the confirmed quote.
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &tron_token_intent(TRON_RECIPIENT, TRON_TRC20_PARAMETER)
+    ));
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &tron_token_intent(TRON_TEST_TOKEN_CONTRACT, TRON_OTHER_RECIPIENT_PARAMETER)
+    ));
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &tron_token_intent(
+            TRON_TEST_TOKEN_CONTRACT,
+            "000000000000000000000000a614f803b6fd780986a42c78ec9c7f77e6ded13c000000000000000000000000000000000000000000000000000000000000303a",
+        )
+    ));
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &tron_token_intent(TRON_RECIPIENT, "not-hex")
+    ));
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &tron_token_intent(TRON_RECIPIENT, &TRON_TRC20_PARAMETER[..124])
+    ));
+
+    let mut wrong_chain = quote.clone();
+    wrong_chain.chain = WalletChain::Evm;
+    assert!(!super::native_intent_matches_quote(
+        &wrong_chain,
+        &tron_token_intent(TRON_RECIPIENT, TRON_TRC20_PARAMETER)
+    ));
+    let mut wrong_kind = quote;
+    wrong_kind.kind = PreparedKind::NativeTransfer;
+    assert!(!super::native_intent_matches_quote(
+        &wrong_kind,
+        &tron_token_intent(TRON_RECIPIENT, TRON_TRC20_PARAMETER)
+    ));
+}
+
+#[test]
+fn native_solana_spl_message_matches_the_quoted_transfer() {
+    let quote = solana_token_quote();
+    assert!(super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(SOLANA_SPL_TRANSFER_MESSAGE)
+    ));
+}
+
+#[test]
+fn native_solana_spl_message_rejects_changed_quote_recipient_amount_and_mint() {
+    let quote = solana_token_quote();
+    let message = SOLANA_SPL_TRANSFER_MESSAGE;
+
+    let mut changed_recipient = quote.clone();
+    changed_recipient.to_address = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM".into();
+    assert!(!super::native_intent_matches_quote(
+        &changed_recipient,
+        &solana_message_intent(message)
+    ));
+
+    let mut changed_amount = quote.clone();
+    changed_amount.amount_raw = "1000001".into();
+    assert!(!super::native_intent_matches_quote(
+        &changed_amount,
+        &solana_message_intent(message)
+    ));
+
+    let mut changed_mint = quote.clone();
+    changed_mint.token_address = Some("So11111111111111111111111111111111111111112".into());
+    assert!(!super::native_intent_matches_quote(
+        &changed_mint,
+        &solana_message_intent(message)
+    ));
+}
+
+#[test]
+fn native_solana_spl_message_rejects_changed_signer_program_and_instruction() {
+    let quote = solana_token_quote();
+    let message = SOLANA_SPL_TRANSFER_MESSAGE;
+    let wrong_signer = message.replacen(
+        "f036276246a75b9de3349ed42b15e232f6518fc20f5fcd4f1d64e81f9bd258f7",
+        "0101010101010101010101010101010101010101010101010101010101010101",
+        1,
+    );
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_signer)
+    ));
+
+    let wrong_source_ata = message.replacen(
+        "40d2f27c461f29e9feba1ab8acd39496a9c65b0ae62a713f01f941a993bf55ed",
+        "0202020202020202020202020202020202020202020202020202020202020202",
+        1,
+    );
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_source_ata)
+    ));
+
+    let wrong_destination_ata = message.replacen(
+        "a1cec0f53f78e59d435676236c81394f5240e8ff0163683daab51d3680258932",
+        "0303030303030303030303030303030303030303030303030303030303030303",
+        1,
+    );
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_destination_ata)
+    ));
+
+    let wrong_token_program = message.replacen(
+        SOLANA_SPL_TOKEN_PROGRAM_HEX,
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        1,
+    );
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_token_program)
+    ));
+
+    let wrong_opcode = message.replacen(
+        "010303010200090340420f0000000000",
+        "010303010200090240420f0000000000",
+        1,
+    );
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_opcode)
+    ));
+
+    let wrong_amount_bytes = message.replacen(
+        "010303010200090340420f0000000000",
+        "010303010200090341420f0000000000",
+        1,
+    );
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_amount_bytes)
+    ));
+
+    let wrong_program_index = message.replacen("0103030102000903", "0102030102000903", 1);
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_program_index)
+    ));
+
+    let wrong_accounts = message.replacen("0103030102000903", "0103030002000903", 1);
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_accounts)
+    ));
+}
+
+#[test]
+fn native_solana_spl_message_rejects_malformed_envelope_and_quote_kinds() {
+    let quote = solana_token_quote();
+    let message = SOLANA_SPL_TRANSFER_MESSAGE;
+    let wrong_header = replace_hex_byte(message, 0, 0);
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_header)
+    ));
+
+    // The instruction count byte follows the header, 4-key vector, and blockhash.
+    let mut extra_instruction = replace_hex_byte(message, 164, 2);
+    extra_instruction.push_str("030000");
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&extra_instruction)
+    ));
+
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&message[..message.len() - 2])
+    ));
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&format!("{message}00"))
+    ));
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent("not-hex")
+    ));
+
+    let mut wrong_chain = quote.clone();
+    wrong_chain.chain = WalletChain::Evm;
+    assert!(!super::native_intent_matches_quote(
+        &wrong_chain,
+        &solana_message_intent(message)
+    ));
+    let mut wrong_kind = quote;
+    wrong_kind.kind = PreparedKind::NativeTransfer;
+    assert!(!super::native_intent_matches_quote(
+        &wrong_kind,
+        &solana_message_intent(message)
+    ));
 }

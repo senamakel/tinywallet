@@ -3,11 +3,14 @@
 The minimal TinyBus contract for TinyWallet: names, version, shared chain
 identifiers, error vocabulary, transfer types, request/result DTOs, and the
 x402 ledger's data-only storage declaration and stored record vocabulary. The
-default and `storage` feature closures contain only serde, serde_json,
-thiserror, and the feature-disabled `tinystoragedrivers-bus` contract. The
-optional `storage` feature exposes the serializable payment record shape and
-resource names; it does not add a schema runner, storage ports, backend,
-client, or transport.
+`storage` feature closure contains only serde, thiserror, and the feature-disabled
+`tinystoragedrivers-bus` contract. The default `wire` feature also enables the
+pure `bs58`, `sha2`, and `curve25519-dalek` codecs used to validate the current
+Solana SPL transfer message and derive public Associated Token Accounts. These
+codecs do not build, sign, or send transactions and do not depend on an
+implementation crate. The optional `storage` feature exposes the serializable
+payment record shape and resource names; it does not add a schema runner,
+storage ports, backend, client, or transport.
 
 The data-only bus contract, including all features, supports Rust 1.85. The
 excluded storage-needs consumer independently checks the published names and
@@ -30,6 +33,11 @@ use a minor package bump before hosts adopt it. The compatibility promise below
 applies to shared vocabulary identity and its wire forms, not removed algorithm
 imports. Implementations re-export `Chain`, `UnknownChain`, `Error`, `Result`, and
 `TronTransfer` from this crate, preserving shared type identity and JSON forms.
+
+The `intent` and `solana` modules validate quote facts against already-built
+wire intents. In particular, the Solana codec recognizes the current legacy SPL
+`Transfer` message shape and derives public Associated Token Accounts; it does
+not construct, sign, or broadcast a transaction.
 
 Host integrations must use module calls and wait for a compatible released
 artifact pinned with its verified digest. They must not replace the removed

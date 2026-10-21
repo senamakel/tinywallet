@@ -22,7 +22,7 @@ static RECORD: ReleaseRecord = ReleaseRecord {
     id: "tinywallet",
     bus_name: tinywallet_bus::BUS_NAME,
     object_path: tinywallet_bus::OBJECT_PATH,
-    version: "0.25.1",
+    version: "0.25.2",
     release_url: "https://example.invalid/tinywallet",
     assets: &[],
 };
@@ -352,7 +352,7 @@ fn strict_record() -> Option<&'static ReleaseRecord> {
                 id: "tinywallet",
                 bus_name: tinywallet_bus::BUS_NAME,
                 object_path: tinywallet_bus::OBJECT_PATH,
-                version: "0.25.1",
+                version: "0.25.2",
                 release_url: "https://example.invalid/tinywallet",
                 assets,
             })

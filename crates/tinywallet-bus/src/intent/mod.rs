@@ -5,6 +5,7 @@
 //! wallet implementation.
 
 use crate::TronTransfer;
+use sha2::{Digest, Sha256};
 
 const HEX: &[u8; 16] = b"0123456789abcdef";
 use crate::wire::{
@@ -16,8 +17,9 @@ use crate::wire::{
 /// transfer quote.
 ///
 /// This pure comparison covers the recipient and amount for each supported
-/// chain, and the transfer calldata for EVM tokens. It does not consume a host
-/// approval or authorize execution.
+/// chain, plus the transfer data for EVM tokens, TRC-20 transfers, and the
+/// current legacy SPL transfer message. It does not consume a host approval
+/// or authorize execution.
 #[must_use]
 pub fn native_intent_matches_quote(
     quote: &PreparedTransaction,
@@ -84,26 +86,57 @@ pub fn native_intent_matches_quote(
                 transfer,
                 ..
             } => {
-                if quote.chain != WalletChain::Tron || expected_to != &quote.to_address {
+                if quote.chain != WalletChain::Tron {
                     return false;
                 }
                 match (quote.kind, transfer) {
                     (PreparedKind::NativeTransfer, TronTransfer::Native { amount_sun }) => {
-                        quote.amount_raw.parse::<u64>().ok() == Some(*amount_sun)
+                        expected_to == &quote.to_address
+                            && quote.amount_raw.parse::<u64>().ok() == Some(*amount_sun)
                     }
                     (PreparedKind::TokenTransfer, TronTransfer::Trc20 { parameter_hex }) => {
-                        valid_hex(parameter_hex)
+                        native_tron_token_intent_matches(quote, expected_to, parameter_hex)
                     }
                     _ => false,
                 }
             }
         },
         NativeWalletExecutionIntent::SolanaMessage { message_hex } => {
-            quote.chain == WalletChain::Solana
-                && quote.kind == PreparedKind::TokenTransfer
-                && valid_hex(message_hex)
+            native_solana_token_intent_matches(quote, message_hex)
         }
     }
+}
+
+fn native_tron_token_intent_matches(
+    quote: &PreparedTransaction,
+    expected_to: &str,
+    parameter_hex: &str,
+) -> bool {
+    quote.token_address.as_deref().is_some_and(|contract| {
+        expected_to == contract
+            && tron_trc20_parameters_match(&quote.to_address, &quote.amount_raw, parameter_hex)
+    })
+}
+
+fn native_solana_token_intent_matches(quote: &PreparedTransaction, message_hex: &str) -> bool {
+    if quote.chain != WalletChain::Solana || quote.kind != PreparedKind::TokenTransfer {
+        return false;
+    }
+    let (Some(mint_address), Some(amount), Some(message)) = (
+        quote.token_address.as_deref(),
+        quote.amount_raw.parse::<u64>().ok(),
+        crate::solana::decode_message_hex(message_hex),
+    ) else {
+        return false;
+    };
+    let (Ok(owner), Ok(recipient), Ok(mint)) = (
+        crate::solana::pubkey_from_base58(&quote.from_address),
+        crate::solana::pubkey_from_base58(&quote.to_address),
+        crate::solana::pubkey_from_base58(mint_address),
+    ) else {
+        return false;
+    };
+    crate::solana::matches_legacy_spl_transfer_message(&message, &owner, &recipient, &mint, amount)
 }
 
 /// Check that a Web3 execution request preserves the operation and transaction
@@ -229,6 +262,44 @@ fn evm_transfer_data_matches(data: &str, recipient: &str, amount: &str) -> bool 
     actual.eq_ignore_ascii_case(&expected)
 }
 
+fn tron_trc20_parameters_match(recipient: &str, amount: &str, parameter_hex: &str) -> bool {
+    if parameter_hex.len() != 128 {
+        return false;
+    }
+    let Some(address) = decode_tron_mainnet_address(recipient) else {
+        return false;
+    };
+    let Ok(amount) = amount.parse::<u128>() else {
+        return false;
+    };
+    let recipient_hex = bytes_to_hex(&address[1..]);
+    let expected = format!("{recipient_hex:0>64}{amount:064x}");
+    parameter_hex.eq_ignore_ascii_case(&expected)
+}
+
+fn decode_tron_mainnet_address(address: &str) -> Option<[u8; 21]> {
+    let decoded = bs58::decode(address).into_vec().ok()?;
+    if decoded.len() != 25 || decoded[0] != 0x41 {
+        return None;
+    }
+    let (payload, checksum) = decoded.split_at(21);
+    let first_hash = Sha256::digest(payload);
+    let second_hash = Sha256::digest(first_hash);
+    if checksum != &second_hash[..4] {
+        return None;
+    }
+    payload.try_into().ok()
+}
+
+fn bytes_to_hex(bytes: &[u8]) -> String {
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
+        encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    encoded
+}
+
 fn decimal_u256_word(decimal: &str) -> Option<String> {
     if decimal.is_empty() || !decimal.bytes().all(|byte| byte.is_ascii_digit()) {
         return None;
@@ -251,10 +322,6 @@ fn decimal_u256_word(decimal: &str) -> Option<String> {
         word.push(char::from(HEX[usize::from(byte & 0x0f)]));
     }
     Some(word)
-}
-
-fn valid_hex(value: &str) -> bool {
-    !value.is_empty() && value.len() % 2 == 0 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 #[cfg(test)]
