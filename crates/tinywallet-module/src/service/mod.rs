@@ -1446,11 +1446,14 @@ async fn setup_with_context(
     let connection = context.connection().clone();
     let callbacks =
         host::HostCallbacks::with_storage_descriptor(&connection, config.storage_descriptor)?;
+    // The host may need the owner's schema while binding governed storage.
+    // Register migration first; this does not acquire storage and still fails
+    // closed if the descriptor cannot be validated below.
+    migration::serve(&context).await?;
     callbacks
         .validate_configured_storage()
         .await
         .map_err(|_| BusError::failed("wallet storage descriptor unavailable"))?;
-    migration::serve(&context).await?;
     setup_with_callbacks(connection, callbacks).await
 }
 
