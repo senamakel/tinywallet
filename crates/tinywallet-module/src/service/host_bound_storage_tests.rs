@@ -378,7 +378,7 @@ async fn initial_bound_storage_validation_can_discover_wallet_migrations()
         .map_err(|_| std::io::Error::other("initial setup lease lock poisoned"))?
         .take()
         .ok_or_else(|| std::io::Error::other("initial setup did not retain its lease"))?;
-    assert!(registration.revoke(lease).await);
+    assert!(registration.revoke(&lease).await);
     let registration = Arc::try_unwrap(registration)
         .map_err(|_| std::io::Error::other("storage registration remained in use"))?;
     registration.shutdown().await?;
