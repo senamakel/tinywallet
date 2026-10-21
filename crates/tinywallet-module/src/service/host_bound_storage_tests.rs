@@ -183,6 +183,7 @@ impl HostContext for MigrationSetupContext {}
 struct MigrationSetupEnvironment {
     backend: Arc<MemoryStorage>,
     require_migration: Arc<AtomicBool>,
+    migration_attempted: Arc<AtomicBool>,
     migration_discovered: Arc<AtomicBool>,
 }
 
@@ -194,6 +195,7 @@ impl Environment<MigrationSetupContext> for MigrationSetupEnvironment {
         _module: &tinybus::module::ModuleId,
     ) -> Result<ResolvedStorage, HostFailure> {
         if self.require_migration.load(Ordering::Acquire) {
+            self.migration_attempted.store(true, Ordering::Release);
             MigrationModuleClient::discover(&context.controller, &context.module_peer)
                 .await
                 .map_err(|_| HostFailure::Denied("wallet-migration-unavailable"))?;
@@ -326,6 +328,7 @@ async fn initial_bound_storage_validation_can_discover_wallet_migrations()
     let host = ModuleHost::new(broker);
     let backend = Arc::new(MemoryStorage::new());
     let require_migration = Arc::new(AtomicBool::new(false));
+    let migration_attempted = Arc::new(AtomicBool::new(false));
     let migration_discovered = Arc::new(AtomicBool::new(false));
     let registration: Arc<MigrationSetupRegistration> = Arc::new(
         tinystoragedrivers_tinybus::attach_storage(
@@ -335,6 +338,7 @@ async fn initial_bound_storage_validation_can_discover_wallet_migrations()
                 Arc::new(MigrationSetupEnvironment {
                     backend,
                     require_migration: Arc::clone(&require_migration),
+                    migration_attempted: Arc::clone(&migration_attempted),
                     migration_discovered: Arc::clone(&migration_discovered),
                 }),
                 Arc::new(MigrationSetupAudit),
@@ -358,7 +362,15 @@ async fn initial_bound_storage_validation_can_discover_wallet_migrations()
         initial_setup_export::linked_module()?,
         serde_json::json!({}),
     )?;
-    host.ensure_ready(info.manifest.bus_name.as_str()).await?;
+    if let Err(error) = host.ensure_ready(info.manifest.bus_name.as_str()).await {
+        return Err(std::io::Error::other(format!(
+            "initial wallet setup failed (migration required: {}, discover attempted: {}, discover succeeded: {}): {error}",
+            require_migration.load(Ordering::Acquire),
+            migration_attempted.load(Ordering::Acquire),
+            migration_discovered.load(Ordering::Acquire),
+        ))
+        .into());
+    }
     assert!(
         migration_discovered.load(Ordering::Acquire),
         "initial bound storage validation must discover GetSchema after the test lease enables it"
