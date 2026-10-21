@@ -14,9 +14,6 @@ use tinybus::{
     transport::memory::{MemoryBus, MemoryTransport},
 };
 use tinystoragedrivers_bus::StorageNeeds;
-use tinystoragedrivers_tinybus::migration::{
-    EXCHANGE_MEMBER, GET_SCHEMA_MEMBER, MIGRATION_INTERFACE, MIGRATION_OBJECT_PATH,
-};
 use tinystoragedrivers_busproxy::{
     AuditEvent, AuditSink, Environment, GovernedEndpointLimits, GovernedStorage, GrantPolicy,
     HostContext, HostFailure, ResolvedStorage, StorageGrant,
@@ -24,6 +21,9 @@ use tinystoragedrivers_busproxy::{
 use tinystoragedrivers_client::StorageServer;
 use tinystoragedrivers_core::{MemoryStorage, Scope, StorageBackend};
 use tinystoragedrivers_tinybus::migration::MigrationModuleClient;
+use tinystoragedrivers_tinybus::migration::{
+    EXCHANGE_MEMBER, GET_SCHEMA_MEMBER, MIGRATION_INTERFACE, MIGRATION_OBJECT_PATH,
+};
 
 struct BoundStorageContext;
 
@@ -86,18 +86,6 @@ async fn selected_linked_wallet_uses_and_caches_its_current_only_ledger_route()
     let controller = Connection::connect(Box::new(controller_transport)).await?;
     let broker_task = broker.spawn(bus.clone());
     let host = ModuleHost::new(broker);
-    host.set_pre_ready_confidential_routes(vec![
-        PreReadyConfidentialRoute {
-            path: ObjectPath::new(MIGRATION_OBJECT_PATH)?,
-            interface: InterfaceName::new(MIGRATION_INTERFACE)?,
-            member: MemberName::new(GET_SCHEMA_MEMBER)?,
-        },
-        PreReadyConfidentialRoute {
-            path: ObjectPath::new(MIGRATION_OBJECT_PATH)?,
-            interface: InterfaceName::new(MIGRATION_INTERFACE)?,
-            member: MemberName::new(EXCHANGE_MEMBER)?,
-        },
-    ])?;
     let backend = Arc::new(MemoryStorage::new());
     let environment = Arc::new(BoundStorageEnvironment {
         backend: Arc::clone(&backend),
@@ -352,6 +340,18 @@ async fn initial_bound_storage_validation_can_discover_wallet_migrations()
     let controller = Connection::connect(Box::new(controller_transport)).await?;
     let broker_task = broker.spawn(bus.clone());
     let host = ModuleHost::new(broker);
+    host.set_pre_ready_confidential_routes(vec![
+        PreReadyConfidentialRoute {
+            path: ObjectPath::new(MIGRATION_OBJECT_PATH)?,
+            interface: InterfaceName::new(MIGRATION_INTERFACE)?,
+            member: MemberName::new(GET_SCHEMA_MEMBER)?,
+        },
+        PreReadyConfidentialRoute {
+            path: ObjectPath::new(MIGRATION_OBJECT_PATH)?,
+            interface: InterfaceName::new(MIGRATION_INTERFACE)?,
+            member: MemberName::new(EXCHANGE_MEMBER)?,
+        },
+    ])?;
     let backend = Arc::new(MemoryStorage::new());
     let require_migration = Arc::new(AtomicBool::new(false));
     let migration_attempted = Arc::new(AtomicBool::new(false));
