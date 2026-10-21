@@ -242,7 +242,7 @@ fn native_solana_and_tron_transfers_match_chain_specific_amounts() {
 }
 
 #[test]
-fn native_token_signing_intents_reject_malformed_bytes_and_wrong_quote_kinds() {
+fn native_token_signing_intents_reject_malformed_bytes_and_mismatched_quote_facts() {
     let tron_quote = tron_token_quote();
     let valid_tron = tron_token_intent(TRON_TEST_TOKEN_CONTRACT, TRON_TRC20_PARAMETER);
     assert!(super::native_intent_matches_quote(&tron_quote, &valid_tron));
@@ -254,6 +254,24 @@ fn native_token_signing_intents_reject_malformed_bytes_and_wrong_quote_kinds() {
     invalid_recipient.to_address = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6u".into();
     assert!(!super::native_intent_matches_quote(
         &invalid_recipient,
+        &valid_tron
+    ));
+    let mut wrong_contract = tron_quote.clone();
+    wrong_contract.token_address = Some(TRON_RECIPIENT.into());
+    assert!(!super::native_intent_matches_quote(
+        &wrong_contract,
+        &valid_tron
+    ));
+    let mut wrong_tron_chain = tron_quote.clone();
+    wrong_tron_chain.chain = WalletChain::Evm;
+    assert!(!super::native_intent_matches_quote(
+        &wrong_tron_chain,
+        &valid_tron
+    ));
+    let mut wrong_tron_kind = tron_quote.clone();
+    wrong_tron_kind.kind = PreparedKind::NativeTransfer;
+    assert!(!super::native_intent_matches_quote(
+        &wrong_tron_kind,
         &valid_tron
     ));
 
