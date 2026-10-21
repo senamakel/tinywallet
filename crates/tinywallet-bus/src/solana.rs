@@ -2,7 +2,7 @@
 //!
 //! These helpers perform no network or wallet operation. They decode public
 //! addresses, derive Associated Token Accounts, and validate the one legacy SPL
-//! transfer message shape currently produced by TinyWallet.
+//! transfer message shape currently produced by `TinyWallet`.
 
 use curve25519_dalek::edwards::CompressedEdwardsY;
 use sha2::{Digest, Sha256};
@@ -12,6 +12,11 @@ const ASSOCIATED_TOKEN_PROGRAM_B58: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTN
 const PDA_MARKER: &[u8] = b"ProgramDerivedAddress";
 
 /// Decode a base58 Solana public key into its 32-byte wire form.
+///
+/// # Errors
+///
+/// Returns an error if the address is invalid base58 or does not decode to
+/// exactly 32 bytes.
 pub fn pubkey_from_base58(address: &str) -> Result<[u8; 32], String> {
     let bytes = bs58::decode(address)
         .into_vec()
@@ -27,11 +32,23 @@ pub fn pubkey_to_base58(pubkey: &[u8; 32]) -> String {
 }
 
 /// Return the canonical SPL Token program public key.
+///
+/// # Errors
+///
+/// Returns an error if the checked-in program identifier is not a 32-byte
+/// base58 public key.
+#[must_use]
 pub fn token_program_id() -> Result<[u8; 32], String> {
     pubkey_from_base58(TOKEN_PROGRAM_B58)
 }
 
 /// Derive the canonical Associated Token Account for `owner` and `mint`.
+///
+/// # Errors
+///
+/// Returns an error if a checked-in program identifier is invalid or no
+/// off-curve PDA bump can be found.
+#[must_use]
 pub fn associated_token_address(owner: &[u8; 32], mint: &[u8; 32]) -> Result<[u8; 32], String> {
     let token_program = token_program_id()?;
     let associated_token_program = pubkey_from_base58(ASSOCIATED_TOKEN_PROGRAM_B58)?;
@@ -42,6 +59,7 @@ pub fn associated_token_address(owner: &[u8; 32], mint: &[u8; 32]) -> Result<[u8
 }
 
 /// Decode hexadecimal serialized message bytes.
+#[must_use]
 pub fn decode_message_hex(value: &str) -> Option<Vec<u8>> {
     if value.is_empty() || value.len() % 2 != 0 {
         return None;

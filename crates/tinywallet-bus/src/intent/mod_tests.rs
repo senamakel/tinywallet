@@ -701,7 +701,7 @@ fn native_solana_spl_message_matches_the_quoted_transfer() {
 }
 
 #[test]
-fn native_solana_spl_message_rejects_changes_to_the_quoted_transfer() {
+fn native_solana_spl_message_rejects_changed_quote_recipient_amount_and_mint() {
     let quote = solana_token_quote();
     let message = SOLANA_SPL_TRANSFER_MESSAGE;
 
@@ -725,7 +725,12 @@ fn native_solana_spl_message_rejects_changes_to_the_quoted_transfer() {
         &changed_mint,
         &solana_message_intent(message)
     ));
+}
 
+#[test]
+fn native_solana_spl_message_rejects_changed_signer_program_and_instruction() {
+    let quote = solana_token_quote();
+    let message = SOLANA_SPL_TRANSFER_MESSAGE;
     let wrong_signer = message.replacen(
         "f036276246a75b9de3349ed42b15e232f6518fc20f5fcd4f1d64e81f9bd258f7",
         "0101010101010101010101010101010101010101010101010101010101010101",
@@ -777,7 +782,12 @@ fn native_solana_spl_message_rejects_changes_to_the_quoted_transfer() {
         &quote,
         &solana_message_intent(&wrong_accounts)
     ));
+}
 
+#[test]
+fn native_solana_spl_message_rejects_malformed_envelope_and_quote_kinds() {
+    let quote = solana_token_quote();
+    let message = SOLANA_SPL_TRANSFER_MESSAGE;
     let wrong_header = replace_hex_byte(message, 0, 0);
     assert!(!super::native_intent_matches_quote(
         &quote,
