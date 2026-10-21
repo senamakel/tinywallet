@@ -355,7 +355,7 @@ async fn initial_bound_storage_validation_can_discover_wallet_migrations()
         Some(InitialSetupFixture {
             registration: Arc::clone(&registration),
             controller: controller.clone(),
-            require_migration,
+            require_migration: Arc::clone(&require_migration),
         });
 
     let info = host.attach_linked_with_config(
