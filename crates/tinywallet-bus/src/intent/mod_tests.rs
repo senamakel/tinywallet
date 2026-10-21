@@ -654,34 +654,34 @@ fn native_tron_trc20_intent_binds_contract_recipient_and_raw_amount() {
     ));
     assert!(!super::native_intent_matches_quote(
         &quote,
-        &tron_token_intent(TRON_TEST_TOKEN_CONTRACT, TRON_OTHER_RECIPIENT_PARAMETER)
+        &tron_token_intent(TRON_TRON_USDT_RECIPIENT, TRON_OTHER_RECIPIENT_PARAMETER)
     ));
     assert!(!super::native_intent_matches_quote(
         &quote,
         &tron_token_intent(
-            TRON_TEST_TOKEN_CONTRACT,
+            TRON_TRON_USDT_RECIPIENT,
             "000000000000000000000000a614f803b6fd780986a42c78ec9c7f77e6ded13c000000000000000000000000000000000000000000000000000000000000303a",
         )
     ));
     assert!(!super::native_intent_matches_quote(
         &quote,
-        &tron_token_intent(TRON_TEST_TOKEN_CONTRACT, "not-hex")
+        &tron_token_intent(TRON_TRON_USDT_RECIPIENT, "not-hex")
     ));
     assert!(!super::native_intent_matches_quote(
         &quote,
-        &tron_token_intent(TRON_TEST_TOKEN_CONTRACT, &TRON_TRC20_PARAMETER[..124])
+        &tron_token_intent(TRON_TRON_USDT_RECIPIENT, &TRON_TRC20_PARAMETER[..124])
     ));
 
     let mut wrong_chain = quote.clone();
     wrong_chain.chain = WalletChain::Evm;
     assert!(!super::native_intent_matches_quote(
         &wrong_chain,
-        &tron_token_intent(TRON_TEST_TOKEN_CONTRACT, TRON_TRC20_PARAMETER)
+        &tron_token_intent(TRON_TRON_USDT_RECIPIENT, TRON_TRC20_PARAMETER)
     ));
     let mut wrong_kind = quote;
     wrong_kind.kind = PreparedKind::NativeTransfer;
     assert!(!super::native_intent_matches_quote(
         &wrong_kind,
-        &tron_token_intent(TRON_TEST_TOKEN_CONTRACT, TRON_TRC20_PARAMETER)
+        &tron_token_intent(TRON_TRON_USDT_RECIPIENT, TRON_TRC20_PARAMETER)
     ));
 }
