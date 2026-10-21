@@ -56,7 +56,7 @@ resolver = "3"
 [workspace.dependencies]
 # Typed host calls use the published strict attestation API. The client needs
 # no loader or transport features; its host supplies those features.
-tinybus = { version = "=0.3.11", git = "https://github.com/tinyhumansai/tinybus", rev = "9e14f65666b11782ec1054aba576114026d180f8", default-features = false }
+tinybus = { version = "=0.3.12", git = "https://github.com/tinyhumansai/tinybus", rev = "34d3bd6dda099e54cee11a2f96f28a21da9e0759", default-features = false }
 # The shared agent `Tool` trait, for the `tools` features of `tinywallet-x402`
 # and `tinywallet-web3`. A git source rather than a path on purpose, matching
 # tinymcp: a host that already links tinytools (OpenHuman, through
@@ -259,6 +259,16 @@ workspace = true
 # tinystoragedrivers names tinybus by git rev; point that source at the vendored
 # checkout so the module and the storage client share one `Connection` type.
 [patch."https://github.com/tinyhumansai/tinybus"]
+tinybus = { path = "vendor/tinybus/crates/tinybus" }
+tinybus-module = { path = "vendor/tinybus/crates/tinybus-module" }
+tinybus-macros = { path = "vendor/tinybus/crates/tinybus-macros" }
+
+[patch."https://github.com/tinyhumansai/tinybus?rev=34d3bd6dda099e54cee11a2f96f28a21da9e0759"]
+tinybus = { path = "vendor/tinybus/crates/tinybus" }
+tinybus-module = { path = "vendor/tinybus/crates/tinybus-module" }
+tinybus-macros = { path = "vendor/tinybus/crates/tinybus-macros" }
+
+[patch."https://github.com/tinyhumansai/tinybus?rev=6b3c5b0cc14b1d07b68055b17a937b11de613efd"]
 tinybus = { path = "vendor/tinybus/crates/tinybus" }
 tinybus-module = { path = "vendor/tinybus/crates/tinybus-module" }
 tinybus-macros = { path = "vendor/tinybus/crates/tinybus-macros" }
