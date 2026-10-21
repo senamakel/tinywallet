@@ -9,6 +9,13 @@ ALLOWED = {
     "serde", "serde_core", "serde_derive", "serde_json", "thiserror",
     "thiserror-impl", "proc-macro2", "quote", "syn", "unicode-ident",
     "itoa", "memchr", "zmij",
+    # The wire feature's transport-free public-address/message codecs.
+    # Keep this exact closure small; implementation and signing crates remain
+    # forbidden below.
+    "bs58", "curve25519-dalek", "sha2", "cfg-if", "subtle",
+    "rustc_version", "semver", "cpufeatures", "libc", "digest",
+    "block-buffer", "hybrid-array", "typenum", "const-oid",
+    "crypto-common",
 }
 REGISTRY = "registry+https://github.com/rust-lang/crates.io-index"
 TSD_BUS = "tinystoragedrivers-bus"
@@ -27,7 +34,7 @@ TSD_BUS_TREE_SOURCES = {
 
 # The optional `storage` feature exposes only wallet storage names and stored
 # record vocabulary. It must not add an implementation/runtime dependency to
-# the data-only bus closure.
+# the bus's wire-codec closure.
 STORAGE_FEATURE = "storage"
 
 # Chain, key and crypto implementations never enter the bus closure, not even
