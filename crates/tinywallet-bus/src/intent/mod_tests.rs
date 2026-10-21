@@ -250,6 +250,12 @@ fn native_token_signing_intents_reject_malformed_bytes_and_wrong_quote_kinds() {
         let malformed = tron_token_intent(TRON_TEST_TOKEN_CONTRACT, parameter_hex);
         assert!(!super::native_intent_matches_quote(&tron_quote, &malformed));
     }
+    let mut invalid_recipient = tron_quote.clone();
+    invalid_recipient.to_address = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6u".into();
+    assert!(!super::native_intent_matches_quote(
+        &invalid_recipient,
+        &valid_tron
+    ));
 
     let solana_token_quote = solana_token_quote();
     assert!(super::native_intent_matches_quote(

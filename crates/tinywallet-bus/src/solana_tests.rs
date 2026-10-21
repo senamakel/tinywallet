@@ -47,7 +47,7 @@ fn associated_token_addresses_match_the_canonical_program_derivation() {
 }
 
 #[test]
-fn message_hex_decoder_accepts_case_and_prefix_but_rejects_malformed_input() {
+fn message_hex_decoder_accepts_case_but_rejects_prefixes_and_malformed_input() {
     assert_eq!(decode_message_hex("00aF"), Some(vec![0, 0xaf]));
     assert_eq!(decode_message_hex("0x00aF"), None);
     assert_eq!(decode_message_hex(""), None);

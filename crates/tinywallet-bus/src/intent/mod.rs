@@ -5,6 +5,7 @@
 //! wallet implementation.
 
 use crate::TronTransfer;
+use sha2::{Digest, Sha256};
 
 const HEX: &[u8; 16] = b"0123456789abcdef";
 use crate::wire::{
@@ -265,18 +266,29 @@ fn tron_trc20_parameters_match(recipient: &str, amount: &str, parameter_hex: &st
     if parameter_hex.len() != 128 {
         return false;
     }
-    let Ok(address) = bs58::decode(recipient).with_check(Some(0x41)).into_vec() else {
+    let Some(address) = decode_tron_mainnet_address(recipient) else {
         return false;
     };
-    if address.len() != 21 || address[0] != 0x41 {
-        return false;
-    }
     let Ok(amount) = amount.parse::<u128>() else {
         return false;
     };
     let recipient_hex = bytes_to_hex(&address[1..]);
     let expected = format!("{recipient_hex:0>64}{amount:064x}");
     parameter_hex.eq_ignore_ascii_case(&expected)
+}
+
+fn decode_tron_mainnet_address(address: &str) -> Option<[u8; 21]> {
+    let decoded = bs58::decode(address).into_vec().ok()?;
+    if decoded.len() != 25 || decoded[0] != 0x41 {
+        return None;
+    }
+    let (payload, checksum) = decoded.split_at(21);
+    let first_hash = Sha256::digest(payload);
+    let second_hash = Sha256::digest(first_hash);
+    if checksum != &second_hash[..4] {
+        return None;
+    }
+    payload.try_into().ok()
 }
 
 fn bytes_to_hex(bytes: &[u8]) -> String {
