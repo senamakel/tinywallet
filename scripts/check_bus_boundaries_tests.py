@@ -262,6 +262,21 @@ class StorageContractClosureTests(unittest.TestCase):
             [],
         )
 
+    def test_x86_curve_derive_proc_macro_is_allowed_only_from_registry(self):
+        graph = nested_metadata(
+            "tinywallet-bus",
+            "curve25519-dalek",
+            "curve25519-dalek-derive",
+            boundary.REGISTRY,
+        )
+        self.assertEqual(boundary.audit(graph), [])
+
+        graph["packages"][2]["source"] = "git+https://example.com/derive#deadbeef"
+        self.assertEqual(
+            boundary.audit(graph),
+            ["tinywallet-bus -> curve25519-dalek -> curve25519-dalek-derive"],
+        )
+
     def test_storage_feature_rejects_implementation_dependencies(self):
         path = ("tinywallet-crypto", "/work/crates/tinywallet-crypto")
         self.assertEqual(len(boundary.audit_tree([path])), 1)
