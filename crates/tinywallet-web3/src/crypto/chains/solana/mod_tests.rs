@@ -7,9 +7,12 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as B64;
 use ed25519_dalek::Verifier as _;
 use serde_json::{Value, json};
-use tinywallet_bus::wire::{Signature, TransactionSpec};
+use tinywallet_bus::wire::{NativeWalletExecutionIntent, Signature, TransactionSpec};
 
-use super::wire::{b58_to_pubkey, encode_shortvec, token_program_id};
+use super::wire::{
+    associated_token_account, b58_to_pubkey, build_spl_transfer_message, encode_shortvec,
+    token_program_id,
+};
 use super::{
     execute_solana_quote, lookup_tx, native_balance, sign_and_broadcast_versioned, tx_receipt,
     tx_status, validate_solana_address,
@@ -43,6 +46,26 @@ fn sol_quote(kind: PreparedKind) -> crate::crypto::execution::PreparedTransactio
         quote.amount_raw = "1000000".to_string();
     }
     quote
+}
+
+#[test]
+fn current_spl_transfer_producer_output_matches_the_published_host_intent_checker() {
+    let quote = sol_quote(PreparedKind::TokenTransfer);
+    let owner = b58_to_pubkey(&quote.from_address).unwrap();
+    let recipient = b58_to_pubkey(&quote.to_address).unwrap();
+    let mint = b58_to_pubkey(quote.token_address.as_deref().unwrap()).unwrap();
+    let source_ata = associated_token_account(&owner, &mint).unwrap();
+    let destination_ata = associated_token_account(&recipient, &mint).unwrap();
+    let amount = quote.amount_raw.parse::<u64>().unwrap();
+    let message =
+        build_spl_transfer_message(owner, source_ata, destination_ata, amount, [4; 32]).unwrap();
+    let intent = NativeWalletExecutionIntent::SolanaMessage {
+        message_hex: hex::encode(message),
+    };
+
+    assert!(tinywallet_bus::intent::native_intent_matches_quote(
+        &quote, &intent
+    ));
 }
 
 /// The wire transaction the engine passed to `sendTransaction`.
