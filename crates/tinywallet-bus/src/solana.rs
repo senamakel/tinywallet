@@ -173,3 +173,7 @@ fn hex_nibble(byte: u8) -> Option<u8> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+#[path = "solana_tests.rs"]
+mod tests;
