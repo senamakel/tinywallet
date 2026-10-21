@@ -16,8 +16,9 @@ use crate::wire::{
 /// transfer quote.
 ///
 /// This pure comparison covers the recipient and amount for each supported
-/// chain, and the transfer calldata for EVM tokens. It does not consume a host
-/// approval or authorize execution.
+/// chain, plus the transfer data for EVM tokens, TRC-20 transfers, and the
+/// current legacy SPL transfer message. It does not consume a host approval
+/// or authorize execution.
 #[must_use]
 pub fn native_intent_matches_quote(
     quote: &PreparedTransaction,
@@ -93,42 +94,48 @@ pub fn native_intent_matches_quote(
                             && quote.amount_raw.parse::<u64>().ok() == Some(*amount_sun)
                     }
                     (PreparedKind::TokenTransfer, TronTransfer::Trc20 { parameter_hex }) => {
-                        quote.token_address.as_deref().is_some_and(|contract| {
-                            expected_to == contract
-                                && tron_trc20_parameters_match(
-                                    &quote.to_address,
-                                    &quote.amount_raw,
-                                    parameter_hex,
-                                )
-                        })
+                        native_tron_token_intent_matches(quote, expected_to, parameter_hex)
                     }
                     _ => false,
                 }
             }
         },
         NativeWalletExecutionIntent::SolanaMessage { message_hex } => {
-            if quote.chain != WalletChain::Solana || quote.kind != PreparedKind::TokenTransfer {
-                return false;
-            }
-            let (Some(mint_address), Some(amount), Some(message)) = (
-                quote.token_address.as_deref(),
-                quote.amount_raw.parse::<u64>().ok(),
-                crate::solana::decode_message_hex(message_hex),
-            ) else {
-                return false;
-            };
-            let (Ok(owner), Ok(recipient), Ok(mint)) = (
-                crate::solana::pubkey_from_base58(&quote.from_address),
-                crate::solana::pubkey_from_base58(&quote.to_address),
-                crate::solana::pubkey_from_base58(mint_address),
-            ) else {
-                return false;
-            };
-            crate::solana::matches_legacy_spl_transfer_message(
-                &message, &owner, &recipient, &mint, amount,
-            )
+            native_solana_token_intent_matches(quote, message_hex)
         }
     }
+}
+
+fn native_tron_token_intent_matches(
+    quote: &PreparedTransaction,
+    expected_to: &str,
+    parameter_hex: &str,
+) -> bool {
+    quote.token_address.as_deref().is_some_and(|contract| {
+        expected_to == contract
+            && tron_trc20_parameters_match(&quote.to_address, &quote.amount_raw, parameter_hex)
+    })
+}
+
+fn native_solana_token_intent_matches(quote: &PreparedTransaction, message_hex: &str) -> bool {
+    if quote.chain != WalletChain::Solana || quote.kind != PreparedKind::TokenTransfer {
+        return false;
+    }
+    let (Some(mint_address), Some(amount), Some(message)) = (
+        quote.token_address.as_deref(),
+        quote.amount_raw.parse::<u64>().ok(),
+        crate::solana::decode_message_hex(message_hex),
+    ) else {
+        return false;
+    };
+    let (Ok(owner), Ok(recipient), Ok(mint)) = (
+        crate::solana::pubkey_from_base58(&quote.from_address),
+        crate::solana::pubkey_from_base58(&quote.to_address),
+        crate::solana::pubkey_from_base58(mint_address),
+    ) else {
+        return false;
+    };
+    crate::solana::matches_legacy_spl_transfer_message(&message, &owner, &recipient, &mint, amount)
 }
 
 /// Check that a Web3 execution request preserves the operation and transaction
@@ -268,7 +275,7 @@ fn tron_trc20_parameters_match(recipient: &str, amount: &str, parameter_hex: &st
         return false;
     };
     let recipient_hex = bytes_to_hex(&address[1..]);
-    let expected = format!("{:0>64}{amount:064x}", recipient_hex);
+    let expected = format!("{recipient_hex:0>64}{amount:064x}");
     parameter_hex.eq_ignore_ascii_case(&expected)
 }
 
