@@ -23,6 +23,8 @@
 
 #[cfg(feature = "wire")]
 pub mod intent;
+#[cfg(feature = "wire")]
+pub mod solana;
 pub mod mnemonic;
 pub mod names;
 #[cfg(feature = "storage")]

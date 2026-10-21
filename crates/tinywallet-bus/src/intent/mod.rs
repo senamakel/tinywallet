@@ -84,24 +84,53 @@ pub fn native_intent_matches_quote(
                 transfer,
                 ..
             } => {
-                if quote.chain != WalletChain::Tron || expected_to != &quote.to_address {
+                if quote.chain != WalletChain::Tron {
                     return false;
                 }
                 match (quote.kind, transfer) {
                     (PreparedKind::NativeTransfer, TronTransfer::Native { amount_sun }) => {
-                        quote.amount_raw.parse::<u64>().ok() == Some(*amount_sun)
+                        expected_to == &quote.to_address
+                            && quote.amount_raw.parse::<u64>().ok() == Some(*amount_sun)
                     }
                     (PreparedKind::TokenTransfer, TronTransfer::Trc20 { parameter_hex }) => {
-                        valid_hex(parameter_hex)
+                        quote.token_address.as_deref().is_some_and(|contract| {
+                            expected_to == contract
+                                && tron_trc20_parameters_match(
+                                    &quote.to_address,
+                                    &quote.amount_raw,
+                                    parameter_hex,
+                                )
+                        })
                     }
                     _ => false,
                 }
             }
         },
         NativeWalletExecutionIntent::SolanaMessage { message_hex } => {
-            quote.chain == WalletChain::Solana
-                && quote.kind == PreparedKind::TokenTransfer
-                && valid_hex(message_hex)
+            if quote.chain != WalletChain::Solana || quote.kind != PreparedKind::TokenTransfer {
+                return false;
+            }
+            let (Some(mint_address), Some(amount), Some(message)) = (
+                quote.token_address.as_deref(),
+                quote.amount_raw.parse::<u64>().ok(),
+                crate::solana::decode_message_hex(message_hex),
+            ) else {
+                return false;
+            };
+            let (Ok(owner), Ok(recipient), Ok(mint)) = (
+                crate::solana::pubkey_from_base58(&quote.from_address),
+                crate::solana::pubkey_from_base58(&quote.to_address),
+                crate::solana::pubkey_from_base58(mint_address),
+            ) else {
+                return false;
+            };
+            crate::solana::matches_legacy_spl_transfer_message(
+                &message,
+                &owner,
+                &recipient,
+                &mint,
+                amount,
+            )
         }
     }
 }
@@ -227,6 +256,36 @@ fn evm_transfer_data_matches(data: &str, recipient: &str, amount: &str) -> bool 
         .or_else(|| data.strip_prefix("0X"))
         .unwrap_or(data);
     actual.eq_ignore_ascii_case(&expected)
+}
+
+fn tron_trc20_parameters_match(recipient: &str, amount: &str, parameter_hex: &str) -> bool {
+    if parameter_hex.len() != 128 {
+        return false;
+    }
+    let Ok(address) = bs58::decode(recipient)
+        .with_check(Some(0x41))
+        .into_vec()
+    else {
+        return false;
+    };
+    if address.len() != 21 || address[0] != 0x41 {
+        return false;
+    }
+    let Ok(amount) = amount.parse::<u128>() else {
+        return false;
+    };
+    let recipient_hex = bytes_to_hex(&address[1..]);
+    let expected = format!("{:0>64}{amount:064x}", recipient_hex);
+    parameter_hex.eq_ignore_ascii_case(&expected)
+}
+
+fn bytes_to_hex(bytes: &[u8]) -> String {
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
+        encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    encoded
 }
 
 fn decimal_u256_word(decimal: &str) -> Option<String> {
