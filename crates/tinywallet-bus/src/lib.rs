@@ -19,8 +19,9 @@
 //! x402 execution remain in implementation crates and are not re-exported.
 //! Implementations re-export this vocabulary for source compatibility.
 //!
-//! The `serde` feature derives wire serialization; `wire` enables call DTOs.
-//! Legacy feature names remain accepted but never enable implementation code.
+//! The `serde` feature derives wire serialization; `wire` enables call DTOs and
+//! the pure address/message codecs used by native-intent verification. Legacy
+//! feature names remain accepted but never enable implementation code.
 
 #[cfg(feature = "wire")]
 pub mod intent;
