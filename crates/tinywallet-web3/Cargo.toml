@@ -48,17 +48,8 @@ log = "0.4"
 # Hex for the Tron hex-address form, Solana transaction blobs and signature
 # bytes, and EVM calldata.
 hex = "0.4"
-# Base58 for Solana public keys and the blockhash TronGrid-style APIs return.
-bs58 = "0.5"
 # Base64 for the Solana `sendTransaction` payload.
 base64 = "0.23"
-# SHA-256 for the Solana program-derived-address search that names an
-# Associated Token Account.
-sha2 = "0.11"
-# Ed25519 point decompression: a program-derived address must be *off* the
-# curve, and this is the only place that check is needed. Default features off
-# and only `alloc`, so no signing code comes with it.
-curve25519-dalek = { version = "5", default-features = false, features = ["alloc"] }
 # The per-engine quote stores are shared across async tasks. `parking_lot`
 # guards return directly (no poisoning), which keeps `unwrap` out of library
 # code, and it is already in every OpenHuman graph.
@@ -75,6 +66,9 @@ tinywallet = { path = "../..", default-features = false, features = ["key", "btc
 # `FakeSigner` signs Solana messages for real, so tests can verify that the
 # bytes the engine broadcasts carry a valid ed25519 signature.
 ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+# Public-key codecs and off-curve PDA checks are used by the wire fixtures.
+bs58 = { version = "0.5", features = ["check"] }
+curve25519-dalek = { version = "5", default-features = false, features = ["alloc"] }
 
 [features]
 default = []
