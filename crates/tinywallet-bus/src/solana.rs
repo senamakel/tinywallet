@@ -32,10 +32,7 @@ pub fn token_program_id() -> Result<[u8; 32], String> {
 }
 
 /// Derive the canonical Associated Token Account for `owner` and `mint`.
-pub fn associated_token_address(
-    owner: &[u8; 32],
-    mint: &[u8; 32],
-) -> Result<[u8; 32], String> {
+pub fn associated_token_address(owner: &[u8; 32], mint: &[u8; 32]) -> Result<[u8; 32], String> {
     let token_program = token_program_id()?;
     let associated_token_program = pubkey_from_base58(ASSOCIATED_TOKEN_PROGRAM_B58)?;
     find_program_address(
@@ -44,14 +41,9 @@ pub fn associated_token_address(
     )
 }
 
-/// Decode hexadecimal serialized message bytes. An optional `0x` prefix is
-/// accepted because the host wire type historically permits it.
+/// Decode hexadecimal serialized message bytes.
 pub fn decode_message_hex(value: &str) -> Option<Vec<u8>> {
-    let value = value
-        .strip_prefix("0x")
-        .or_else(|| value.strip_prefix("0X"))
-        .unwrap_or(value);
-    if value.is_empty() || !value.len().is_multiple_of(2) {
+    if value.is_empty() || value.len() % 2 != 0 {
         return None;
     }
 
@@ -128,9 +120,10 @@ pub fn matches_legacy_spl_transfer_message(
     let Some(instruction) = take_array::<9>(message, &mut cursor) else {
         return false;
     };
-    instruction[0] == 3
-        && u64::from_le_bytes(instruction[1..].try_into().unwrap_or_default()) == amount
-        && cursor == message.len()
+    let Ok(amount_bytes) = <[u8; 8]>::try_from(&instruction[1..]) else {
+        return false;
+    };
+    instruction[0] == 3 && u64::from_le_bytes(amount_bytes) == amount && cursor == message.len()
 }
 
 fn find_program_address(seeds: &[&[u8]], program_id: &[u8; 32]) -> Result<[u8; 32], String> {

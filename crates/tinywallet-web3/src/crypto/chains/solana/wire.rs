@@ -7,10 +7,8 @@
 //! - <https://spl.solana.com/token>
 
 pub(super) use tinywallet_bus::solana::{
-    associated_token_address as associated_token_account,
-    pubkey_from_base58 as b58_to_pubkey,
-    pubkey_to_base58 as pubkey_to_b58,
-    token_program_id,
+    associated_token_address as associated_token_account, pubkey_from_base58 as b58_to_pubkey,
+    pubkey_to_base58 as pubkey_to_b58, token_program_id,
 };
 
 /// System Program ID (all zeros).

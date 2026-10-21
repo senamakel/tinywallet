@@ -125,11 +125,7 @@ pub fn native_intent_matches_quote(
                 return false;
             };
             crate::solana::matches_legacy_spl_transfer_message(
-                &message,
-                &owner,
-                &recipient,
-                &mint,
-                amount,
+                &message, &owner, &recipient, &mint, amount,
             )
         }
     }
@@ -262,10 +258,7 @@ fn tron_trc20_parameters_match(recipient: &str, amount: &str, parameter_hex: &st
     if parameter_hex.len() != 128 {
         return false;
     }
-    let Ok(address) = bs58::decode(recipient)
-        .with_check(Some(0x41))
-        .into_vec()
-    else {
+    let Ok(address) = bs58::decode(recipient).with_check(Some(0x41)).into_vec() else {
         return false;
     };
     if address.len() != 21 || address[0] != 0x41 {

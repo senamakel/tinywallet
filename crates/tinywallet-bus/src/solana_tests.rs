@@ -19,7 +19,11 @@ fn public_keys_round_trip_through_base58() {
         pubkey_from_base58("tooShort").unwrap_err(),
         "expected 32-byte pubkey, got 6"
     );
-    assert!(pubkey_from_base58("0OIl").unwrap_err().starts_with("invalid base58"));
+    assert!(
+        pubkey_from_base58("0OIl")
+            .unwrap_err()
+            .starts_with("invalid base58")
+    );
 }
 
 #[test]
@@ -44,7 +48,8 @@ fn associated_token_addresses_match_the_canonical_program_derivation() {
 
 #[test]
 fn message_hex_decoder_accepts_case_and_prefix_but_rejects_malformed_input() {
-    assert_eq!(decode_message_hex("0x00aF"), Some(vec![0, 0xaf]));
+    assert_eq!(decode_message_hex("00aF"), Some(vec![0, 0xaf]));
+    assert_eq!(decode_message_hex("0x00aF"), None);
     assert_eq!(decode_message_hex(""), None);
     assert_eq!(decode_message_hex("0"), None);
     assert_eq!(decode_message_hex("zz"), None);
@@ -56,6 +61,10 @@ fn legacy_spl_transfer_validator_rejects_unrelated_message_bytes() {
     let recipient = pubkey_from_base58(RECIPIENT).unwrap();
     let mint = pubkey_from_base58(USDC_MINT).unwrap();
     assert!(!matches_legacy_spl_transfer_message(
-        &[], &owner, &recipient, &mint, 1_000_000
+        &[],
+        &owner,
+        &recipient,
+        &mint,
+        1_000_000
     ));
 }
