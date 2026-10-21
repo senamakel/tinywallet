@@ -242,72 +242,31 @@ fn native_solana_and_tron_transfers_match_chain_specific_amounts() {
 }
 
 #[test]
-fn native_token_signing_intents_reject_malformed_hex_and_wrong_quote_kinds() {
-    let tron_quote = prepared_quote(
-        "tron-token",
-        WalletChain::Tron,
-        PreparedKind::TokenTransfer,
-        "25",
-        "recipient",
-    );
-    let valid_tron = NativeWalletExecutionIntent::Transaction {
-        transaction: TransactionSpec::Tron {
-            raw_data_hex: "00".into(),
-            expected_to: "recipient".into(),
-            expected_txid: "txid".into(),
-            transfer: TronTransfer::Trc20 {
-                parameter_hex: "deadbeef".into(),
-            },
-        },
-    };
+fn native_token_signing_intents_reject_malformed_bytes_and_wrong_quote_kinds() {
+    let tron_quote = tron_token_quote();
+    let valid_tron = tron_token_intent(TRON_TEST_TOKEN_CONTRACT, TRON_TRC20_PARAMETER);
     assert!(super::native_intent_matches_quote(&tron_quote, &valid_tron));
     for parameter_hex in ["", "abc", "0xgg"] {
-        let malformed = NativeWalletExecutionIntent::Transaction {
-            transaction: TransactionSpec::Tron {
-                raw_data_hex: "00".into(),
-                expected_to: "recipient".into(),
-                expected_txid: "txid".into(),
-                transfer: TronTransfer::Trc20 {
-                    parameter_hex: parameter_hex.into(),
-                },
-            },
-        };
+        let malformed = tron_token_intent(TRON_TEST_TOKEN_CONTRACT, parameter_hex);
         assert!(!super::native_intent_matches_quote(&tron_quote, &malformed));
     }
 
-    let solana_token_quote = prepared_quote(
-        "solana-token",
-        WalletChain::Solana,
-        PreparedKind::TokenTransfer,
-        "1",
-        "recipient",
-    );
+    let solana_token_quote = solana_token_quote();
     assert!(super::native_intent_matches_quote(
         &solana_token_quote,
-        &NativeWalletExecutionIntent::SolanaMessage {
-            message_hex: "010203".into(),
-        }
+        &solana_message_intent(SOLANA_SPL_TRANSFER_MESSAGE)
     ));
-    for message_hex in ["", "abc", "01xz"] {
+    for message_hex in ["", "abc", "01xz", "010203"] {
         assert!(!super::native_intent_matches_quote(
             &solana_token_quote,
-            &NativeWalletExecutionIntent::SolanaMessage {
-                message_hex: message_hex.into(),
-            }
+            &solana_message_intent(message_hex)
         ));
     }
-    let wrong_kind = prepared_quote(
-        "solana-native-kind",
-        WalletChain::Solana,
-        PreparedKind::NativeTransfer,
-        "1",
-        "recipient",
-    );
+    let mut wrong_kind = solana_token_quote.clone();
+    wrong_kind.kind = PreparedKind::NativeTransfer;
     assert!(!super::native_intent_matches_quote(
         &wrong_kind,
-        &NativeWalletExecutionIntent::SolanaMessage {
-            message_hex: "010203".into(),
-        }
+        &solana_message_intent(SOLANA_SPL_TRANSFER_MESSAGE)
     ));
 }
 
