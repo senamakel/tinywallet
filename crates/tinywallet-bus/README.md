@@ -34,6 +34,11 @@ applies to shared vocabulary identity and its wire forms, not removed algorithm
 imports. Implementations re-export `Chain`, `UnknownChain`, `Error`, `Result`, and
 `TronTransfer` from this crate, preserving shared type identity and JSON forms.
 
+The `intent` and `solana` modules validate quote facts against already-built
+wire intents. In particular, the Solana codec recognizes the current legacy SPL
+`Transfer` message shape and derives public Associated Token Accounts; it does
+not construct, sign, or broadcast a transaction.
+
 Host integrations must use module calls and wait for a compatible released
 artifact pinned with its verified digest. They must not replace the removed
 re-exports with direct crypto/x402/web3 dependencies. The optional Host
