@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / ".github/workflows/release.yml"
 REVIEWED_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-reviewed-epic-release.yml@6ed83b04aab2d8977ec62e966cb914531e534fa4"
 LEGACY_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-release.yml@4adc1080fb495098e7af1aade82ed7e6e3c69bb7"
-TINYBUS_REV = "9e14f65666b11782ec1054aba576114026d180f8"
-TINYBUS_VERSION = "=0.3.11"
+TINYBUS_REV = "34d3bd6dda099e54cee11a2f96f28a21da9e0759"
+TINYBUS_VERSION = "=0.3.12"
 TINYBUS_CRATES = ("tinybus", "tinybus-module", "tinybus-macros")
 
 
