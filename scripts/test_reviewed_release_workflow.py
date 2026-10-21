@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / ".github/workflows/release.yml"
 REVIEWED_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-reviewed-epic-release.yml@6ed83b04aab2d8977ec62e966cb914531e534fa4"
 LEGACY_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-release.yml@4adc1080fb495098e7af1aade82ed7e6e3c69bb7"
-TINYBUS_REV = "207a9a7df15e44fdba00a807d0f7eaf21904ba0e"
-TINYBUS_VERSION_RANGE = ">=0.3.3, <0.4.0"
+TINYBUS_REV = "9e14f65666b11782ec1054aba576114026d180f8"
+TINYBUS_VERSION = "=0.3.11"
 TINYBUS_CRATES = ("tinybus", "tinybus-module", "tinybus-macros")
 
 
@@ -173,7 +173,7 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
         )
         for path, section, crate, edge in sdk_edges:
             with self.subTest(path=path, section=section, crate=crate):
-                self.assertEqual(edge["version"], TINYBUS_VERSION_RANGE)
+                self.assertEqual(edge["version"], TINYBUS_VERSION)
                 self.assertEqual(edge["git"], "https://github.com/tinyhumansai/tinybus")
                 self.assertEqual(edge["rev"], TINYBUS_REV)
 

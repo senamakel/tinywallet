@@ -15,18 +15,41 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use bitcoin::secp256k1::{Message, Secp256k1, SecretKey};
-use tinybus::module::ModuleState;
-use tinybus::test_support;
+use tinybus::{
+    BusName, Connection,
+    broker::Broker,
+    module::{ModuleHost, ModuleState},
+    test_support,
+    transport::memory::{MemoryBus, MemoryTransport},
+};
+use tinystoragedrivers_bus::StorageNeeds;
+use tinystoragedrivers_busproxy::{
+    AuditEvent, AuditSink, Environment, GovernedEndpointLimits, GovernedStorage, GrantPolicy,
+    HostContext, HostFailure, HostStorageContext, ResolvedStorage, StorageGrant,
+};
+use tinystoragedrivers_client::StorageServer;
+use tinystoragedrivers_core::schema::delivery::MigrationDeliveryClient;
+use tinystoragedrivers_core::{
+    CollectionSpec, MemoryStorage, Precondition, Scope, StorageBackend, WriteOptions,
+    schema::{MigrateOptions, Registry, Schema, TransformKind},
+};
+use tinystoragedrivers_tinybus::migration::{
+    EXCHANGE_MEMBER, GET_SCHEMA_MEMBER, MIGRATION_INTERFACE, MIGRATION_OBJECT_PATH,
+    MigrationModuleClient,
+};
 use tinywallet::wire::{
     AttachRequest, DerivedAccount, ExportRequest, ExportedKey, PublicKey, Scheme, SecretMaterial,
     SignMessageRequest, SignRequest, Signature, SignedTransaction, SigningRequest, TransactionSpec,
     UnsignedTransaction,
 };
 use tinywallet::{Chain, tx};
-use tinywallet_bus::wire::{EncodeErc20TransferRequest, EncodeErc20TransferResponse};
+use tinywallet_bus::wire::{
+    EncodeErc20TransferRequest, EncodeErc20TransferResponse, ValidateAddressRequest,
+    ValidateAddressResponse,
+};
 use tinywallet_module::{BUS_NAME, OBJECT_PATH};
 
 /// Every method the manifest must declare, in order.
@@ -86,16 +109,48 @@ async fn the_built_module_signs_every_chain_over_a_real_broker() {
     // One test rather than four: TinyBus never unloads a module, and a second
     // load of the same artifact would collide on the well-known name, so every
     // chain is exercised against the one admitted instance.
-    let (modules, client, broker_task) = test_support::start_bus().await.unwrap();
-    let loaded =
-        test_support::admit_module(&modules, "TINYWALLET_TEST_MODULE", "tinywallet-module")
-            .expect("digest-pinned module should load");
-    assert_manifest_contract(&loaded);
-    test_support::wait_until_serving(&client, BUS_NAME, Duration::from_secs(5))
+    let fixture = start_restricted_bus().await.unwrap();
+    let loaded = test_support::admit_module(
+        &fixture.modules,
+        "TINYWALLET_TEST_MODULE",
+        "tinywallet-module",
+    )
+    .expect("digest-pinned module should load");
+    test_support::wait_until_serving(&fixture.client, BUS_NAME, Duration::from_secs(5))
         .await
         .unwrap();
+    fixture
+        .modules
+        .ensure_ready(BUS_NAME)
+        .await
+        .expect("wallet module must finish setup before config compatibility checks");
 
-    let proxy = client.proxy(BUS_NAME, OBJECT_PATH, BUS_NAME).unwrap();
+    let owner_before = fixture.client.name_owner(BUS_NAME).await.unwrap();
+    for config in [serde_json::Value::Null, serde_json::json!({})] {
+        fixture
+            .modules
+            .reinitialize("tinywallet-module", config)
+            .await
+            .expect("legacy null and empty-object configs remain valid");
+        assert_eq!(
+            fixture.client.name_owner(BUS_NAME).await.unwrap(),
+            owner_before,
+            "reconfiguration keeps the same module peer"
+        );
+    }
+
+    let module_peer = BUS_NAME.parse().unwrap();
+    let migration = MigrationModuleClient::discover(&fixture.controller, &module_peer)
+        .await
+        .expect("the selected controller should discover wallet storage migrations");
+    assert_manifest_contract(&loaded);
+    assert_migration_discovery_is_confidential(&fixture, &module_peer).await;
+    migrate_wallet_storage(&fixture, migration).await;
+
+    let proxy = fixture
+        .client
+        .proxy(BUS_NAME, OBJECT_PATH, BUS_NAME)
+        .unwrap();
 
     validates_addresses_inside_the_artifact(&proxy).await;
     constructs_evm_transactions_inside_the_artifact(&proxy).await;
@@ -109,8 +164,11 @@ async fn the_built_module_signs_every_chain_over_a_real_broker() {
     signs_an_opaque_message_confidentially(&proxy).await;
     refuses_a_request_the_module_cannot_build(&proxy).await;
 
-    assert!(matches!(modules.list()[0].state, ModuleState::Ready));
-    broker_task.abort();
+    assert!(matches!(
+        fixture.modules.list()[0].state,
+        ModuleState::Ready
+    ));
+    fixture.broker_task.abort();
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -156,15 +214,24 @@ async fn refuses_a_confidential_call_to_an_unattested_module() {
             .expect("module artifact has a filename"),
     );
     std::fs::copy(&artifact, &untrusted_artifact).expect("copy un-attested test module");
-    let (module, client, broker_task) = test_support::start_bus().await.unwrap();
-    module
+    let fixture = start_restricted_bus().await.unwrap();
+    fixture
+        .modules
         .load_file(&untrusted_artifact)
         .expect("module loads without admission");
-    test_support::wait_until_serving(&client, BUS_NAME, Duration::from_secs(5))
+    test_support::wait_until_serving(&fixture.client, BUS_NAME, Duration::from_secs(5))
         .await
         .unwrap();
+    fixture.modules.ensure_ready(BUS_NAME).await.unwrap();
+    assert!(matches!(
+        fixture.modules.list()[0].state,
+        ModuleState::Ready
+    ));
 
-    let proxy = client.proxy(BUS_NAME, OBJECT_PATH, BUS_NAME).unwrap();
+    let proxy = fixture
+        .client
+        .proxy(BUS_NAME, OBJECT_PATH, BUS_NAME)
+        .unwrap();
     let request = serde_json::json!({
         "secret": {
             "mnemonic": VECTOR,
@@ -188,19 +255,30 @@ async fn refuses_a_confidential_call_to_an_unattested_module() {
         .await
         .expect_err("an unattested module must not receive a recovery phrase");
     assert!(
-        error.to_string().to_lowercase().contains("attest"),
-        "expected an attestation refusal, got: {error}"
+        !error.to_string().contains(VECTOR),
+        "an unattested module must not receive or reflect the recovery phrase"
     );
     let error = proxy
         .call::<SignedTransaction>("SignTransaction", (request,))
         .await
-        .expect_err("recovery-phrase methods must reject ordinary bus calls");
+        .expect_err("the broker must refuse a nonconfidential secret call");
     assert!(
         error.to_string().contains("ConfidentialityRequired"),
         "expected a confidentiality refusal, got: {error}"
     );
-
-    broker_task.abort();
+    let response: ValidateAddressResponse = proxy
+        .call(
+            "ValidateAddress",
+            (ValidateAddressRequest {
+                chain: Chain::Evm,
+                address: "0x3535353535353535353535353535353535353535".into(),
+                sender: false,
+            },),
+        )
+        .await
+        .expect("unattested modules retain harmless ordinary RPC");
+    assert!(response.result.is_ok());
+    fixture.broker_task.abort();
 }
 
 /// Check the loaded manifest against the module and wire contracts.
@@ -208,6 +286,16 @@ fn assert_manifest_contract(loaded: &tinybus::module::ModuleInfo) {
     assert_eq!(loaded.name, "tinywallet-module");
     assert_eq!(loaded.manifest.bus_name.as_str(), BUS_NAME);
     assert_eq!(loaded.manifest.object_path.as_str(), OBJECT_PATH);
+    let provided: Vec<&str> = loaded
+        .manifest
+        .provides
+        .iter()
+        .map(|interface| interface.version.interface.as_str())
+        .collect();
+    assert_eq!(
+        provided,
+        ["ai.tinyhumans.tinywallet.Wallet", MIGRATION_INTERFACE]
+    );
     let declared: Vec<&str> = loaded
         .manifest
         .provides
@@ -231,6 +319,501 @@ fn assert_manifest_contract(loaded: &tinybus::module::ModuleInfo) {
         tinywallet_bus::METHODS,
         "the manifest and the published contract name different members"
     );
+}
+
+struct RestrictedBus {
+    bus: MemoryBus,
+    modules: ModuleHost,
+    client: Connection,
+    controller: Connection,
+    broker_task: tokio::task::JoinHandle<tinybus::Result<()>>,
+}
+
+async fn start_restricted_bus() -> tinybus::Result<RestrictedBus> {
+    let bus = MemoryBus::new();
+    let broker = Broker::new_restricted_module_control();
+    let broker_task = broker.spawn(bus.clone());
+    let (broker_transport, controller_transport) = MemoryTransport::pair();
+    broker.attach_module_controller(Arc::new(broker_transport))?;
+    let controller = Connection::connect(Box::new(controller_transport)).await?;
+    let modules = ModuleHost::new(broker);
+    let client = Connection::connect(bus.connect().await?).await?;
+    Ok(RestrictedBus {
+        bus,
+        modules,
+        client,
+        controller,
+        broker_task,
+    })
+}
+
+async fn assert_migration_discovery_is_confidential(
+    fixture: &RestrictedBus,
+    module_peer: &tinybus::BusName,
+) {
+    let controller_proxy = fixture
+        .controller
+        .proxy(BUS_NAME, MIGRATION_OBJECT_PATH, MIGRATION_INTERFACE)
+        .unwrap();
+    assert!(
+        controller_proxy
+            .call::<serde_json::Value>(GET_SCHEMA_MEMBER, ())
+            .await
+            .is_err(),
+        "schema discovery must reject a nonconfidential request"
+    );
+
+    let outsider = Connection::connect(fixture.bus.connect().await.unwrap())
+        .await
+        .unwrap();
+    let outsider_proxy = outsider
+        .proxy(BUS_NAME, MIGRATION_OBJECT_PATH, MIGRATION_INTERFACE)
+        .unwrap();
+    let error = outsider_proxy
+        .call_confidential::<serde_json::Value>(
+            EXCHANGE_MEMBER,
+            serde_json::json!("wallet-migration-secret-marker"),
+        )
+        .await
+        .expect_err("an unselected peer must be refused before request decoding");
+    assert!(
+        !error.to_string().contains("wallet-migration-secret-marker"),
+        "authorization errors must not reflect request contents"
+    );
+    assert!(
+        MigrationModuleClient::discover(&outsider, module_peer)
+            .await
+            .is_err(),
+        "an unselected peer must not discover the wallet schema"
+    );
+}
+
+async fn migrate_wallet_storage(fixture: &RestrictedBus, migration: MigrationModuleClient) {
+    let declaration = migration.declaration().clone();
+    assert_eq!(declaration.owner.as_str(), "wallet");
+    assert_eq!(declaration.steps.len(), 2);
+    assert_eq!(declaration.steps[0].id, "budgets_v2");
+    assert_eq!(
+        declaration.steps[0].transform.kind,
+        TransformKind::Documents
+    );
+    assert_eq!(declaration.steps[0].transform.version, 1);
+    assert_eq!(declaration.steps[1].id, "payments_v2");
+    assert_eq!(declaration.steps[1].transform.kind, TransformKind::Stream);
+    assert_eq!(declaration.steps[1].transform.version, 1);
+
+    let backend = Arc::new(MemoryStorage::with_clock(Arc::new(|| 1_000)));
+    let scoped = backend.for_scope(&Scope::local()).unwrap();
+    let documents = Arc::clone(scoped.documents());
+    documents
+        .ensure_collection(&CollectionSpec::new("x402_budget"))
+        .await
+        .unwrap();
+    documents
+        .put_with(
+            "x402_budget",
+            "holds",
+            serde_json::json!({"holds": {
+                "test-owner": {"amount": 25, "expires_at_ms": 8_000_i64}
+            }}),
+            Precondition::Absent,
+            WriteOptions::new().schema(1).expires_ms(9_000),
+        )
+        .await
+        .unwrap();
+    let streams = Arc::clone(scoped.streams());
+    for entry in [
+        v1_payment(),
+        serde_json::json!("unreadable payment entry"),
+        serde_json::json!({"id": 7}),
+    ] {
+        streams.append("x402.payments", entry).await.unwrap();
+    }
+
+    let registry =
+        Registry::compose_with_declarations(std::iter::empty::<Schema>(), [declaration]).unwrap();
+    registry.prepare(backend.as_ref()).await.unwrap();
+    let executor = MigrationDeliveryClient::new(Arc::new(migration));
+    registry
+        .migrate_with_executor(&scoped, &MigrateOptions::new(), &executor)
+        .await
+        .unwrap();
+
+    let documents = Arc::clone(scoped.documents());
+    let (legacy_budget, budget) = tokio::join!(
+        documents.get("x402_budget", "holds"),
+        documents.get("wallet.budgets", "holds")
+    );
+    assert!(legacy_budget.unwrap().is_none());
+    let budget = budget.unwrap().unwrap();
+    assert_eq!(budget.doc["holds"]["test-owner"]["expires_ms"], 8_000);
+    assert_eq!(budget.meta.schema, 2);
+    assert_eq!(budget.meta.created_ms, 1_000);
+    assert_eq!(budget.meta.expires_ms, Some(9_000));
+
+    let streams = Arc::clone(scoped.streams());
+    let (legacy_count, payments) = tokio::join!(
+        streams.len("x402.payments"),
+        streams.read_window("wallet.payments", 0, 10)
+    );
+    assert_eq!(legacy_count.unwrap(), 0);
+    let payments = payments.unwrap();
+    assert_eq!(payments.len(), 1, "invalid legacy entries are filtered");
+    assert_eq!(payments[0].value["id"], "pay-1");
+
+    write_migration_readiness(&scoped).await;
+    serve_current_storage_and_open_wallet_service(fixture, backend).await;
+}
+
+#[derive(Clone)]
+struct WalletStorageContext(String);
+
+impl HostContext for WalletStorageContext {}
+
+struct WalletStorageEnvironment {
+    backend: Arc<MemoryStorage>,
+}
+
+#[async_trait::async_trait]
+impl Environment<WalletStorageContext> for WalletStorageEnvironment {
+    async fn resolve(
+        &self,
+        context: &WalletStorageContext,
+        _module: &tinybus::module::ModuleId,
+    ) -> Result<ResolvedStorage, HostFailure> {
+        let scope =
+            Scope::new(&context.0).map_err(|_| HostFailure::Denied("invalid-wallet-scope"))?;
+        let storage = self
+            .backend
+            .for_scope(&scope)
+            .map_err(|_| HostFailure::Denied("wallet-test-storage-unavailable"))?;
+        let collections = [tinystoragedrivers_bus::CollectionSpec {
+            name: "wallet.budgets".to_owned(),
+            indexes: Vec::new(),
+            ttl_field: None,
+            search: None,
+        }];
+        let stream_prefixes = ["wallet.payments"];
+        let grant = StorageGrant::from_needs(
+            StorageNeeds {
+                collections: &collections,
+                stream_prefixes: &stream_prefixes,
+                ..StorageNeeds::default()
+            },
+            &GrantPolicy {
+                writable: true,
+                ..GrantPolicy::default()
+            },
+        )
+        .map_err(|_| HostFailure::Denied("wallet-test-grant-invalid"))?;
+        Ok(ResolvedStorage {
+            backend_identity: "wallet-memory-test".to_owned(),
+            binding_epoch: 1,
+            canonical_scope: context.0.clone(),
+            grant,
+            server: Arc::new(StorageServer::new(storage)),
+        })
+    }
+
+    async fn admit_write(
+        &self,
+        _context: &WalletStorageContext,
+        _module: &tinybus::module::ModuleId,
+    ) -> Result<(), HostFailure> {
+        Ok(())
+    }
+}
+
+struct WalletTestAudit;
+
+type WalletStorageRegistration = tinystoragedrivers_tinybus::StorageRegistration<
+    WalletStorageEnvironment,
+    WalletTestAudit,
+    WalletStorageContext,
+>;
+
+impl AuditSink for WalletTestAudit {
+    fn record(&self, _event: AuditEvent) {}
+}
+
+fn v1_payment() -> serde_json::Value {
+    serde_json::json!({
+        "id": "pay-1",
+        "url": "https://fixture.invalid/",
+        "asset": "USDC",
+        "amountAtomic": 2500,
+        "amountDisplay": "0.002500 USDC",
+        "recipient": "fixture recipient",
+        "network": "eip155:8453",
+        "txSignature": "0xabc",
+        "status": "settled",
+        "timestamp": "2026-03-15T12:00:00Z",
+        "authorizationValidUntil": "2026-03-15T12:05:00.250Z",
+        "sessionId": "migration-test",
+        "threadId": "thread-1",
+        "committed_hold": "test-owner"
+    })
+}
+
+async fn write_migration_readiness(scoped: &tinystoragedrivers_core::ScopedStorage) {
+    let documents = Arc::clone(scoped.documents());
+    documents
+        .put_with(
+            "wallet.budgets",
+            "migration_ready",
+            serde_json::json!({
+                "schema_version": 2,
+                "import_epoch": "x402-payments-jsonl-v1"
+            }),
+            Precondition::Absent,
+            WriteOptions::new().schema(2),
+        )
+        .await
+        .unwrap();
+}
+
+async fn configure_x402(
+    proxy: &tinybus::Proxy,
+    workspace_dir: &str,
+) -> tinybus::Result<tinywallet_bus::wire::X402ServiceHandle> {
+    proxy
+        .call(
+            "X402Configure",
+            (tinywallet_bus::wire::X402ConfigureRequest {
+                config: tinywallet_bus::wire::X402ConfigResponse {
+                    workspace_dir: workspace_dir.to_owned(),
+                    session_id: "migration-test".to_owned(),
+                    per_request_max_atomic: 1_000,
+                    daily_max_atomic: 10_000,
+                    monthly_max_atomic: 100_000,
+                },
+            },),
+        )
+        .await
+}
+
+async fn reinitialize_wallet_with_descriptor(
+    fixture: &RestrictedBus,
+    descriptor: tinystoragedrivers_busproxy::StorageDescriptor,
+) {
+    let owner_before = fixture.client.name_owner(BUS_NAME).await.unwrap();
+    fixture
+        .modules
+        .reinitialize(
+            "tinywallet-module",
+            serde_json::json!({"storage_descriptor": descriptor}),
+        )
+        .await
+        .expect("wallet should reinitialize with its configured storage descriptor");
+    assert_eq!(
+        fixture.client.name_owner(BUS_NAME).await.unwrap(),
+        owner_before,
+        "descriptor reinitialization keeps the same module peer"
+    );
+}
+
+async fn assert_wallet_b_remains_served(
+    fixture: &RestrictedBus,
+    proxy: &tinybus::Proxy,
+    module_peer: &BusName,
+) {
+    assert_eq!(
+        fixture.client.name_owner(BUS_NAME).await.unwrap().as_ref(),
+        Some(module_peer),
+        "failed descriptor reinitialization keeps the same peer"
+    );
+    open_and_close_x402(
+        proxy,
+        "wallet-other-profile",
+        "failed descriptor reinitialization preserves B's live storage route",
+    )
+    .await;
+    validates_addresses_inside_the_artifact(proxy).await;
+}
+
+async fn open_and_close_x402(proxy: &tinybus::Proxy, workspace: &str, reason: &str) {
+    let service = configure_x402(proxy, workspace).await.expect(reason);
+    proxy
+        .call::<()>(
+            "X402Close",
+            (tinywallet_bus::wire::X402CloseRequest { service },),
+        )
+        .await
+        .unwrap();
+}
+
+async fn reject_bad_c_descriptors_and_preserve_b(
+    fixture: &RestrictedBus,
+    registration: &WalletStorageRegistration,
+    proxy: &tinybus::Proxy,
+    module_peer: &BusName,
+    lease_c: &tinystoragedrivers_busproxy::StorageLease,
+    descriptor_c: tinystoragedrivers_busproxy::StorageDescriptor,
+) {
+    let mut forged_wire = serde_json::to_value(&descriptor_c).unwrap();
+    forged_wire["registration_id"] = serde_json::json!(u64::MAX);
+    assert!(
+        fixture
+            .modules
+            .reinitialize(
+                "tinywallet-module",
+                serde_json::json!({"storage_descriptor": forged_wire}),
+            )
+            .await
+            .is_err(),
+        "a malformed route must fail before replacing the live service"
+    );
+    assert_wallet_b_remains_served(fixture, proxy, module_peer).await;
+
+    assert!(registration.revoke(lease_c).await);
+    assert!(
+        fixture
+            .modules
+            .reinitialize(
+                "tinywallet-module",
+                serde_json::json!({"storage_descriptor": descriptor_c}),
+            )
+            .await
+            .is_err(),
+        "a revoked descriptor must fail before replacing the live service"
+    );
+    assert_wallet_b_remains_served(fixture, proxy, module_peer).await;
+}
+
+async fn revoke_a_and_verify_b_survives(
+    fixture: &RestrictedBus,
+    registration: &WalletStorageRegistration,
+    proxy: &tinybus::Proxy,
+    lease_a: &tinystoragedrivers_busproxy::StorageLease,
+    descriptor_a: tinystoragedrivers_busproxy::StorageDescriptor,
+    descriptor_b: tinystoragedrivers_busproxy::StorageDescriptor,
+) {
+    reinitialize_wallet_with_descriptor(fixture, descriptor_a).await;
+    open_and_close_x402(
+        proxy,
+        "wallet-migration-test",
+        "profile A remains usable before its lease is revoked",
+    )
+    .await;
+    assert!(registration.revoke(lease_a).await);
+    let revoked = configure_x402(proxy, "wallet-migration-test")
+        .await
+        .expect_err("a cached governed route must refuse calls after its lease is revoked");
+    assert_eq!(
+        revoked.wire_name(),
+        "ai.tinyhumans.tinywallet.Error.X402OperationFailed"
+    );
+
+    reinitialize_wallet_with_descriptor(fixture, descriptor_b).await;
+    open_and_close_x402(
+        proxy,
+        "wallet-other-profile",
+        "revoking A does not affect profile B's current-only lease",
+    )
+    .await;
+}
+
+async fn serve_current_storage_and_open_wallet_service(
+    fixture: &RestrictedBus,
+    backend: Arc<MemoryStorage>,
+) {
+    let module_peer = fixture.client.name_owner(BUS_NAME).await.unwrap().unwrap();
+    let storage_host = Connection::connect(fixture.bus.connect().await.unwrap())
+        .await
+        .unwrap();
+    let registration = tinystoragedrivers_tinybus::attach_storage(
+        &fixture.modules,
+        &storage_host,
+        GovernedStorage::new(
+            Arc::new(WalletStorageEnvironment {
+                backend: Arc::clone(&backend),
+            }),
+            Arc::new(WalletTestAudit),
+            GovernedEndpointLimits::default(),
+        ),
+        tokio::runtime::Handle::current(),
+    )
+    .await
+    .expect("governed module storage should register after migration");
+    let (lease_a, descriptor_a) = registration
+        .register_lease(
+            HostStorageContext::new(WalletStorageContext("local".to_owned())),
+            module_peer.clone(),
+        )
+        .await
+        .expect("the admitted wallet module should receive its current-only lease");
+    reinitialize_wallet_with_descriptor(fixture, descriptor_a.clone()).await;
+
+    let proxy = fixture
+        .client
+        .proxy(BUS_NAME, OBJECT_PATH, BUS_NAME)
+        .unwrap();
+    let module_peer = fixture.client.name_owner(BUS_NAME).await.unwrap().unwrap();
+    open_and_close_x402(
+        &proxy,
+        "wallet-migration-test",
+        "x402 should open through the current-only lease after migrations",
+    )
+    .await;
+
+    let (lease_b, descriptor_b) = registration
+        .register_lease(
+            HostStorageContext::new(WalletStorageContext("wallet-other-profile".to_owned())),
+            module_peer.clone(),
+        )
+        .await
+        .expect("one module peer may receive a distinct scope lease");
+    reinitialize_wallet_with_descriptor(fixture, descriptor_b.clone()).await;
+    let isolated = configure_x402(&proxy, "wallet-other-profile")
+        .await
+        .expect_err("a second lease must not see the first scope's migration marker");
+    assert_eq!(
+        isolated.wire_name(),
+        "ai.tinyhumans.tinywallet.Error.X402OperationFailed"
+    );
+
+    // The B profile's readiness marker is added only after the initial A/B
+    // isolation check, so a prior A revocation cannot explain B's first error.
+    let b_scope = backend
+        .for_scope(&Scope::new("wallet-other-profile").unwrap())
+        .unwrap();
+    write_migration_readiness(&b_scope).await;
+    reinitialize_wallet_with_descriptor(fixture, descriptor_b.clone()).await;
+    open_and_close_x402(
+        &proxy,
+        "wallet-other-profile",
+        "B opens once its fixture readiness marker is present",
+    )
+    .await;
+
+    let (lease_revoked, descriptor_revoked) = registration
+        .register_lease(
+            HostStorageContext::new(WalletStorageContext("wallet-revoked-profile".to_owned())),
+            module_peer.clone(),
+        )
+        .await
+        .expect("a third test lease should be independently registered");
+    reject_bad_c_descriptors_and_preserve_b(
+        fixture,
+        &registration,
+        &proxy,
+        &module_peer,
+        &lease_revoked,
+        descriptor_revoked.clone(),
+    )
+    .await;
+    revoke_a_and_verify_b_survives(
+        fixture,
+        &registration,
+        &proxy,
+        &lease_a,
+        descriptor_a,
+        descriptor_b,
+    )
+    .await;
+
+    registration.shutdown().await.unwrap();
+    drop((lease_a, lease_b, lease_revoked));
 }
 
 /// The load-bearing case: through the bus must equal in-process.

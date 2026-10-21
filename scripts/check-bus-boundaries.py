@@ -14,15 +14,15 @@ REGISTRY = "registry+https://github.com/rust-lang/crates.io-index"
 TSD_BUS = "tinystoragedrivers-bus"
 TSD_BUS_SOURCE = (
     "git+https://github.com/tinyhumansai/tinystoragedrivers"
-    "?rev=c9ea6ff1615b77b55d7269403af5fd11bedc9ce8"
-    "#c9ea6ff1615b77b55d7269403af5fd11bedc9ce8"
+    "?rev=a04e3a174fa8f28d5229a816ca6b39c72a9efd7b"
+    "#a04e3a174fa8f28d5229a816ca6b39c72a9efd7b"
 )
 TSD_BUS_TREE_SOURCES = {
     "https://github.com/tinyhumansai/tinystoragedrivers"
-    "?rev=c9ea6ff1615b77b55d7269403af5fd11bedc9ce8"
-    "#c9ea6ff1615b77b55d7269403af5fd11bedc9ce8",
+    "?rev=a04e3a174fa8f28d5229a816ca6b39c72a9efd7b"
+    "#a04e3a174fa8f28d5229a816ca6b39c72a9efd7b",
     "https://github.com/tinyhumansai/tinystoragedrivers"
-    "?rev=c9ea6ff1615b77b55d7269403af5fd11bedc9ce8#c9ea6ff1",
+    "?rev=a04e3a174fa8f28d5229a816ca6b39c72a9efd7b#a04e3a17",
 }
 
 # The optional `storage` feature exposes only wallet storage names and stored

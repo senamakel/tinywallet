@@ -222,7 +222,7 @@ class StorageContractClosureTests(unittest.TestCase):
     DATA_CONTRACT = (
         boundary.TSD_BUS,
         "https://github.com/tinyhumansai/tinystoragedrivers"
-        "?rev=c9ea6ff1615b77b55d7269403af5fd11bedc9ce8#c9ea6ff1",
+        "?rev=a04e3a174fa8f28d5229a816ca6b39c72a9efd7b#a04e3a17",
     )
 
     def test_pinned_data_only_storage_contract_is_allowed(self):
