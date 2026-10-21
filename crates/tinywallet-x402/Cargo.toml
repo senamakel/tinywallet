@@ -107,7 +107,7 @@ eip712 = ["dep:sha3", "dep:thiserror"]
 abi = ["eip712", "dep:tinywallet-crypto", "tinywallet-crypto/evm", "tinywallet-crypto/keccak"]
 # The rail-neutral spending ledger: records, budgets, the JSONL file, and the
 # process-wide handle.
-ledger = ["dep:serde", "dep:serde_json", "dep:chrono", "dep:log", "dep:tinystoragedrivers-api", "dep:tinystoragedrivers-types", "dep:tokio"]
+ledger = ["dep:serde", "dep:serde_json", "dep:chrono", "dep:log", "dep:tinystoragedrivers-api", "dep:tinystoragedrivers-types", "dep:tokio", "dep:tinywallet-bus"]
 # Paying a 402 challenge: header codec, the client, and the EVM and Solana
 # payment builders behind the `PaymentSigner` seam. Solana reads the recent
 # blockhash through `tinywallet_crypto::rpc::Transport`.
