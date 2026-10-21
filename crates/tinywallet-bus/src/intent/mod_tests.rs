@@ -797,6 +797,28 @@ fn native_solana_spl_message_rejects_changes_to_the_quoted_transfer() {
         &solana_message_intent(&wrong_opcode)
     ));
 
+    let wrong_amount_bytes = message.replacen(
+        "010303010200090340420f0000000000",
+        "010303010200090341420f0000000000",
+        1,
+    );
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_amount_bytes)
+    ));
+
+    let wrong_program_index = message.replacen("0103030102000903", "0102030102000903", 1);
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_program_index)
+    ));
+
+    let wrong_accounts = message.replacen("0103030102000903", "0103030002000903", 1);
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_accounts)
+    ));
+
     let wrong_header = replace_hex_byte(message, 0, 0);
     assert!(!super::native_intent_matches_quote(
         &quote,
@@ -817,6 +839,23 @@ fn native_solana_spl_message_rejects_changes_to_the_quoted_transfer() {
     ));
     assert!(!super::native_intent_matches_quote(
         &quote,
+        &solana_message_intent(&format!("{message}00"))
+    ));
+    assert!(!super::native_intent_matches_quote(
+        &quote,
         &solana_message_intent("not-hex")
+    ));
+
+    let mut wrong_chain = quote.clone();
+    wrong_chain.chain = WalletChain::Evm;
+    assert!(!super::native_intent_matches_quote(
+        &wrong_chain,
+        &solana_message_intent(message)
+    ));
+    let mut wrong_kind = quote;
+    wrong_kind.kind = PreparedKind::NativeTransfer;
+    assert!(!super::native_intent_matches_quote(
+        &wrong_kind,
+        &solana_message_intent(message)
     ));
 }
