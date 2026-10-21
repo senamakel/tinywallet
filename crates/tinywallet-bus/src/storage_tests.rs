@@ -1,6 +1,6 @@
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
-use super::legacy_payments::{convert_legacy_payment, LegacyPayment, StoredPaymentStatus};
+use super::legacy_payments::{LegacyPayment, StoredPaymentStatus, convert_legacy_payment};
 
 fn convert(
     value: serde_json::Value,
