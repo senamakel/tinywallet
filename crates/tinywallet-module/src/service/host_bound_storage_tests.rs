@@ -241,9 +241,8 @@ struct InitialSetupFixture {
     require_migration: Arc<AtomicBool>,
 }
 
-static INITIAL_SETUP_FIXTURE: std::sync::OnceLock<
-    std::sync::Mutex<Option<InitialSetupFixture>>,
-> = std::sync::OnceLock::new();
+static INITIAL_SETUP_FIXTURE: std::sync::OnceLock<std::sync::Mutex<Option<InitialSetupFixture>>> =
+    std::sync::OnceLock::new();
 
 fn initial_setup_fixture() -> &'static std::sync::Mutex<Option<InitialSetupFixture>> {
     INITIAL_SETUP_FIXTURE.get_or_init(|| std::sync::Mutex::new(None))
