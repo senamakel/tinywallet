@@ -15,7 +15,7 @@ ALLOWED = {
     "bs58", "curve25519-dalek", "sha2", "cfg-if", "subtle",
     "rustc_version", "semver", "cpufeatures", "libc", "digest",
     "block-buffer", "hybrid-array", "typenum", "const-oid",
-    "crypto-common",
+    "crypto-common", "curve25519-dalek-derive",
 }
 REGISTRY = "registry+https://github.com/rust-lang/crates.io-index"
 TSD_BUS = "tinystoragedrivers-bus"
