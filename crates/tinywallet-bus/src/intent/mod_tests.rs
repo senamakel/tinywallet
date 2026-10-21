@@ -683,12 +683,12 @@ fn native_tron_trc20_intent_binds_contract_recipient_and_raw_amount() {
     ));
     assert!(!super::native_intent_matches_quote(
         &quote,
-        &tron_token_intent(TRON_RECIPIENT, TRON_OTHER_RECIPIENT_PARAMETER)
+        &tron_token_intent(TRON_TEST_TOKEN_CONTRACT, TRON_OTHER_RECIPIENT_PARAMETER)
     ));
     assert!(!super::native_intent_matches_quote(
         &quote,
         &tron_token_intent(
-            TRON_RECIPIENT,
+            TRON_TEST_TOKEN_CONTRACT,
             "000000000000000000000000a614f803b6fd780986a42c78ec9c7f77e6ded13c000000000000000000000000000000000000000000000000000000000000303a",
         )
     ));
@@ -763,6 +763,26 @@ fn native_solana_spl_message_rejects_changed_signer_program_and_instruction() {
     assert!(!super::native_intent_matches_quote(
         &quote,
         &solana_message_intent(&wrong_signer)
+    ));
+
+    let wrong_source_ata = message.replacen(
+        "40d2f27c461f29e9feba1ab8acd39496a9c65b0ae62a713f01f941a993bf55ed",
+        "0202020202020202020202020202020202020202020202020202020202020202",
+        1,
+    );
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_source_ata)
+    ));
+
+    let wrong_destination_ata = message.replacen(
+        "a1cec0f53f78e59d435676236c81394f5240e8ff0163683daab51d3680258932",
+        "0303030303030303030303030303030303030303030303030303030303030303",
+        1,
+    );
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_destination_ata)
     ));
 
     let wrong_token_program = message.replacen(
