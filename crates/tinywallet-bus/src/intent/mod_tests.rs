@@ -612,6 +612,23 @@ const TRON_TEST_TOKEN_CONTRACT: &str = "TLyqzVGLV1srkB7dToTAEqgDSfPtXRJZYH";
 const TRON_TRC20_PARAMETER: &str = "000000000000000000000000a614f803b6fd780986a42c78ec9c7f77e6ded13c0000000000000000000000000000000000000000000000000000000000003039";
 const TRON_OTHER_RECIPIENT_PARAMETER: &str = "00000000000000000000000078c842ee63b253f8f0d2955bbc582c661a078c9d0000000000000000000000000000000000000000000000000000000000003039";
 
+const SOLANA_TOKEN_OWNER: &str = "HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk";
+const SOLANA_TOKEN_RECIPIENT: &str = "Vote111111111111111111111111111111111111111";
+const SOLANA_USDC_MINT: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+const SOLANA_SPL_TOKEN_PROGRAM_HEX: &str =
+    "06ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a9";
+// Golden legacy message emitted by the current producer for the accounts
+// above, amount 1_000_000, and a 32-byte 0x04 blockhash.
+const SOLANA_SPL_TRANSFER_MESSAGE: &str = concat!(
+    "01000104",
+    "f036276246a75b9de3349ed42b15e232f6518fc20f5fcd4f1d64e81f9bd258f7",
+    "40d2f27c461f29e9feba1ab8acd39496a9c65b0ae62a713f01f941a993bf55ed",
+    "a1cec0f53f78e59d435676236c81394f5240e8ff0163683daab51d3680258932",
+    "06ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a9",
+    "0404040404040404040404040404040404040404040404040404040404040404",
+    "010303010200090340420f0000000000"
+);
+
 fn tron_token_quote() -> PreparedTransaction {
     let mut quote = prepared_quote(
         "tron-trc20-quote",
@@ -635,6 +652,35 @@ fn tron_token_intent(expected_to: &str, parameter_hex: &str) -> NativeWalletExec
             },
         },
     }
+}
+
+fn solana_token_quote() -> PreparedTransaction {
+    let mut quote = prepared_quote(
+        "solana-spl-quote",
+        WalletChain::Solana,
+        PreparedKind::TokenTransfer,
+        "1000000",
+        SOLANA_TOKEN_RECIPIENT,
+    );
+    quote.from_address = SOLANA_TOKEN_OWNER.into();
+    quote.token_address = Some(SOLANA_USDC_MINT.into());
+    quote
+}
+
+fn solana_message_intent(message_hex: &str) -> NativeWalletExecutionIntent {
+    NativeWalletExecutionIntent::SolanaMessage {
+        message_hex: message_hex.into(),
+    }
+}
+
+fn replace_hex_byte(message_hex: &str, byte_offset: usize, replacement: u8) -> String {
+    let start = byte_offset * 2;
+    format!(
+        "{}{:02x}{}",
+        &message_hex[..start],
+        replacement,
+        &message_hex[start + 2..]
+    )
 }
 
 #[test]
@@ -683,5 +729,94 @@ fn native_tron_trc20_intent_binds_contract_recipient_and_raw_amount() {
     assert!(!super::native_intent_matches_quote(
         &wrong_kind,
         &tron_token_intent(TRON_RECIPIENT, TRON_TRC20_PARAMETER)
+    ));
+}
+
+#[test]
+fn native_solana_spl_message_matches_the_quoted_transfer() {
+    let quote = solana_token_quote();
+    assert!(super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(SOLANA_SPL_TRANSFER_MESSAGE)
+    ));
+}
+
+#[test]
+fn native_solana_spl_message_rejects_changes_to_the_quoted_transfer() {
+    let quote = solana_token_quote();
+    let message = SOLANA_SPL_TRANSFER_MESSAGE;
+
+    let mut changed_recipient = quote.clone();
+    changed_recipient.to_address = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM".into();
+    assert!(!super::native_intent_matches_quote(
+        &changed_recipient,
+        &solana_message_intent(message)
+    ));
+
+    let mut changed_amount = quote.clone();
+    changed_amount.amount_raw = "1000001".into();
+    assert!(!super::native_intent_matches_quote(
+        &changed_amount,
+        &solana_message_intent(message)
+    ));
+
+    let mut changed_mint = quote.clone();
+    changed_mint.token_address = Some("So11111111111111111111111111111111111111112".into());
+    assert!(!super::native_intent_matches_quote(
+        &changed_mint,
+        &solana_message_intent(message)
+    ));
+
+    let wrong_signer = message.replacen(
+        "f036276246a75b9de3349ed42b15e232f6518fc20f5fcd4f1d64e81f9bd258f7",
+        "0101010101010101010101010101010101010101010101010101010101010101",
+        1,
+    );
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_signer)
+    ));
+
+    let wrong_token_program = message.replacen(
+        SOLANA_SPL_TOKEN_PROGRAM_HEX,
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        1,
+    );
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_token_program)
+    ));
+
+    let wrong_opcode = message.replacen(
+        "010303010200090340420f0000000000",
+        "010303010200090240420f0000000000",
+        1,
+    );
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_opcode)
+    ));
+
+    let wrong_header = replace_hex_byte(message, 0, 0);
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&wrong_header)
+    ));
+
+    // The instruction count byte follows the header, 4-key vector, and blockhash.
+    let mut extra_instruction = replace_hex_byte(message, 164, 2);
+    extra_instruction.push_str("030000");
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&extra_instruction)
+    ));
+
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent(&message[..message.len() - 2])
+    ));
+    assert!(!super::native_intent_matches_quote(
+        &quote,
+        &solana_message_intent("not-hex")
     ));
 }
