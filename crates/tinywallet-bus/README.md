@@ -3,11 +3,14 @@
 The minimal TinyBus contract for TinyWallet: names, version, shared chain
 identifiers, error vocabulary, transfer types, request/result DTOs, and the
 x402 ledger's data-only storage declaration and stored record vocabulary. The
-default and `storage` feature closures contain only serde, serde_json,
-thiserror, and the feature-disabled `tinystoragedrivers-bus` contract. The
-optional `storage` feature exposes the serializable payment record shape and
-resource names; it does not add a schema runner, storage ports, backend,
-client, or transport.
+`storage` feature closure contains only serde, thiserror, and the feature-disabled
+`tinystoragedrivers-bus` contract. The default `wire` feature also enables the
+pure `bs58`, `sha2`, and `curve25519-dalek` codecs used to validate the current
+Solana SPL transfer message and derive public Associated Token Accounts. These
+codecs do not build, sign, or send transactions and do not depend on an
+implementation crate. The optional `storage` feature exposes the serializable
+payment record shape and resource names; it does not add a schema runner,
+storage ports, backend, client, or transport.
 
 The data-only bus contract, including all features, supports Rust 1.85. The
 excluded storage-needs consumer independently checks the published names and

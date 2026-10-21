@@ -13,10 +13,11 @@
 //! links none of them — no `bitcoin`, no `secp256k1` C build, no `ethers-core`,
 //! no BIP-39 implementation.
 //!
-//! Shared chain identifiers, errors, transfer data, and static tool declarations
-//! live here. Crypto and x402 algorithms remain in their implementation crates
-//! and are not re-exported. Implementations re-export this vocabulary for
-//! source compatibility.
+//! Shared chain identifiers, errors, transfer data, static tool declarations,
+//! pure quote-to-intent comparisons, and public Solana message codecs live here.
+//! Key custody, private-key derivation, transaction building and signing, and
+//! x402 execution remain in implementation crates and are not re-exported.
+//! Implementations re-export this vocabulary for source compatibility.
 //!
 //! The `serde` feature derives wire serialization; `wire` enables call DTOs.
 //! Legacy feature names remain accepted but never enable implementation code.
