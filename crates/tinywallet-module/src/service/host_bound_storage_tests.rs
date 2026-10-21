@@ -8,12 +8,15 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use tinybus::{
-    Connection,
+    Connection, InterfaceName, MemberName, ObjectPath,
     broker::Broker,
-    module::ModuleHost,
+    module::{ModuleHost, PreReadyConfidentialRoute},
     transport::memory::{MemoryBus, MemoryTransport},
 };
 use tinystoragedrivers_bus::StorageNeeds;
+use tinystoragedrivers_tinybus::migration::{
+    EXCHANGE_MEMBER, GET_SCHEMA_MEMBER, MIGRATION_INTERFACE, MIGRATION_OBJECT_PATH,
+};
 use tinystoragedrivers_busproxy::{
     AuditEvent, AuditSink, Environment, GovernedEndpointLimits, GovernedStorage, GrantPolicy,
     HostContext, HostFailure, ResolvedStorage, StorageGrant,
@@ -83,6 +86,18 @@ async fn selected_linked_wallet_uses_and_caches_its_current_only_ledger_route()
     let controller = Connection::connect(Box::new(controller_transport)).await?;
     let broker_task = broker.spawn(bus.clone());
     let host = ModuleHost::new(broker);
+    host.set_pre_ready_confidential_routes(vec![
+        PreReadyConfidentialRoute {
+            path: ObjectPath::new(MIGRATION_OBJECT_PATH)?,
+            interface: InterfaceName::new(MIGRATION_INTERFACE)?,
+            member: MemberName::new(GET_SCHEMA_MEMBER)?,
+        },
+        PreReadyConfidentialRoute {
+            path: ObjectPath::new(MIGRATION_OBJECT_PATH)?,
+            interface: InterfaceName::new(MIGRATION_INTERFACE)?,
+            member: MemberName::new(EXCHANGE_MEMBER)?,
+        },
+    ])?;
     let backend = Arc::new(MemoryStorage::new());
     let environment = Arc::new(BoundStorageEnvironment {
         backend: Arc::clone(&backend),
