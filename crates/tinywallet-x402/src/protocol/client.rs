@@ -91,13 +91,13 @@ impl X402Client {
         let requirement = &challenge.accepts[index];
 
         let amount = parse_amount(requirement)?;
-        if let Some(cap) = max_amount {
-            if amount > cap {
-                return Err(X402Error::AmountExceedsCap {
-                    requested: amount,
-                    cap,
-                });
-            }
+        if let Some(cap) = max_amount
+            && amount > cap
+        {
+            return Err(X402Error::AmountExceedsCap {
+                requested: amount,
+                cap,
+            });
         }
 
         debug!(

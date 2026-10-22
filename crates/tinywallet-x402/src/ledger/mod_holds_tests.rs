@@ -7,11 +7,13 @@ use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use serde_json::Value;
-use tinystoragedrivers_core::{
-    Blocking, Capabilities, CollectionSpec, DocumentStore, Filter, Page, Precondition, Query,
-    Result, Sort, Version, Versioned, WriteOptions, async_trait,
+use tinystoragedrivers_api::{DocumentStore, async_trait};
+use tinystoragedrivers_types::{
+    Capabilities, CollectionSpec, Filter, Page, Precondition, Query, Result, Sort, Version,
+    Versioned, WriteOptions,
 };
 
+use super::blocking::Blocking;
 use super::persist::{HOLD_TTL_MS, HoldsDoc, Persist};
 use super::schema::{BUDGETS_COLLECTION, HOLDS_ID};
 use super::*;
@@ -247,12 +249,18 @@ fn renewal_fails_loudly_when_the_hold_document_is_unreadable() {
     Blocking::new()
         .unwrap()
         .run(async move {
+            let version = documents
+                .get(BUDGETS_COLLECTION, HOLDS_ID)
+                .await
+                .unwrap()
+                .expect("opening the ledger creates the hold document")
+                .version;
             documents
                 .put(
                     BUDGETS_COLLECTION,
                     HOLDS_ID,
                     serde_json::json!({"holds": "garbage"}),
-                    Precondition::None,
+                    Precondition::Version(version),
                 )
                 .await
                 .unwrap();
@@ -356,7 +364,7 @@ fn a_payment_still_counts_against_the_cap_before_its_hold_is_released() {
 fn a_per_request_refusal_does_not_depend_on_storage_reads() {
     let (storage, faults) = super::faulty::faulty_storage();
     let mut ledger = PaymentLedger::open(storage, SESSION, budget()).unwrap();
-    faults.read.store(true, std::sync::atomic::Ordering::SeqCst);
+    super::faulty::fail_next(&faults.read, "streams.read_window");
     assert_eq!(
         ledger.reserve_at(now(), 101).unwrap().unwrap_err(),
         BudgetRefusal::PerRequest {

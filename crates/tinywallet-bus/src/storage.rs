@@ -1,9 +1,12 @@
-//! The x402 payment record vocabulary stored by the wallet module.
+//! Pure storage declarations the host can ensure before starting the module.
 
+use tinystoragedrivers_types::CollectionSpec;
+
+#[cfg(feature = "wire")]
 use serde::{Deserialize, Serialize};
 
-/// Where a stored payment stands. The same four states, spelled the same way,
-/// as the implementation's public status type, which converts to and from this.
+#[cfg(feature = "wire")]
+/// Payment lifecycle state in the canonical `wallet.payments` record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StoredPaymentStatus {
@@ -17,11 +20,12 @@ pub enum StoredPaymentStatus {
     Denied,
 }
 
-/// One payment as stored in `wallet.payments`: `snake_case`, every instant an
-/// epoch-millisecond `*_ms` field, no wrapper.
+#[cfg(feature = "wire")]
+/// Canonical body stored in the `wallet.payments` stream.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct StoredPayment {
-    /// Unique id of the attempt.
+pub struct StoredPaymentRecord {
+    /// Unique id of the attempt. A status change may produce another row with
+    /// the same id; callers must preserve stream order and must not deduplicate.
     pub id: String,
     /// The URL the payment bought access to.
     pub url: String,
@@ -62,4 +66,16 @@ pub struct StoredPayment {
     /// The budget hold this entry committed, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub committed_hold: Option<String>,
+}
+
+/// Collection names used by the wallet's persistent module storage.
+///
+/// Migration behavior remains in the x402 implementation. The host only needs
+/// these declarations to ensure the collections in its already-bound scope.
+#[must_use]
+pub fn collections() -> Vec<CollectionSpec> {
+    vec![
+        CollectionSpec::new("wallet.budgets"),
+        CollectionSpec::new("wallet.migrations"),
+    ]
 }

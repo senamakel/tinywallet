@@ -1,0 +1,16 @@
+[
+  {
+    "amount_atomic": 250000,
+    "amount_display": "0.250000 USDC",
+    "asset": "USDC",
+    "id": "v0241-fixture-payment",
+    "network": "solana:devnet",
+    "recipient": "WalletRecipient",
+    "session_id": "release-fixture-session",
+    "status": "settled",
+    "thread_id": "release-fixture-thread",
+    "timestamp_ms": 1752496200000,
+    "tx_signature": "release-fixture-signature",
+    "url": "https://merchant.example.test/resource"
+  }
+]

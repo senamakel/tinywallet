@@ -102,7 +102,8 @@ legacy names outside its grant.
   when the host has completed schema migration and the legacy payment import
   for that storage scope.
 - `tools` needs a compiler new enough for `tinytools` (1.88), and `ledger` for
-  `tinystoragedrivers-core` (1.88). The other features
-  build on the crate's MSRV, except that `pay` pulls `reqwest`, whose `icu`
-  dependencies need a newer compiler than 1.85 with a current lockfile.
+  the stable `tinystoragedrivers-api` / `tinystoragedrivers-types` contracts
+  (1.88), matching this crate's declared minimum. The other features build on
+  that MSRV, except that `pay` pulls `reqwest`, whose `icu` dependencies need a
+  newer compiler than 1.88 with a current lockfile.
 - Error strings are user-visible and pinned by tests.

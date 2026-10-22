@@ -602,9 +602,7 @@ async fn a_signed_payment_is_not_retried_when_pending_state_cannot_be_saved() {
     let _guard = ledger::TEST_LOCK.lock().await;
     let (storage, faults) = ledger::faulty::faulty_storage();
     ledger::init_global(storage, "tool-test", SpendingBudget::default()).unwrap();
-    faults
-        .append
-        .store(true, std::sync::atomic::Ordering::SeqCst);
+    ledger::faulty::fail_next(&faults.append, "streams.append");
     let server = TestServer::start(paid_config(evm_requirement())).await;
 
     let result = run(&tool(), json!({"url": server.url})).await;

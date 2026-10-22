@@ -200,6 +200,16 @@ fn the_method_list_is_sorted_complete_and_free_of_duplicates() {
     }
 }
 
+#[test]
+fn storage_declarations_are_available_from_the_bus_contract() {
+    let names = super::storage_collections()
+        .into_iter()
+        .map(|collection| collection.name)
+        .collect::<Vec<_>>();
+
+    assert_eq!(names, ["wallet.budgets", "wallet.migrations"]);
+}
+
 #[cfg(feature = "wire")]
 #[test]
 fn x402_history_and_budget_wire_vocabulary_preserves_rpc_record_shape() {

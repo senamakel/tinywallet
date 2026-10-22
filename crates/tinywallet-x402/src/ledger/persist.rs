@@ -1,5 +1,5 @@
 //! The ledger's storage: the `wallet.payments` stream and one `wallet.budgets` hold document, both
-//! through the `tinystoragedrivers-core` ports.
+//! through the runtime-neutral `tinystoragedrivers-api` ports.
 //!
 //! The ports are async and the ledger's API is synchronous (it runs under a
 //! std mutex), so every call goes through [`Blocking`], which drives the future
@@ -13,15 +13,12 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use log::debug;
 use serde::{Deserialize, Serialize};
-use tinystoragedrivers_core::{
-    Blocking, DocumentStore, ErrorKind, MemoryStorage, Precondition, Scope, ScopedStorage,
-    StorageBackend, StreamStore, Version, WriteOptions,
-};
+use tinystoragedrivers_api::{DocumentStore, Storage, StreamStore};
+use tinystoragedrivers_types::{ErrorKind, Precondition, Version, WriteOptions};
 
+use super::blocking::Blocking;
 use super::schema::{
-    BUDGETS_COLLECTION, BUDGETS_VERSION, HOLDS_ID, LEGACY_BUDGET_COLLECTION,
-    LEGACY_PAYMENTS_STREAM, MIGRATION_READY_ID, OWNER, PAYMENTS_IMPORT_EPOCH, PAYMENTS_STREAM,
-    STORAGE_SCHEMA_VERSION, StorageMigrationReady, StoredPayment,
+    self, BUDGETS_COLLECTION, BUDGETS_VERSION, HOLDS_ID, PAYMENTS_STREAM, StoredPayment,
 };
 use super::types::PaymentRecord;
 
@@ -53,56 +50,18 @@ impl LedgerStorage {
 
     /// Persist through a host-provisioned scoped handle.
     #[must_use]
-    pub fn from_scoped(storage: &ScopedStorage) -> Self {
+    pub fn from_storage(storage: &Storage) -> Self {
         Self::new(storage.documents().clone(), storage.streams().clone())
     }
 
-    /// A fresh private in-memory store with host readiness prepared. Nothing
-    /// survives the process: for tests and hosts that deliberately want an
-    /// ephemeral current-only ledger.
-    ///
-    /// # Panics
-    ///
-    /// Never in practice: the fixed scope name is valid and the memory backend
-    /// opens any valid scope.
+    /// Create a fresh real in-memory backend for this crate's unit tests.
+    #[cfg(test)]
     #[must_use]
-    #[allow(
-        clippy::expect_used,
-        reason = "fixed memory scope and a newly owned readiness document"
-    )]
-    pub fn memory() -> Self {
-        let scope = Scope::local().module(OWNER).expect("valid scope");
-        let scoped = MemoryStorage::new()
-            .for_scope(&scope)
-            .expect("memory backend opens any scope");
-        let documents = Arc::clone(scoped.documents());
-        let ready = serde_json::to_value(StorageMigrationReady {
-            schema_version: STORAGE_SCHEMA_VERSION,
-            import_epoch: PAYMENTS_IMPORT_EPOCH.to_owned(),
-        })
-        .expect("readiness DTO serializes");
-        Blocking::new()
-            .expect("start fresh memory storage bridge")
-            .run(async move {
-                documents
-                    .ensure_collection(&tinystoragedrivers_core::CollectionSpec::new(
-                        BUDGETS_COLLECTION,
-                    ))
-                    .await?;
-                documents
-                    .put_with(
-                        BUDGETS_COLLECTION,
-                        MIGRATION_READY_ID,
-                        ready,
-                        Precondition::Absent,
-                        WriteOptions::new().schema(BUDGETS_VERSION),
-                    )
-                    .await?;
-                Ok::<_, tinystoragedrivers_core::StorageError>(())
-            })
-            .expect("fresh memory storage bridge completes")
-            .expect("fresh memory storage is ready");
-        Self::from_scoped(&scoped)
+    #[allow(clippy::expect_used, reason = "the test scope is a fixed valid label")]
+    pub(crate) fn memory() -> Self {
+        let scope = tinystoragedrivers_types::Scope::new("tinywallet.test")
+            .expect("the test scope is valid");
+        Self::from_storage(&tinystoragedrivers_testkit::memory_storage(&scope))
     }
 }
 
@@ -206,7 +165,7 @@ impl Persist {
     fn run<T, F>(&self, what: &str, future: F) -> Result<T, String>
     where
         T: Send + 'static,
-        F: Future<Output = tinystoragedrivers_core::Result<T>> + Send + 'static,
+        F: Future<Output = tinystoragedrivers_types::Result<T>> + Send + 'static,
     {
         match self.bridge.run(future) {
             Ok(Ok(value)) => Ok(value),
@@ -217,62 +176,12 @@ impl Persist {
     pub(super) fn open(storage: LedgerStorage) -> Result<Self, String> {
         let bridge = Blocking::new().map_err(|e| format!("start storage bridge: {e}"))?;
         let persist = Self { storage, bridge };
-        persist.refuse_unmigrated()?;
+        let documents = Arc::clone(&persist.storage.documents);
+        let streams = Arc::clone(&persist.storage.streams);
+        persist.run("migrate x402 storage", async move {
+            schema::migrate(documents.as_ref(), streams.as_ref()).await
+        })?;
         Ok(persist)
-    }
-
-    /// Open a current-only module grant after validating the host's readiness
-    /// record in the same scoped storage handle.
-    pub(super) fn open_current(storage: LedgerStorage) -> Result<Self, String> {
-        let bridge = Blocking::new().map_err(|e| format!("start storage bridge: {e}"))?;
-        let persist = Self { storage, bridge };
-        persist.require_migration_ready()?;
-        Ok(persist)
-    }
-
-    fn require_migration_ready(&self) -> Result<(), String> {
-        let documents = Arc::clone(&self.storage.documents);
-        let found = self.run("read wallet migration readiness", async move {
-            documents.get(BUDGETS_COLLECTION, MIGRATION_READY_ID).await
-        })?;
-        let Some(found) = found else {
-            return Err("wallet storage migration readiness is missing".to_string());
-        };
-        let ready = serde_json::from_value::<StorageMigrationReady>(found.doc)
-            .map_err(|_| "wallet storage migration readiness is malformed".to_string())?;
-        if ready.schema_version != STORAGE_SCHEMA_VERSION {
-            return Err("wallet storage migration readiness has the wrong schema version".into());
-        }
-        if ready.import_epoch != PAYMENTS_IMPORT_EPOCH {
-            return Err("wallet legacy payment import is not complete".into());
-        }
-        Ok(())
-    }
-
-    /// Fail when v1 data is still in place: opening would read only the v2
-    /// names and admit spend without counting that history. Migration is the
-    /// host's job (`storage_schema()`), so the ledger refuses rather than guess.
-    fn refuse_unmigrated(&self) -> Result<(), String> {
-        let streams = Arc::clone(&self.storage.streams);
-        let legacy = self.run("read legacy payments stream", async move {
-            streams.len(LEGACY_PAYMENTS_STREAM).await
-        })?;
-        if legacy > 0 {
-            return Err(format!(
-                "{legacy} unmigrated x402.payments entries: compose storage_schema() and migrate before opening the ledger"
-            ));
-        }
-        let documents = Arc::clone(&self.storage.documents);
-        let holds = self.run("check legacy budget holds", async move {
-            documents.get(LEGACY_BUDGET_COLLECTION, HOLDS_ID).await
-        })?;
-        if holds.is_some() {
-            return Err(
-                "legacy x402 budget holds remain: complete storage migration before opening the ledger"
-                    .to_string(),
-            );
-        }
-        Ok(())
     }
 
     /// Records from stream offset `from` to the end, with the next offset.

@@ -1,8 +1,8 @@
 [package]
 name = "tinywallet-bus"
-version = "0.25.1"
+version = "0.24.1"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "GPL-3.0-only"
 description = "The TinyBus wire contract for TinyWallet: member names, payload types, and contract version."
 repository = "https://github.com/tinyhumansai/tinywallet"
@@ -18,19 +18,18 @@ publish = false
 serde = { version = "1", optional = true }
 # The wire host callback DTOs carry opaque JSON payloads.
 serde_json = { version = "1", optional = true }
-# The data-only storage-needs contract; disabling defaults avoids TinyBus/client.
-tinystoragedrivers-bus-contract = { workspace = true }
 # Error vocabulary derives; no crypto execution crosses this dependency.
 thiserror = "2"
+# Hosts read the module's collection declarations from this contract without
+# linking the implementation or its migration behavior.
+tinystoragedrivers-types = { workspace = true }
+
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [features]
 default = ["wire"]
-# Current x402 record types and resource-name vocabulary. This compatibility
-# feature adds data only; migration algorithms live in `tinywallet-x402`.
-storage = ["serde"]
 serde = ["dep:serde", "serde/derive"]
 wire = ["serde", "dep:serde_json"]
 # Legacy feature names accepted for a transition release; none links behavior.

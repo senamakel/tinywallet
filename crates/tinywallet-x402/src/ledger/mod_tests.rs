@@ -7,11 +7,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use chrono::{DateTime, Duration, TimeZone, Utc};
 
+use super::blocking::Blocking;
 use super::faulty::{append_raw, faulty_storage};
 use super::persist::{HoldsDoc, Persist, stored_payment};
 use super::schema::{BUDGETS_COLLECTION, HOLDS_ID, PAYMENTS_STREAM};
 use super::*;
-use tinystoragedrivers_core::{Blocking, Version};
+use tinystoragedrivers_types::{Precondition, Version};
 
 const SESSION: &str = "session-a";
 static NEXT_TEST_RECORD: AtomicU64 = AtomicU64::new(1);
@@ -26,20 +27,6 @@ fn budget() -> SpendingBudget {
 
 fn now() -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 3, 15, 12, 0, 0).unwrap()
-}
-
-#[test]
-fn persistence_resource_names_match_the_bus_storage_declaration() {
-    let needs = tinywallet_bus::storage_needs();
-
-    assert_eq!(needs.collections.len(), 1);
-    assert_eq!(needs.collections[0].name, BUDGETS_COLLECTION);
-    assert_eq!(needs.collections[0].indexes, Vec::new());
-    assert_eq!(needs.collections[0].ttl_field, None);
-    assert_eq!(needs.collections[0].search, None);
-    assert_eq!(needs.stream_prefixes, [PAYMENTS_STREAM]);
-    assert_eq!(needs.blob_prefixes, &[] as &[&str]);
-    assert_eq!(needs.secret_prefixes, &[] as &[&str]);
 }
 
 fn record(
@@ -280,21 +267,36 @@ fn records_survive_a_restart() {
 }
 
 #[test]
-fn memory_storage_reopens_payment_history_and_released_holds() {
+fn previous_release_writer_data_opens_and_accepts_a_new_append() {
+    let fixture: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("fixtures/v0.24.1-payment.json")).unwrap();
     let storage = LedgerStorage::memory();
-    {
-        let mut ledger = ledger_in(&storage);
-        ledger.record_payment(record(100_000, PaymentStatus::Settled, now(), SESSION));
-        let hold = ledger.reserve_at(now(), 50_000).unwrap().unwrap();
-        ledger.release(hold);
-        assert_eq!(ledger.reserved_atomic(), 0);
-    }
+    let streams = std::sync::Arc::clone(&storage.streams);
+    Blocking::new()
+        .unwrap()
+        .run(async move {
+            for entry in fixture {
+                streams.append(PAYMENTS_STREAM, entry).await.unwrap();
+            }
+        })
+        .unwrap();
 
-    let reopened = ledger_in(&storage);
-    let payments = reopened.recent_payments(10);
-    assert_eq!(payments.len(), 1);
-    assert_eq!(payments[0].amount_atomic, 100_000);
-    assert_eq!(reopened.reserved_atomic(), 0);
+    let mut ledger = PaymentLedger::open(storage.clone(), "current-session", budget()).unwrap();
+    let previous = ledger.payment("v0241-fixture-payment").unwrap();
+    assert_eq!(previous.amount_atomic, 250_000);
+    assert_eq!(previous.status, PaymentStatus::Settled);
+    assert_eq!(
+        previous.thread_id.as_deref(),
+        Some("release-fixture-thread")
+    );
+
+    ledger.record_payment(record(
+        125_000,
+        PaymentStatus::Settled,
+        now(),
+        "current-session",
+    ));
+    assert_eq!(ledger.recent_payments(10).len(), 2);
 }
 
 #[test]
@@ -597,10 +599,10 @@ fn a_record_written_without_a_thread_still_loads() {
 fn a_payment_is_kept_in_memory_when_the_append_fails() {
     let (storage, faults) = faulty_storage();
     let mut ledger = ledger_in(&storage);
-    faults.append.store(true, Ordering::SeqCst);
+    super::faulty::fail_next(&faults.append, "streams.append");
     ledger.record_payment(record(5, PaymentStatus::Settled, now(), SESSION));
     assert_eq!(ledger.recent_payments(10).len(), 1);
-    faults.append.store(false, Ordering::SeqCst);
+    faults.append.clear();
     assert!(
         ledger_in(&storage).recent_payments(10).is_empty(),
         "nothing reached the stream"
@@ -611,7 +613,7 @@ fn a_payment_is_kept_in_memory_when_the_append_fails() {
 fn a_fallible_record_is_not_visible_until_it_is_saved() {
     let (storage, faults) = faulty_storage();
     let mut ledger = ledger_in(&storage);
-    faults.append.store(true, Ordering::SeqCst);
+    super::faulty::fail_next(&faults.append, "streams.append");
 
     assert!(
         ledger
@@ -626,7 +628,7 @@ fn a_failed_durable_commit_keeps_the_reservation_held() {
     let (storage, faults) = faulty_storage();
     let mut ledger = ledger_in(&storage);
     let reservation = ledger.reserve(5).unwrap().unwrap();
-    faults.append.store(true, Ordering::SeqCst);
+    super::faulty::fail_next(&faults.append, "streams.append");
 
     assert!(
         ledger
@@ -643,7 +645,7 @@ fn a_failed_durable_commit_keeps_the_reservation_held() {
 #[test]
 fn a_ledger_that_cannot_read_its_history_refuses_to_open() {
     let (storage, faults) = faulty_storage();
-    faults.read.store(true, Ordering::SeqCst);
+    super::faulty::fail_next(&faults.read, "streams.read_window");
     let error = PaymentLedger::open(storage, SESSION, budget()).unwrap_err();
     assert!(error.contains("read payments stream"), "{error}");
 }
@@ -652,7 +654,7 @@ fn a_ledger_that_cannot_read_its_history_refuses_to_open() {
 fn a_reservation_fails_closed_when_the_stream_cannot_be_read() {
     let (storage, faults) = faulty_storage();
     let mut ledger = ledger_in(&storage);
-    faults.read.store(true, Ordering::SeqCst);
+    super::faulty::fail_next(&faults.read, "streams.read_window");
     assert!(ledger.reserve_at(now(), 1_000).is_err());
     assert_eq!(ledger.reserved_atomic(), 0, "nothing was held");
 }
@@ -772,12 +774,19 @@ fn corrupt_the_hold_document(storage: &LedgerStorage) {
     Blocking::new()
         .unwrap()
         .run(async move {
+            let precondition = documents
+                .get(BUDGETS_COLLECTION, HOLDS_ID)
+                .await
+                .unwrap()
+                .map_or(Precondition::Absent, |record| {
+                    Precondition::Version(record.version)
+                });
             documents
                 .put(
                     BUDGETS_COLLECTION,
                     HOLDS_ID,
                     serde_json::json!({"holds": 5}),
-                    tinystoragedrivers_core::Precondition::None,
+                    precondition,
                 )
                 .await
                 .unwrap();

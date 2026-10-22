@@ -32,7 +32,7 @@ use sha2::{Digest, Sha256};
 use tinybus::Connection;
 use tinybus::broker::Broker;
 use tinybus::module::{ModuleHost, ModuleState};
-use tinybus::transport::memory::{MemoryBus, MemoryTransport};
+use tinybus::transport::memory::MemoryBus;
 use tinywallet::wire::{
     AttachRequest, PublicKey, Scheme, Signature, SignedTransaction, SigningRequest,
     TransactionSpec, UnsignedTransaction,
@@ -128,7 +128,6 @@ async fn the_built_module_signs_every_chain_over_a_real_broker() {
         x402_approved,
         x402_gate,
         modules,
-        _controller,
         broker_task,
         staged,
     ) = admit_module().await;
@@ -150,9 +149,8 @@ async fn the_built_module_signs_every_chain_over_a_real_broker() {
         )
         .await
         .map(|handle: X402ServiceHandle| handle);
-    // A released artifact has no ledger storage until the host provisions it,
-    // so x402 must fail closed; the artifact built with `e2e-memory-storage`
-    // runs the whole payment flow.
+    // This fixture has no storage host, so x402 must fail closed instead of
+    // silently switching to process-local state.
     let x402_service = match x402_configured {
         Ok(handle) => Some(handle),
         Err(error) => {
@@ -996,6 +994,12 @@ async fn the_built_module_signs_every_chain_over_a_real_broker() {
 }
 
 /// Load the built artifact and check its manifest against the interface.
+fn module_manifest(artifact: &Path, digest: &str) -> String {
+    let key = serde_json::to_string(&artifact.file_name().unwrap().to_string_lossy()).unwrap();
+    let value = serde_json::to_string(digest).unwrap();
+    format!("{key} = {value}\n")
+}
+
 async fn admit_module() -> (
     Connection,
     Connection,
@@ -1008,25 +1012,29 @@ async fn admit_module() -> (
     Arc<AtomicBool>,
     Arc<X402TestGate>,
     ModuleHost,
-    Connection,
     tokio::task::JoinHandle<tinybus::Result<()>>,
     tempfile::TempDir,
 ) {
     let artifact =
         std::env::var_os("TINYWALLET_TEST_MODULE").expect("TINYWALLET_TEST_MODULE must be set");
     let artifact = PathBuf::from(artifact);
-    let (staged, staged_artifact) = stage_artifact(&artifact);
     let bus = MemoryBus::new();
-    let broker = Broker::new_restricted_module_control();
+    let broker = Broker::new();
     let broker_task = broker.spawn(bus.clone());
-    let (broker_transport, controller_transport) = MemoryTransport::pair();
-    broker
-        .attach_module_controller(Arc::new(broker_transport))
-        .unwrap();
-    let controller = Connection::connect(Box::new(controller_transport))
-        .await
-        .unwrap();
     let modules = ModuleHost::new(broker);
+
+    let staged = tempfile::Builder::new()
+        .prefix("tinywallet-attested-")
+        .tempdir_in(artifact.parent().unwrap())
+        .unwrap();
+    let staged_artifact = staged.path().join(artifact.file_name().unwrap());
+    fs::copy(&artifact, &staged_artifact).unwrap();
+    let digest = hex(&Sha256::digest(fs::read(&staged_artifact).unwrap()));
+    fs::write(
+        staged.path().join("modules.toml"),
+        module_manifest(&artifact, &digest),
+    )
+    .unwrap();
 
     let host = Connection::connect(bus.connect().await.unwrap())
         .await
@@ -1110,28 +1118,9 @@ async fn admit_module() -> (
         x402_approved,
         x402_gate,
         modules,
-        controller,
         broker_task,
         staged,
     )
-}
-
-fn stage_artifact(artifact: &Path) -> (tempfile::TempDir, PathBuf) {
-    let staged = tempfile::Builder::new()
-        .prefix("tinywallet-attested-")
-        .tempdir_in(artifact.parent().unwrap())
-        .unwrap();
-    let staged_artifact = staged.path().join(artifact.file_name().unwrap());
-    fs::copy(artifact, &staged_artifact).unwrap();
-    let digest = hex(&Sha256::digest(fs::read(&staged_artifact).unwrap()));
-    let file_name = artifact.file_name().unwrap().to_str().unwrap();
-    let quoted_file_name = serde_json::to_string(file_name).unwrap();
-    fs::write(
-        staged.path().join("modules.toml"),
-        format!("{quoted_file_name} = {digest:?}\n"),
-    )
-    .unwrap();
-    (staged, staged_artifact)
 }
 
 struct TestHost {
@@ -1612,15 +1601,8 @@ async fn refuses_confidential_secret_delivery_to_an_unattested_artifact() {
         fixture_dir.join(artifact.file_name().expect("test artifact has a filename"));
     fs::copy(&artifact, &untrusted_artifact).expect("copy untrusted test module");
     let bus = MemoryBus::new();
-    let broker = Broker::new_restricted_module_control();
+    let broker = Broker::new();
     let broker_task = broker.spawn(bus.clone());
-    let (broker_transport, controller_transport) = MemoryTransport::pair();
-    broker
-        .attach_module_controller(Arc::new(broker_transport))
-        .unwrap();
-    let _controller = Connection::connect(Box::new(controller_transport))
-        .await
-        .unwrap();
     let modules = ModuleHost::new(broker);
     modules
         .load_file(&untrusted_artifact)

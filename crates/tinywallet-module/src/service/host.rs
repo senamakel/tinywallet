@@ -4,9 +4,7 @@ use std::sync::Arc;
 
 use log::debug;
 use tinybus::{Connection, Error as BusError, Proxy};
-use tinystoragedrivers_busproxy::StorageDescriptor;
-use tinystoragedrivers_client::BusStorage;
-use tinystoragedrivers_core::{ScopedStorage, StorageBackend};
+use tinystoragedrivers_api::Storage;
 use tinywallet_bus::wire::{
     AuthorizationResult, AuthorizeNativeWalletExecutionRequest, AuthorizeWeb3ExecutionRequest,
     AuthorizeX402PaymentRequest, ChainTransportRequest, ChainTransportResult, HostResponse,
@@ -21,11 +19,8 @@ use super::{HOST_INTERFACE, HOST_OBJECT_PATH};
 pub(crate) struct HostCallbacks {
     proxy: Proxy,
     connection: Connection,
-    /// Optional host-issued, per-service storage route. It is never inferred
-    /// from a business request or widened after this callback set is created.
-    storage_descriptor: Option<StorageDescriptor>,
     /// The host's storage, connected on first use and shared by every clone.
-    storage: Arc<tokio::sync::Mutex<Option<ScopedStorage>>>,
+    storage: Arc<tokio::sync::Mutex<Option<Storage>>>,
     /// Test seam: ledger storage used in place of the storage bus.
     #[cfg(test)]
     test_ledger_storage: Arc<std::sync::Mutex<Option<LedgerStorage>>>,
@@ -39,20 +34,10 @@ impl std::fmt::Debug for HostCallbacks {
 
 impl HostCallbacks {
     /// Bind the callback handle to the host interface on the module connection.
-    #[cfg(test)]
     pub(crate) fn new(connection: &Connection) -> Result<Self, BusError> {
-        Self::with_storage_descriptor(connection, None)
-    }
-
-    /// Bind the callback handle to one optional host-issued storage route.
-    pub(crate) fn with_storage_descriptor(
-        connection: &Connection,
-        storage_descriptor: Option<StorageDescriptor>,
-    ) -> Result<Self, BusError> {
         Ok(Self {
             proxy: connection.proxy(HOST_INTERFACE, HOST_OBJECT_PATH, HOST_INTERFACE)?,
             connection: connection.clone(),
-            storage_descriptor,
             storage: Arc::new(tokio::sync::Mutex::new(None)),
             #[cfg(test)]
             test_ledger_storage: Arc::new(std::sync::Mutex::new(None)),
@@ -64,64 +49,19 @@ impl HostCallbacks {
     /// The host binds the scope from the authenticated caller; nothing here
     /// names one. A connect failure is not cached, so a host that starts
     /// serving storage later is picked up by the next call.
-    async fn storage(&self) -> Result<Option<ScopedStorage>, String> {
+    async fn storage(&self) -> tinystoragedrivers_types::Result<Storage> {
         let mut slot = self.storage.lock().await;
         if let Some(scoped) = slot.as_ref() {
-            return Ok(Some(scoped.clone()));
+            return Ok(scoped.clone());
         }
         debug!("[wallet::host] connecting to the host storage bus");
-        let scope = tinystoragedrivers_busproxy::module_scope_label();
-        let bus = match &self.storage_descriptor {
-            Some(descriptor) => {
-                let transport = tinystoragedrivers_busproxy::BusTransport::connect_bound(
-                    self.connection.clone(),
-                    descriptor.clone(),
-                )
-                .await
-                .map_err(|error| format!("bound storage route is unavailable: {error}"))?;
-                BusStorage::connect(Arc::new(transport), scope.clone())
-                    .await
-                    .map_err(|error| format!("bound storage route is unavailable: {error}"))?
-            }
-            None => {
-                match tinystoragedrivers_busproxy::connect_storage(self.connection.clone()).await {
-                    Ok(bus) => bus,
-                    Err(error) => {
-                        // Preserve the existing no-storage behavior only for the
-                        // legacy configuration that did not receive a descriptor.
-                        log::debug!("[wallet::host] legacy storage route unavailable: {error}");
-                        return Ok(None);
-                    }
-                }
-            }
-        };
-        let scoped = match bus.for_scope(&scope) {
-            Ok(scoped) => scoped,
-            Err(error) if self.storage_descriptor.is_some() => {
-                return Err(format!("bound storage route is unavailable: {error}"));
-            }
-            Err(error) => {
-                log::warn!("[wallet::host] legacy storage scope refused: {error}");
-                return Ok(None);
-            }
-        };
-        *slot = Some(scoped.clone());
-        Ok(Some(scoped))
+        let bus = tinystoragedrivers_busproxy::connect_storage(self.connection.clone()).await?;
+        *slot = Some(bus.clone());
+        Ok(bus)
     }
 
-    /// Validate and cache a configured lease before the replacement service
-    /// becomes visible. A present descriptor must never use the legacy route.
-    pub(crate) async fn validate_configured_storage(&self) -> Result<(), String> {
-        if self.storage_descriptor.is_some() {
-            self.storage()
-                .await?
-                .ok_or_else(|| "configured storage route is unavailable".to_owned())?;
-        }
-        Ok(())
-    }
-
-    /// The ports the x402 ledger persists through: the host's payments stream,
-    /// budget-hold document, and readiness document in the same scope.
+    /// The ports the x402 ledger persists through: the host's payments stream
+    /// and budget-hold documents.
     ///
     /// # Errors
     ///
@@ -137,23 +77,10 @@ impl HostCallbacks {
         {
             return Ok(storage);
         }
-        match self.storage().await {
-            Ok(Some(scoped)) => Ok(LedgerStorage::from_scoped(&scoped)),
-            Ok(None) if self.storage_descriptor.is_none() => {
-                #[cfg(feature = "e2e-memory-storage")]
-                {
-                    static MEMORY: std::sync::OnceLock<LedgerStorage> = std::sync::OnceLock::new();
-                    log::warn!("[wallet::host] legacy host storage unavailable; using memory");
-                    Ok(MEMORY.get_or_init(LedgerStorage::memory).clone())
-                }
-                #[cfg(not(feature = "e2e-memory-storage"))]
-                {
-                    Err("x402 ledger storage is unavailable".to_owned())
-                }
-            }
-            Ok(None) => Err("configured x402 ledger storage is unavailable".to_owned()),
-            Err(error) => Err(format!("x402 ledger storage is unavailable: {error}")),
-        }
+        self.storage()
+            .await
+            .map(|storage| LedgerStorage::from_storage(&storage))
+            .map_err(|error| format!("x402 ledger storage is unavailable: {error}"))
     }
 
     /// Serve `storage` to the ledger in place of the storage bus.
@@ -248,7 +175,3 @@ fn extract_response<R: serde::de::DeserializeOwned>(
 #[cfg(test)]
 #[path = "host_tests.rs"]
 mod tests;
-
-#[cfg(all(test, feature = "static-link"))]
-#[path = "host_bound_storage_tests.rs"]
-mod bound_storage_tests;

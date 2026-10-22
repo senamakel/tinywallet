@@ -138,7 +138,7 @@ async fn ledger_lifecycle_rejects_stale_handles_and_malformed_challenges() {
             daily_max_atomic: 100,
             monthly_max_atomic: 100,
         },
-        tinywallet_x402::ledger::LedgerStorage::memory(),
+        memory_ledger_storage(),
     )
     .unwrap();
     assert!(format!("{runtime:?}").contains("X402Runtime"));
@@ -326,7 +326,7 @@ async fn history_and_live_budget_operations_keep_the_configured_ledger() {
             daily_max_atomic: 200,
             monthly_max_atomic: 300,
         },
-        tinywallet_x402::ledger::LedgerStorage::memory(),
+        memory_ledger_storage(),
     )
     .unwrap();
     let handle = runtime.handle();
@@ -390,7 +390,7 @@ async fn x402_bus_methods_serve_history_budget_and_detailed_summary() {
         .callbacks
         .as_ref()
         .unwrap()
-        .set_test_ledger_storage(tinywallet_x402::ledger::LedgerStorage::memory());
+        .set_test_ledger_storage(memory_ledger_storage());
     let service = wallet
         .x402_configure(X402ConfigureRequest {
             config: X402ConfigResponse {
@@ -621,7 +621,7 @@ async fn x402_pending_capacity_is_reserved_before_authorization_and_released_on_
         .callbacks
         .as_ref()
         .unwrap()
-        .set_test_ledger_storage(tinywallet_x402::ledger::LedgerStorage::memory());
+        .set_test_ledger_storage(memory_ledger_storage());
     let handle = wallet
         .x402_configure(X402ConfigureRequest {
             config: X402ConfigResponse {

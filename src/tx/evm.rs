@@ -185,7 +185,7 @@ impl LegacyTransaction {
 
 /// Decode an even-length hex string into bytes.
 fn decode_hex(body: &str) -> Option<Vec<u8>> {
-    if body.len() % 2 != 0 {
+    if !body.len().is_multiple_of(2) {
         return None;
     }
     (0..body.len())

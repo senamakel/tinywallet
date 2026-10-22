@@ -1,8 +1,8 @@
 [package]
 name = "tinywallet"
-version = "0.25.1"
+version = "0.24.1"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "GPL-3.0-only"
 description = "Agent-friendly multi-chain wallet primitives in Rust."
 repository = "https://github.com/tinyhumansai/tinywallet"
@@ -35,7 +35,6 @@ members = [
     "crates/tinywallet-crypto",
     "crates/tinywallet-x402",
     "crates/tinywallet-bus",
-    "crates/tinywallet-client",
     "crates/tinywallet-web3",
     "crates/tinywallet-module",
 ]
@@ -44,7 +43,6 @@ default-members = [
     "crates/tinywallet-crypto",
     "crates/tinywallet-x402",
     "crates/tinywallet-bus",
-    "crates/tinywallet-client",
     "crates/tinywallet-web3",
     "crates/tinywallet-module",
 ]
@@ -54,9 +52,6 @@ exclude = ["vendor/tinybus"]
 resolver = "3"
 
 [workspace.dependencies]
-# Typed host calls use the published strict attestation API. The client needs
-# no loader or transport features; its host supplies those features.
-tinybus = { version = "=0.3.11", git = "https://github.com/tinyhumansai/tinybus", rev = "9e14f65666b11782ec1054aba576114026d180f8", default-features = false }
 # The shared agent `Tool` trait, for the `tools` features of `tinywallet-x402`
 # and `tinywallet-web3`. A git source rather than a path on purpose, matching
 # tinymcp: a host that already links tinytools (OpenHuman, through
@@ -64,21 +59,11 @@ tinybus = { version = "=0.3.11", git = "https://github.com/tinyhumansai/tinybus"
 # one package and `tinytools::Tool` stays one type. Keep the rev equal to the
 # tinytools gitlink tinyagents pins.
 tinytools = { git = "https://github.com/tinyhumansai/tinytools", rev = "bd60b9b52f1998b4483b9cf107a72d3338e672f8" }
-# The storage ports (documents, streams) the x402 ledger persists through. The
-# ports crate only: no driver, no database client. A git tag rather than a path
-# so a host that already links tinystoragedrivers (OpenHuman patches this exact
-# URL to its vendored copy) unifies to one `DocumentStore` trait. `blocking`
-# is the sync bridge the ledger's synchronous API runs the async ports on.
-tinystoragedrivers-core = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b", default-features = false, features = ["blocking", "migration-delivery"] }
-# The data-only storage-needs contract; deliberately distinct from the runtime
-# ports crate so hosts can share its vocabulary without pulling in I/O APIs.
-tinystoragedrivers-bus-contract = { package = "tinystoragedrivers-bus", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b", default-features = false }
-# The storage bus, for the loadable module only: it reaches the host's storage
-# through the same ports over TinyBus rather than a process-local registry.
-tinystoragedrivers-bus = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b" }
-tinystoragedrivers-client = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b" }
-tinystoragedrivers-busproxy = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b" }
-tinystoragedrivers-tinybus = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b", default-features = false, features = ["migration-delivery"] }
+# Runtime-neutral contracts shared with the host's stable TSD release.
+tinystoragedrivers-types = { version = "2.1.0", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "05eaada962decbab33bafa4763d2bd1a67f6b456" }
+tinystoragedrivers-api = { version = "2.1.0", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "05eaada962decbab33bafa4763d2bd1a67f6b456" }
+# The module connects to host-owned storage through the TinyBus adapter.
+tinystoragedrivers-busproxy = { version = "2.1.0", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "05eaada962decbab33bafa4763d2bd1a67f6b456" }
 
 [dependencies]
 # The wire contract. Split out so a host that has moved signing into the

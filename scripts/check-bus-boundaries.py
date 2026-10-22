@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Audit the bus and excluded consumer normal/build closures."""
+"""Audit the bus's normal/build closure using resolved Cargo package identities."""
 import json
 import subprocess
 import sys
-from pathlib import Path
 
 ALLOWED = {
     "serde", "serde_core", "serde_derive", "serde_json", "thiserror",
@@ -11,29 +10,25 @@ ALLOWED = {
     "itoa", "memchr", "zmij",
 }
 REGISTRY = "registry+https://github.com/rust-lang/crates.io-index"
-TSD_BUS = "tinystoragedrivers-bus"
-TSD_BUS_SOURCE = (
-    "git+https://github.com/tinyhumansai/tinystoragedrivers"
-    "?rev=a04e3a174fa8f28d5229a816ca6b39c72a9efd7b"
-    "#a04e3a174fa8f28d5229a816ca6b39c72a9efd7b"
-)
-TSD_BUS_TREE_SOURCES = {
-    "https://github.com/tinyhumansai/tinystoragedrivers"
-    "?rev=a04e3a174fa8f28d5229a816ca6b39c72a9efd7b"
-    "#a04e3a174fa8f28d5229a816ca6b39c72a9efd7b",
-    "https://github.com/tinyhumansai/tinystoragedrivers"
-    "?rev=a04e3a174fa8f28d5229a816ca6b39c72a9efd7b#a04e3a17",
-}
-
-# The optional `storage` feature exposes only wallet storage names and stored
-# record vocabulary. It must not add an implementation/runtime dependency to
-# the data-only bus closure.
-STORAGE_FEATURE = "storage"
+TSD_TYPES = "tinystoragedrivers-types"
+TSD_TYPES_REV = "05eaada962decbab33bafa4763d2bd1a67f6b456"
+TSD_TYPES_SOURCE = f"https://github.com/tinyhumansai/tinystoragedrivers?rev={TSD_TYPES_REV}#"
 
 # Chain, key and crypto implementations never enter the bus closure, not even
-# through the `storage` feature's registry-crate exemption.
+# through transitive dependencies.
 FORBIDDEN_NAMES = {"bitcoin", "k256"}
 FORBIDDEN_PREFIXES = ("coins-",)
+
+# Storage implementation crates must remain behind the host boundary. The
+# names are checked against each library's full normal/build closure.
+ENGINE_FORBIDDEN = {
+    "rusqlite", "libsqlite3-sys", "mongodb", "bson", "aws-sdk-s3", "lapin",
+    "amq-protocol", "sqlx", "redb", "sled", "rocksdb",
+    "tinystoragedrivers-document", "tinystoragedrivers-kv", "tinystoragedrivers-blob",
+    "tinystoragedrivers-queue", "tinystoragedrivers-secrets", "tinystoragedrivers-connect",
+    "tinystoragedrivers",
+}
+LIBRARY_KINDS = {"lib", "rlib", "dylib", "cdylib", "staticlib", "proc-macro"}
 
 
 def forbidden(name):
@@ -42,50 +37,35 @@ def forbidden(name):
     return normalized in FORBIDDEN_NAMES or normalized.startswith(FORBIDDEN_PREFIXES)
 
 
-def audit(metadata, root_name="tinywallet-bus", wallet_bus_manifest=None):
-    if not isinstance(metadata, dict) or not isinstance(metadata.get("packages"), list):
-        return ["Cargo metadata is missing its package list"]
-    resolve = metadata.get("resolve")
-    if not isinstance(resolve, dict) or not isinstance(resolve.get("nodes"), list):
-        return ["Cargo metadata is missing resolve nodes"]
+def is_canonical_tsd_source(source, *, require_full_hash=False):
+    """Whether Cargo resolved TSD types from the canonical pinned revision."""
+    if not isinstance(source, str):
+        return False
+    resolved = source.removeprefix("git+")
+    if not resolved.startswith(TSD_TYPES_SOURCE):
+        return False
+    commit = resolved[len(TSD_TYPES_SOURCE):]
+    minimum_length = len(TSD_TYPES_REV) if require_full_hash else 8
+    return (
+        minimum_length <= len(commit) <= len(TSD_TYPES_REV)
+        and TSD_TYPES_REV.startswith(commit)
+    )
 
-    package_ids = [
-        package["id"]
-        for package in metadata["packages"]
-        if isinstance(package, dict) and isinstance(package.get("id"), str)
-    ]
-    node_ids = [
-        node["id"]
-        for node in resolve["nodes"]
-        if isinstance(node, dict) and isinstance(node.get("id"), str)
-    ]
-    if len(package_ids) != len(set(package_ids)):
-        return ["Cargo metadata contains duplicate package identities"]
-    if len(node_ids) != len(set(node_ids)):
-        return ["Cargo metadata contains duplicate resolve nodes"]
 
-    packages = {
-        package["id"]: package
-        for package in metadata["packages"]
-        if isinstance(package, dict) and isinstance(package.get("id"), str)
-    }
-    nodes = {
-        node["id"]: node
-        for node in resolve["nodes"]
-        if isinstance(node, dict) and isinstance(node.get("id"), str)
-    }
-    roots = [
-        package["id"]
-        for package in metadata["packages"]
-        if isinstance(package, dict)
-        and package.get("name") == root_name
-        and isinstance(package.get("id"), str)
-    ]
+def dependency_allowed(name, source):
+    """Whether a bus dependency is registry vocabulary or the pinned TSD DTO crate."""
+    if name in ALLOWED and source == REGISTRY:
+        return True
+    return name == TSD_TYPES and is_canonical_tsd_source(source, require_full_hash=True)
+
+
+def audit(metadata):
+    packages = {package["id"]: package for package in metadata["packages"]}
+    nodes = {node["id"]: node for node in metadata["resolve"]["nodes"]}
+    roots = [package["id"] for package in metadata["packages"] if package["name"] == "tinywallet-bus"]
     if len(roots) != 1:
-        return [f"expected exactly one {root_name} package"]
-    if roots[0] not in nodes:
-        return [f"Cargo resolve graph is missing root node {root_name}"]
-    queue = [(roots[0], [root_name])]
+        raise ValueError("expected exactly one tinywallet-bus package")
+    queue = [(roots[0], ["tinywallet-bus"])]
     seen = set()
     violations = []
     while queue:
@@ -93,61 +73,13 @@ def audit(metadata, root_name="tinywallet-bus", wallet_bus_manifest=None):
         if identity in seen:
             continue
         seen.add(identity)
-        package = packages.get(identity)
-        if package is None:
-            violations.append("unresolved package identity: " + " -> ".join(path))
-            continue
-        if len(path) > 1:
-            name = package["name"]
-            source = package.get("source")
-            pinned_storage_bus = name == TSD_BUS and source == TSD_BUS_SOURCE
-            local_wallet_bus = (
-                name == "tinywallet-bus"
-                and source is None
-                and wallet_bus_manifest is not None
-                and package.get("manifest_path") == str(Path(wallet_bus_manifest).resolve())
-            )
-            registry_contract_dep = name in ALLOWED and source == REGISTRY
-            if not (pinned_storage_bus or local_wallet_bus or registry_contract_dep):
-                violations.append(" -> ".join(path))
-        node = nodes[identity]
-        dependencies = node.get("deps")
-        if not isinstance(dependencies, list):
-            violations.append("resolve node has no dependency list: " + " -> ".join(path))
-            continue
-        for dependency in dependencies:
-            if not isinstance(dependency, dict):
-                violations.append("malformed dependency edge: " + " -> ".join(path))
-                continue
-            child = dependency.get("pkg")
-            kinds = dependency.get("dep_kinds")
-            if not isinstance(child, str) or not isinstance(kinds, list):
-                violations.append("incomplete dependency edge: " + " -> ".join(path))
-                continue
-            relevant = False
-            malformed_kind = False
-            for kind in kinds:
-                if not isinstance(kind, dict) or "kind" not in kind:
-                    malformed_kind = True
-                    break
-                if kind["kind"] in (None, "build"):
-                    relevant = True
-                elif kind["kind"] != "dev":
-                    malformed_kind = True
-                    break
-            if malformed_kind:
-                violations.append("malformed dependency kind: " + " -> ".join(path))
-                continue
-            if not relevant:
-                continue
-            child_package = packages.get(child)
-            if child_package is None or child not in nodes:
-                name = child_package.get("name", child) if child_package else child
-                violations.append(
-                    "unresolved dependency node: " + " -> ".join(path + [name])
-                )
-                continue
-            queue.append((child, path + [child_package["name"]]))
+        package = packages[identity]
+        if len(path) > 1 and not dependency_allowed(package["name"], package.get("source")):
+            violations.append(" -> ".join(path))
+        for dependency in nodes[identity]["deps"]:
+            if any(kind["kind"] in (None, "build") for kind in dependency["dep_kinds"]):
+                child = dependency["pkg"]
+                queue.append((child, path + [packages[child]["name"]]))
     return violations
 
 
@@ -155,8 +87,8 @@ def tree_packages(feature=None):
     """(name, source) of every normal/build dependency of the bus alone.
 
     `cargo tree -p` resolves features for the selected package only, so a
-    workspace sibling that enables `storage` cannot leak into the default run
-    the way it does in `cargo metadata`.
+    workspace sibling's dependencies cannot leak into the bus closure the way
+    they do in full-workspace metadata.
     """
     command = ["cargo", "tree", "-p", "tinywallet-bus", "-e", "normal,build", "--prefix", "none", "-f", "{p}"]
     if feature:
@@ -175,70 +107,80 @@ def tree_packages(feature=None):
 
 
 def audit_tree(packages):
-    """Violations for a `cargo tree` listing of a bus feature closure."""
+    """Violations for a `cargo tree` listing."""
     violations = []
     for name, source in packages:
         if forbidden(name):
             violations.append(f"tinywallet-bus -> {name} (forbidden)")
             continue
-        if name == TSD_BUS and source in TSD_BUS_TREE_SOURCES:
-            continue
         if name in ALLOWED and not source:
+            continue
+        if name == TSD_TYPES and is_canonical_tsd_source(source):
             continue
         violations.append(f"tinywallet-bus -> {name} ({source or 'registry'})")
     return violations
 
 
-def _audit_metadata(manifest, package_name, root):
-    result = subprocess.run(
-        [
-            "cargo", "metadata", "--locked", "--format-version", "1",
-            "--manifest-path", str(manifest),
-        ],
+def tree_package_names(output):
+    """Extract package names from Cargo's versioned `--prefix none` lines."""
+    return [line.split()[0] for line in output.splitlines() if line.split()]
+
+
+def workspace_library_crates(metadata):
+    """Enumerate every library package in this workspace, failing closed."""
+    members = metadata.get("workspace_members")
+    packages = metadata.get("packages")
+    if not isinstance(members, list) or not isinstance(packages, list):
+        raise ValueError("Cargo metadata omitted workspace members or packages")
+    member_ids = set(members)
+    names = sorted({
+        package["name"]
+        for package in packages
+        if package.get("id") in member_ids
+        and any(
+            LIBRARY_KINDS.intersection(target.get("kind", []))
+            for target in package.get("targets", [])
+        )
+    })
+    if not names:
+        raise ValueError("Cargo metadata found no workspace library packages")
+    return names
+
+
+def engine_library_crates():
+    """Read workspace library package identities without path assumptions."""
+    metadata = subprocess.run(
+        ["cargo", "metadata", "--locked", "--format-version", "1", "--no-deps"],
         check=True,
         capture_output=True,
         text=True,
-    )
-    failures = audit(
-        json.loads(result.stdout),
-        package_name,
-        root / "crates/tinywallet-bus/Cargo.toml",
-    )
-    if failures:
-        print(
-            f"Forbidden normal/build dependencies from {package_name}:\n"
-            + "\n".join(failures),
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    ).stdout
+    return workspace_library_crates(json.loads(metadata))
+
+
+def engine_tree_packages(crate):
+    """Return package names in one library's normal/build dependency tree."""
+    command = [
+        "cargo", "tree", "-p", crate, "--all-features", "-e", "normal,build",
+        "--prefix", "none",
+    ]
+    out = subprocess.run(command, check=True, capture_output=True, text=True).stdout
+    return tree_package_names(out)
+
+
+def engine_violations(names):
+    """Find engine packages by normalized Cargo package name."""
+    return sorted({name.replace("_", "-") for name in names} & ENGINE_FORBIDDEN)
 
 
 if __name__ == "__main__":
-    root = Path(__file__).resolve().parents[1]
-    # This isolated consumer resolves its own graph and lockfile, so metadata
-    # proves the published data-only contract without workspace feature bleed.
-    _audit_metadata(
-        root / "proof-workspaces/storage-needs/Cargo.toml",
-        "tinywallet-storage-needs-consumer",
-        root,
-    )
     failures = audit_tree(tree_packages())
     if failures:
-        print(
-            "Forbidden contract dependencies (default features):\n"
-            + "\n".join(failures),
-            file=sys.stderr,
-        )
+        print("Forbidden contract dependencies:\n" + "\n".join(failures), file=sys.stderr)
         sys.exit(1)
-    failures = audit_tree(tree_packages(STORAGE_FEATURE))
-    if failures:
-        print(
-            "Forbidden contract dependencies (storage feature):\n"
-            + "\n".join(failures),
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    print(
-        "tinywallet-bus default and storage-feature closures are data-only; "
-        "the excluded consumer stays data-only"
-    )
+    for crate in engine_library_crates():
+        engines = engine_violations(engine_tree_packages(crate))
+        if engines:
+            print(f"{crate} normal/build tree contains storage engines: {', '.join(engines)}", file=sys.stderr)
+            sys.exit(1)
+    print("wallet library normal/build trees contain no storage engine crates")
