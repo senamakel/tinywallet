@@ -119,7 +119,7 @@ impl PaymentSigner for FakePaymentSigner {
         let mut signature = match scheme {
             SignScheme::Secp256k1Digest => {
                 let key = k256::ecdsa::SigningKey::from_slice(&Self::evm_secret()).unwrap();
-                let (sig, recovery) = key.sign_prehash_recoverable(message).unwrap();
+                let (sig, recovery) = key.sign_prehash_recoverable(message);
                 let mut out = sig.to_bytes().to_vec();
                 out.push(self.recovery_id.unwrap_or_else(|| recovery.to_byte()));
                 out
