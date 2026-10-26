@@ -60,10 +60,10 @@ resolver = "3"
 # tinytools gitlink tinyagents pins.
 tinytools = { git = "https://github.com/tinyhumansai/tinytools", rev = "bd60b9b52f1998b4483b9cf107a72d3338e672f8" }
 # Runtime-neutral contracts shared with the host's stable TSD release.
-tinystoragedrivers-types = { version = "2.1.2", git = "https://github.com/senamakel/tinystoragedrivers", rev = "400b71e5c40fe964130c89e981c64ddeead5619f" }
-tinystoragedrivers-api = { version = "2.1.2", git = "https://github.com/senamakel/tinystoragedrivers", rev = "400b71e5c40fe964130c89e981c64ddeead5619f" }
+tinystoragedrivers-types = { version = "2.1.2", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c447da3" }
+tinystoragedrivers-api = { version = "2.1.2", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c447da3" }
 # The module connects to host-owned storage through the TinyBus adapter.
-tinystoragedrivers-busproxy = { version = "2.1.2", git = "https://github.com/senamakel/tinystoragedrivers", rev = "400b71e5c40fe964130c89e981c64ddeead5619f" }
+tinystoragedrivers-busproxy = { version = "2.1.2", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c447da3" }
 
 [dependencies]
 # The wire contract. Split out so a host that has moved signing into the

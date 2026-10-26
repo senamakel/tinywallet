@@ -10,4 +10,4 @@ resolver = "3"
 
 [dependencies]
 tinywallet-bus = { path = "../../crates/tinywallet-bus", default-features = false }
-tinystoragedrivers-types = { git = "https://github.com/senamakel/tinystoragedrivers", rev = "400b71e5c40fe964130c89e981c64ddeead5619f" }
+tinystoragedrivers-types = { git = "https://github.com/senamakel/tinystoragedrivers", rev = "c447da3" }

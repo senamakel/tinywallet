@@ -101,7 +101,7 @@ workspace = true
 
 [dev-dependencies]
 # Testkit-backed module storage fixtures exercise the host's v2 storage ports.
-tinystoragedrivers-testkit = { version = "2.1.2", git = "https://github.com/senamakel/tinystoragedrivers", rev = "400b71e5c40fe964130c89e981c64ddeead5619f" }
+tinystoragedrivers-testkit = { version = "2.1.2", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c447da3" }
 # Encodes and decodes the Solana transaction fixtures in native tests.
 base64 = "0.23"
 # The native lifecycle fixture stages and hashes the actual cdylib to attest it.

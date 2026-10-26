@@ -94,7 +94,7 @@ tinywallet = { path = "../..", default-features = false, features = ["key", "sol
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
 # Native ledger migration tests use an in-memory v2 storage implementation.
-tinystoragedrivers-testkit = { version = "2.1.2", git = "https://github.com/senamakel/tinystoragedrivers", rev = "400b71e5c40fe964130c89e981c64ddeead5619f" }
+tinystoragedrivers-testkit = { version = "2.1.2", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c447da3" }
 
 [features]
 default = ["wire"]
