@@ -2,16 +2,14 @@
 
 The minimal TinyBus contract for TinyWallet: names, version, shared chain
 identifiers, error vocabulary, transfer types, request/result DTOs, and the
-x402 ledger's data-only storage declaration and stored record vocabulary. The
-default and `storage` feature closures contain only serde, serde_json,
-thiserror, and the feature-disabled `tinystoragedrivers-bus` contract. The
-optional `storage` feature exposes the serializable payment record shape and
-resource names; it does not add a schema runner, storage ports, backend,
-client, or transport.
+x402 ledger's storage collection declarations and stored record vocabulary.
+The crate depends on `tinystoragedrivers-types` for the canonical
+`CollectionSpec` contract, without linking a storage backend, client, or
+transport.
 
-The data-only bus contract, including all features, supports Rust 1.85. The
-excluded storage-needs consumer independently checks the published names and
-canonical TinyStorageDrivers type at that same floor.
+The bus contract supports Rust 1.88, matching the TinyStorageDrivers v2 type
+crate. The excluded collection-contract consumer independently checks the
+published collection names and canonical type.
 
 Network enums in the bus are identifiers only. RPC endpoints, explorer URLs,
 Solana mint addresses, and display labels remain implementation-owned reference

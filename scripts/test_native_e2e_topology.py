@@ -57,8 +57,8 @@ def _msrv_contract_issues(workflow):
     module_manifest = tomllib.loads((ROOT / "crates/tinywallet-module/Cargo.toml").read_text())
     bus_floor = bus_manifest["package"]["rust-version"]
     module_floor = module_manifest["package"]["rust-version"]
-    if bus_floor != "1.85":
-        issues.append("data-only tinywallet-bus floor must remain Rust 1.85")
+    if bus_floor != "1.88":
+        issues.append("tinywallet-bus floor must match tinystoragedrivers-types Rust 1.88")
     if module_floor != "1.88":
         issues.append("tinywallet-module floor must match its Rust 1.88 runtime dependencies")
 
@@ -69,7 +69,7 @@ def _msrv_contract_issues(workflow):
         for target in targets
     )
     if not bus_wire:
-        issues.append("shared MSRV matrix must build the data-only bus wire feature at Rust 1.85")
+        issues.append("shared MSRV matrix must build the bus wire feature at Rust 1.88")
     bus_all_features = any(
         target.get("packages") == ["tinywallet-bus"]
         and target.get("all_targets", False)
@@ -77,7 +77,7 @@ def _msrv_contract_issues(workflow):
         for target in targets
     )
     if not bus_all_features:
-        issues.append("shared MSRV matrix must build bus storage vocabulary all-features at Rust 1.85")
+        issues.append("shared MSRV matrix must build bus storage vocabulary all-features at Rust 1.88")
     module_matrix = any(
         target.get("packages") == ["tinywallet-module"]
         and target.get("all_targets", False)
@@ -93,20 +93,20 @@ def _msrv_contract_issues(workflow):
     if "cargo test --locked -p tinywallet-x402 --features ledger" not in ledger_job:
         issues.append("Rust 1.88 ledger job must test the x402 ledger consumer")
     if "tinywallet-bus --all-targets --all-features" in ledger_job:
-        issues.append("bus all-features must stay in the bus package's Rust 1.85 matrix target")
+        issues.append("bus all-features must stay in the bus package's Rust 1.88 matrix target")
 
     proof_job = _job_block(workflow, "wallet-storage-needs-contract")
-    if "toolchain: '1.85.1'" not in proof_job or (
+    if "toolchain: '1.88.0'" not in proof_job or (
         "cargo test --locked --manifest-path proof-workspaces/storage-needs/Cargo.toml"
         not in proof_job
     ):
-        issues.append("data-only storage-needs proof must remain tested on Rust 1.85.1")
+        issues.append("storage collection contract proof must be tested on Rust 1.88")
 
     bus_docs = (ROOT / "crates/tinywallet-bus/README.md").read_text()
     bus_manifest_text = (ROOT / "crates/tinywallet-bus/Cargo.toml").read_text()
     x402_manifest_text = (ROOT / "crates/tinywallet-x402/Cargo.toml").read_text()
-    if "Rust 1.85" not in bus_docs or "data-only" not in bus_docs or "tinystoragedrivers-core" in bus_manifest_text:
-        issues.append("bus docs and manifest must keep the storage vocabulary data-only at Rust 1.85")
+    if "Rust 1.88" not in bus_docs or "tinystoragedrivers-api" not in bus_manifest_text:
+        issues.append("bus docs and manifest must describe the TSD v2 type contract at Rust 1.88")
     if not all(word in x402_manifest_text for word in ("1.88", "ledger", "pay", "tools")):
         issues.append("x402 manifest must document the Rust 1.88 ledger/pay/tools feature floor")
     return issues
@@ -123,7 +123,7 @@ class NativeE2ETopologyTests(unittest.TestCase):
         self.assertIn(bus_all_features, workflow)
         mutated = workflow.replace(bus_all_features, "", 1)
         self.assertIn(
-            "shared MSRV matrix must build bus storage vocabulary all-features at Rust 1.85",
+            "shared MSRV matrix must build bus storage vocabulary all-features at Rust 1.88",
             _msrv_contract_issues(mutated),
         )
 

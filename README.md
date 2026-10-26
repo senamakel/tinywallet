@@ -90,7 +90,7 @@ The repository builds six libraries and one loadable module.
 | `tinywallet-crypto` | the `Chain` enum, address validation, reference data, the `rpc::Transport` seam, and the Tron protobuf reader and verification | hashes and codecs only — no native build |
 | `tinywallet-x402` | the x402 wire types, EIP-712 hashing and ERC-20 calldata (`wire`, `eip712`, `abi`) | `tinywallet-crypto`, keccak, serde |
 | `tinywallet-web3` | the wallet, swap, bridge and dapp flows and their agent tools (`tools`), behind host seams: `WalletSigner`, `WalletAccounts`, `RpcEndpoints`, `Web3Backend`, `QuoteScope` | `tinywallet-crypto`, `tinywallet-bus` (`wire`), `tinywallet-x402` (`abi`) — never `bitcoin`, `k256` or `coins-*` |
-| `tinywallet-bus` | identifiers, errors, transfers, wire DTOs, member names and contract version | serde, thiserror and the storage-needs contract |
+| `tinywallet-bus` | identifiers, errors, transfers, wire DTOs, member names, storage collections and contract version | serde, thiserror and TinyStorageDrivers types |
 | `tinywallet-client` | typed host calls for wallet, ERC-20, Web3 and x402 members | `tinybus` and `tinywallet-bus`; no wallet implementation |
 | `tinywallet` (root) | key derivation, transaction building and signing, chain queries; re-exports the crates above | `bitcoin` and its native `secp256k1` build, `coins-bip39`, `ed25519-dalek` |
 | `tinywallet-module` | the TinyBus adapter, built as a `cdylib` | all of the above |
