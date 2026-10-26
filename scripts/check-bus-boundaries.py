@@ -11,8 +11,8 @@ ALLOWED = {
 }
 REGISTRY = "registry+https://github.com/rust-lang/crates.io-index"
 TSD_TYPES = "tinystoragedrivers-types"
-TSD_TYPES_REV = "05eaada962decbab33bafa4763d2bd1a67f6b456"
-TSD_TYPES_SOURCE = f"https://github.com/tinyhumansai/tinystoragedrivers?rev={TSD_TYPES_REV}#"
+TSD_TYPES_REV = "400b71e5c40fe964130c89e981c64ddeead5619f"
+TSD_TYPES_SOURCE = f"https://github.com/senamakel/tinystoragedrivers?rev={TSD_TYPES_REV}#"
 
 # Chain, key and crypto implementations never enter the bus closure, not even
 # through transitive dependencies.
@@ -38,7 +38,7 @@ def forbidden(name):
 
 
 def is_canonical_tsd_source(source, *, require_full_hash=False):
-    """Whether Cargo resolved TSD types from the canonical pinned revision."""
+    """Whether Cargo resolved TSD types from the pinned fork revision."""
     if not isinstance(source, str):
         return False
     resolved = source.removeprefix("git+")
