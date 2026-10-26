@@ -137,6 +137,10 @@ class NativeE2ETopologyTests(unittest.TestCase):
         self.assertEqual(shell.count("--test module_e2e"), 1)
         self.assertEqual(shell.count("--test lifecycle_e2e"), 1)
         self.assertIn("TINYWALLET_TEST_MODULE=", shell)
+        self.assertIn("--package tinywallet-client", shell)
+        for target in ("native_e2e", "attested_errors", "native_unattested"):
+            self.assertIn(f"--test {target}", shell)
+        self.assertIn("TINYWALLET_CLIENT_TEST_ARCHIVE_SHA256=", shell)
 
         ci = (ROOT / ".github/workflows/ci.yml").read_text()
         self.assertIn("module-e2e-script: scripts/test-e2e.sh", ci)
