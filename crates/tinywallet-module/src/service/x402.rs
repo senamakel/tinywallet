@@ -130,7 +130,7 @@ impl X402Runtime {
             daily_max_atomic: config.daily_max_atomic,
             monthly_max_atomic: config.monthly_max_atomic,
         };
-        ledger::init_global_current(storage, &config.session_id, budget)?;
+        ledger::init_global(storage, &config.session_id, budget)?;
         let lease = spawn_lease_renewal();
         Ok(Self {
             lease,

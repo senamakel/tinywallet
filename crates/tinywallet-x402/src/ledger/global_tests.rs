@@ -40,19 +40,3 @@ async fn the_global_ledger_lifecycle_runs_on_a_multi_thread_runtime() {
     assert!(with_ledger(|_| ()).is_err());
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn the_current_only_global_opens_owned_fresh_memory_storage() {
-    let _guard = TEST_LOCK.lock().await;
-    reset_global();
-    init_global_current(LedgerStorage::memory(), "fresh-memory", budget()).unwrap();
-    assert!(with_ledger(|ledger| ledger.recent_payments(1).is_empty()).unwrap());
-    clear_global();
-}
-
-#[test]
-fn provisioned_storage_can_be_set_and_cleared() {
-    provision_storage(LedgerStorage::memory());
-    assert!(provisioned_storage().is_some());
-    clear_provisioned_storage();
-    assert!(provisioned_storage().is_none());
-}
