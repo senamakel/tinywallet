@@ -107,11 +107,11 @@ ripemd = { version = "0.2", optional = true }
 # BIP-32 on secp256k1, backed by the pure-Rust `k256` rather than the
 # `secp256k1` C library. Deriving a key wrong is silent and unrecoverable, so
 # this stays delegated to a vetted implementation — see `src/key/bip32.rs`.
-coins-bip32 = { version = "0.13", optional = true }
+coins-bip32 = { version = "0.17", optional = true }
 # Keccak-256 for the EVM and Tron addresses key derivation produces.
 #
 # PINNED TO 0.10, and not by accident — do not let dependabot move it.
-# `coins-bip32` 0.8 (via `coins-core`) depends on `sha3` 0.10 and is not going
+# `coins-bip32` (via `coins-core`) depends on `sha3` 0.10 and is not going
 # to move, so 0.10 is already in the graph of every consumer that enables
 # `key`. Asking for 0.12 here does not replace it, it ADDS a second copy: cargo
 # cannot unify across a major, so a host ends up compiling `sha3` twice plus
@@ -124,7 +124,7 @@ sha3 = { version = "0.12", optional = true }
 async-trait = { version = "0.1", optional = true }
 # BIP-39 mnemonic -> seed. Pinned to the same 0.8 line OpenHuman used before
 # this extraction, so a wallet derived by the old code derives identically here.
-coins-bip39 = { version = "0.13", optional = true }
+coins-bip39 = { version = "0.17", optional = true }
 # OS-seeded cryptographic randomness for BIP-39 mnemonic generation.
 rand = { version = "0.9", default-features = false, features = ["std", "std_rng"], optional = true }
 # HMAC-SHA512, the whole of SLIP-0010's ed25519 derivation.
