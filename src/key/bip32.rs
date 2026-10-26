@@ -28,7 +28,6 @@ use std::str::FromStr;
 
 use coins_bip32::path::DerivationPath;
 use coins_bip32::prelude::SigningKey;
-use coins_bip32::prelude::k256::elliptic_curve::sec1::ToSec1Point;
 use coins_bip32::xkeys::XPriv;
 
 use super::{Error, Result};

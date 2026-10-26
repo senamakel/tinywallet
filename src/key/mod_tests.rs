@@ -14,7 +14,6 @@
 
 use super::{Error, derive};
 use crate::chain::Chain;
-use coins_bip32::prelude::k256::elliptic_curve::sec1::ToSec1Point;
 use std::fmt::Write as _;
 
 /// The canonical BIP-39 test vector: 11 × "abandon" + "about".
@@ -342,7 +341,7 @@ fn public_evm_address_matches_key_derivation_and_rejects_invalid_points() {
     let public = coins_bip32::ecdsa::SigningKey::from_slice(key.secret_bytes())
         .unwrap()
         .verifying_key()
-        .to_encoded_point(true);
+        .to_sec1_point(true);
     assert_eq!(
         super::evm_address_from_public_key(public.as_bytes()).unwrap(),
         key.address()

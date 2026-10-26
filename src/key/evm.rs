@@ -1,6 +1,5 @@
 //! EVM key derivation: BIP-32 on secp256k1, address via Keccak-256.
 
-use coins_bip32::prelude::k256::elliptic_curve::sec1::ToSec1Point;
 use sha3::{Digest, Keccak256};
 
 use super::{DerivedKey, Result, bip32, seed_from_mnemonic};
