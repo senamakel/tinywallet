@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / ".github/workflows/release.yml"
 REVIEWED_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-reviewed-epic-release.yml@6ed83b04aab2d8977ec62e966cb914531e534fa4"
 LEGACY_WORKFLOW = "tinyhumansai/.github/.github/workflows/module-release.yml@4adc1080fb495098e7af1aade82ed7e6e3c69bb7"
-TINYBUS_REV = "9e14f65666b11782ec1054aba576114026d180f8"
-TINYBUS_VERSION = "=0.3.11"
+TINYBUS_REV = "85345114f3066e94d5d70161ea8dc43252b83ae6"
+TINYBUS_VERSION = "=0.3.12"
 TINYBUS_CRATES = ("tinybus", "tinybus-module", "tinybus-macros")
 
 
@@ -174,7 +174,7 @@ class ReviewedReleaseWorkflowTests(unittest.TestCase):
         for path, section, crate, edge in sdk_edges:
             with self.subTest(path=path, section=section, crate=crate):
                 self.assertEqual(edge["version"], TINYBUS_VERSION)
-                self.assertEqual(edge["git"], "https://github.com/tinyhumansai/tinybus")
+                self.assertEqual(edge["git"], "https://github.com/senamakel/tinybus")
                 self.assertEqual(edge["rev"], TINYBUS_REV)
 
         client_manifest = tomllib.loads(

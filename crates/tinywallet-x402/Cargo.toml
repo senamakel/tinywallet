@@ -1,6 +1,6 @@
 [package]
 name = "tinywallet-x402"
-version = "0.24.1"
+version = "0.25.1"
 edition = "2024"
 rust-version = "1.88"
 license = "GPL-3.0-only"
@@ -77,6 +77,7 @@ tokio = { version = "1", default-features = false, features = ["rt-multi-thread"
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+async-trait = "0.1"
 # Drives the async tests; the crate itself pulls in no runtime.
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "net", "io-util", "sync"] }
 # A loopback HTTP server so the 402 client and the tool are exercised against a

@@ -75,7 +75,7 @@ class ContractBoundaryTests(unittest.TestCase):
 class EngineTreeTests(unittest.TestCase):
     def test_versioned_cargo_tree_lines_are_checked_by_package_name(self):
         output = """\
-tinywallet-module v0.24.1 (/work/tinywallet)
+tinywallet-module v0.25.1 (/work/tinywallet)
 rusqlite v0.40.2 (registry+https://github.com/rust-lang/crates.io-index)
 tinystoragedrivers-api v2.1.0 (https://github.com/tinyhumansai/tinystoragedrivers)
 """
