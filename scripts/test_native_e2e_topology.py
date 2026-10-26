@@ -93,7 +93,7 @@ def _msrv_contract_issues(workflow):
     bus_docs = (ROOT / "crates/tinywallet-bus/README.md").read_text()
     bus_manifest_text = (ROOT / "crates/tinywallet-bus/Cargo.toml").read_text()
     x402_manifest_text = (ROOT / "crates/tinywallet-x402/Cargo.toml").read_text()
-    if "Rust 1.88" not in bus_docs or "tinystoragedrivers-api" not in bus_manifest_text:
+    if "Rust 1.88" not in bus_docs or "tinystoragedrivers-types" not in bus_manifest_text:
         issues.append("bus docs and manifest must describe the TSD v2 type contract at Rust 1.88")
     if not all(word in x402_manifest_text for word in ("1.88", "ledger", "pay", "tools")):
         issues.append("x402 manifest must document the Rust 1.88 ledger/pay/tools feature floor")
@@ -101,7 +101,7 @@ def _msrv_contract_issues(workflow):
 
 
 class NativeE2ETopologyTests(unittest.TestCase):
-    def test_msrv_matrix_splits_the_data_contract_from_storage_runtime_floors(self):
+    def test_msrv_matrix_tracks_the_tsd_v2_bus_and_module_floors(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         self.assertEqual(_msrv_contract_issues(workflow), [])
 
