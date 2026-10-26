@@ -420,3 +420,13 @@ fn every_confidential_member_is_a_member() {
     assert!(CONFIDENTIAL_METHODS.contains(&names::methods::GENERATE_MNEMONIC));
     assert!(CONFIDENTIAL_METHODS.contains(&names::methods::DERIVE_MNEMONIC_SEED));
 }
+
+#[test]
+fn storage_declarations_are_available_from_the_bus_contract() {
+    let names = crate::storage::collections()
+        .into_iter()
+        .map(|collection| collection.name)
+        .collect::<Vec<_>>();
+
+    assert_eq!(names, ["wallet.budgets", "wallet.migrations"]);
+}
