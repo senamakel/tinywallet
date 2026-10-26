@@ -32,7 +32,7 @@ class ContractBoundaryTests(unittest.TestCase):
                 metadata(
                     boundary.TSD_TYPES,
                     source="git+" + boundary.TSD_TYPES_SOURCE
-                    + "400b71e5c40fe964130c89e981c64ddeead5619f",
+                    + "c447da319e41dfe17bba4afb1831fe0cf0eef154",
                 )
             ),
             [],
@@ -51,7 +51,15 @@ class ContractBoundaryTests(unittest.TestCase):
 
     def test_tree_allows_only_the_pinned_fork_source_for_tsd_types(self):
         self.assertEqual(
-            boundary.audit_tree([(boundary.TSD_TYPES, boundary.TSD_TYPES_SOURCE + "400b71e5c40fe964130c89e981c64ddeead5619f")]),
+            boundary.audit_tree(
+                [
+                    (
+                        boundary.TSD_TYPES,
+                        boundary.TSD_TYPES_SOURCE
+                        + "c447da319e41dfe17bba4afb1831fe0cf0eef154",
+                    )
+                ]
+            ),
             [],
         )
         self.assertTrue(
