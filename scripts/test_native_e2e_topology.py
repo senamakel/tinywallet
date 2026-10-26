@@ -145,16 +145,18 @@ class NativeE2ETopologyTests(unittest.TestCase):
         feature_shell = (ROOT / "scripts/test-features.sh").read_text()
         self.assertIn("cargo test --locked --workspace", feature_shell)
         self.assertNotIn("--prepare-only", feature_shell)
-        self.assertNotIn("tinywallet-client", feature_shell)
+        self.assertIn("--exclude tinywallet-client", feature_shell)
+        self.assertIn("-p tinywallet-client --lib --all-features", feature_shell)
         self.assertIn("cargo test --locked --workspace --all-features", feature_shell)
 
         feature_windows = (ROOT / "scripts/test-features.ps1").read_text()
         self.assertNotIn("PrepareOnly", feature_windows)
-        self.assertIn("cargo test --locked --workspace --all-features", feature_windows)
+        self.assertIn("cargo test --locked --workspace --all-features --exclude tinywallet-client", feature_windows)
+        self.assertIn("cargo test --locked -p tinywallet-client --lib --all-features", feature_windows)
 
         coverage = (ROOT / "scripts/check-coverage.sh").read_text()
         self.assertNotIn("--prepare-only", coverage)
-        self.assertNotIn("tinywallet-client", coverage)
+        self.assertIn("--exclude tinywallet-client", coverage)
         self.assertIn("cargo llvm-cov --workspace --all-features --all-targets", coverage)
 
     def test_windows_archive_operand_is_local_not_a_drive_qualified_remote(self):
