@@ -91,7 +91,7 @@ jobs:
             exit 1
           fi
 
-  wallet-storage-needs-contract:
+  wallet-storage-contract:
     name: Wallet storage collection contract
     runs-on: ubuntu-latest
     steps:
@@ -103,7 +103,7 @@ jobs:
         with:
           toolchain: '1.88.0'
       - name: Compile the excluded canonical-type consumer
-        run: cargo test --locked --manifest-path proof-workspaces/storage-needs/Cargo.toml
+        run: cargo test --locked --manifest-path proof-workspaces/storage-contract/Cargo.toml
       - name: Keep the storage contract's normal/build graph data-only
         run: |
           python3 scripts/check_bus_boundaries_tests.py

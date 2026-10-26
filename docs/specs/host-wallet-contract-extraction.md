@@ -3,7 +3,7 @@
 ## Purpose and boundary
 
 The `tinywallet-bus` crate owns reusable, pure contract facts shared by TinyWallet
-and its hosts. It may expose the wallet's typed storage requirements, map a
+and its hosts. It may expose the wallet's typed storage collection declarations, map a
 chain selection to an RPC endpoint key, and compare a prepared quote with the
 transaction intent supplied for execution.
 
@@ -17,37 +17,15 @@ behavior.
 
 ## Storage requirements
 
-The bus publishes the x402 ledger's host-facing `StorageNeeds` declaration
-using the canonical TinyStorageDrivers bus type. It names the ledger's current
-stored resources:
-
-- a document collection named `wallet.budgets`;
-- a stream prefix named `wallet.payments`.
-
-The declaration adds no indexes, retention policy, time-to-live, or fabricated
-resource identifiers. It describes the minimum storage capability needed by
-the ledger; it does not create or access those resources. The bus shares the
-current names and stored payment vocabulary, while x402 owns the schema steps
-and executable transformations. The legacy `x402_budget` collection and
-`x402.payments` stream are migration inputs, not the current host grant.
-
-The current grant also carries a host-written readiness document at
-`wallet.budgets/migration_ready`; this is a document inside the already granted
-`wallet.budgets` collection, not permission to the legacy names. Its strict DTO
-requires schema version 2 and the `x402-payments-jsonl-v1` import epoch. The
-host must revoke the module's storage binding and remove this document before
-starting any wallet schema migration or legacy payment import. It writes a new
-readiness document only after every migration and import step for that module
-scope succeeds. A missing, malformed, old-version, or wrong-epoch document
-keeps `X402Configure` closed. The module never writes or repairs readiness.
-
-The host's boot report and importer result must be authoritative: warnings from
-a failed migration or import do not establish readiness. A host must propagate
-those failures, keep the binding revoked, and retry. Host integration obtains
-the migration result through the released compiled-module schema/executor
-contract; it must not link the x402 implementation library or infer completion
-from empty current data. Until that released contract and adapter are available,
-the module fails closed when the readiness document is absent.
+The bus publishes the x402 ledger's host-facing
+`storage::collections() -> Vec<CollectionSpec>` declaration using the canonical
+TinyStorageDrivers types crate. It names `wallet.budgets` and
+`wallet.migrations`, with no indexes, expiry or search policy. The host ensures
+those collections in the caller's authenticated scope and serves a scoped v2
+`Storage` handle to the module over TinyBus. The x402 implementation owns the
+payments stream declaration and performs its schema and legacy-data migration
+through the v2 document and stream ports. The bus itself does not create or
+access storage.
 
 ## Endpoint key mapping
 

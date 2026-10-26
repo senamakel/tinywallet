@@ -95,9 +95,9 @@ def _msrv_contract_issues(workflow):
     if "tinywallet-bus --all-targets --all-features" in ledger_job:
         issues.append("bus all-features must stay in the bus package's Rust 1.88 matrix target")
 
-    proof_job = _job_block(workflow, "wallet-storage-needs-contract")
+    proof_job = _job_block(workflow, "wallet-storage-contract")
     if "toolchain: '1.88.0'" not in proof_job or (
-        "cargo test --locked --manifest-path proof-workspaces/storage-needs/Cargo.toml"
+        "cargo test --locked --manifest-path proof-workspaces/storage-contract/Cargo.toml"
         not in proof_job
     ):
         issues.append("storage collection contract proof must be tested on Rust 1.88")
@@ -117,7 +117,7 @@ class NativeE2ETopologyTests(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         self.assertEqual(_msrv_contract_issues(workflow), [])
 
-    def test_msrv_contract_requires_bus_storage_vocabulary_allfeatures_at_its_1_85_floor(self):
+    def test_msrv_contract_requires_bus_storage_vocabulary_allfeatures_at_its_1_88_floor(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         bus_all_features = '{"packages":["tinywallet-bus"],"all_targets":true,"all_features":true},'
         self.assertIn(bus_all_features, workflow)
