@@ -34,4 +34,6 @@ printf '"%s" = "%s"\n' "$name" "$hash" > "$stage/modules.toml"
 TINYWALLET_TEST_MODULE="$stage/$name" cargo test --locked --release \
   --package tinywallet-module --test module_e2e -- --ignored
 TINYWALLET_TEST_MODULE="$stage/$name" cargo test --locked --release \
+  --package tinywallet-module --test attested_errors -- --ignored
+TINYWALLET_TEST_MODULE="$stage/$name" cargo test --locked --release \
   --package tinywallet-module --test lifecycle_e2e -- --ignored
