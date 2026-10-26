@@ -67,7 +67,7 @@ async fn x402_service_lifecycle_records_approval_denial_and_cancellation() {
         .callbacks
         .as_ref()
         .unwrap()
-        .set_test_ledger_storage(tinywallet_x402::ledger::LedgerStorage::memory());
+        .set_test_ledger_storage(memory_ledger_storage());
     let handle = wallet
         .x402_configure(X402ConfigureRequest {
             config: X402ConfigResponse {
@@ -331,7 +331,7 @@ async fn x402_service_lifecycle_records_approval_denial_and_cancellation() {
         .callbacks
         .as_ref()
         .unwrap()
-        .set_test_ledger_storage(failing_append_storage().await);
+        .set_test_ledger_storage(failing_append_storage());
     let blocked_handle = wallet
         .x402_configure(X402ConfigureRequest {
             config: X402ConfigResponse {
@@ -375,71 +375,19 @@ async fn x402_service_lifecycle_records_approval_denial_and_cancellation() {
 
 /// In-memory storage whose payments stream refuses every append: the ledger
 /// opens, holds budget, and then cannot durably record the authorization.
-async fn failing_append_storage() -> tinywallet_x402::ledger::LedgerStorage {
-    use tinystoragedrivers_core::{
-        MemoryStorage, Result as StorageResult, Scope, StorageBackend, StorageError, StreamEntry,
-        StreamStore, async_trait,
-    };
+fn failing_append_storage() -> tinywallet_x402::ledger::LedgerStorage {
+    use tinystoragedrivers_testkit::{Failing, FaultPlan};
+    use tinystoragedrivers_types::{ErrorKind, Scope};
 
-    #[derive(Debug)]
-    struct NoAppend(Arc<dyn StreamStore>);
-
-    #[async_trait]
-    impl StreamStore for NoAppend {
-        async fn append(&self, _: &str, _: serde_json::Value) -> StorageResult<u64> {
-            Err(StorageError::backend("injected append failure"))
-        }
-        async fn append_batch(&self, s: &str, v: Vec<serde_json::Value>) -> StorageResult<u64> {
-            self.0.append_batch(s, v).await
-        }
-        async fn read_window(&self, s: &str, f: u64, l: usize) -> StorageResult<Vec<StreamEntry>> {
-            self.0.read_window(s, f, l).await
-        }
-        async fn len(&self, s: &str) -> StorageResult<u64> {
-            self.0.len(s).await
-        }
-        async fn truncate_before(&self, s: &str, o: u64) -> StorageResult<u64> {
-            self.0.truncate_before(s, o).await
-        }
-        async fn delete_stream(&self, s: &str) -> StorageResult<bool> {
-            self.0.delete_stream(s).await
-        }
-        async fn streams(&self, p: &str) -> StorageResult<Vec<String>> {
-            self.0.streams(p).await
-        }
-    }
-
-    let scoped = MemoryStorage::new()
-        .for_scope(&Scope::new("x402-fail").unwrap())
-        .unwrap();
-    scoped
-        .documents()
-        .ensure_collection(&tinystoragedrivers_core::CollectionSpec::new(
-            "wallet.budgets",
-        ))
-        .await
-        .unwrap();
-    scoped
-        .documents()
-        .put_with(
-            "wallet.budgets",
-            "migration_ready",
-            serde_json::json!({
-                "schema_version": 2,
-                "import_epoch": "x402-payments-jsonl-v1",
-            }),
-            tinystoragedrivers_core::Precondition::Absent,
-            tinystoragedrivers_core::WriteOptions::new().schema(2),
-        )
-        .await
-        .unwrap();
+    let scoped = tinystoragedrivers_testkit::memory_storage(&Scope::new("x402-fail").unwrap());
+    let faults = FaultPlan::new();
+    faults.fail_operation_nth("streams.append", 1, ErrorKind::Backend);
     tinywallet_x402::ledger::LedgerStorage::new(
         Arc::clone(scoped.documents()),
-        Arc::new(NoAppend(Arc::clone(scoped.streams()))),
+        Arc::new(Failing::with_plan(Arc::clone(scoped.streams()), faults)),
     )
 }
 
-#[cfg(not(feature = "e2e-memory-storage"))]
 #[tokio::test]
 async fn x402_configure_fails_closed_when_the_host_serves_no_storage() {
     use tinywallet_bus::wire::X402ConfigureRequest;

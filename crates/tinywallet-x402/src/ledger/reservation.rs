@@ -30,10 +30,10 @@ impl Reservation {
 
     /// Record the payment's outcome and end the hold in one critical section.
     pub fn commit(mut self, record: PaymentRecord) {
-        if let Some(id) = self.id.take() {
-            if with_ledger_mut(|l| l.commit_reservation(id, record)).is_err() {
-                debug!("{LOG_PREFIX} commit skipped: ledger gone");
-            }
+        if let Some(id) = self.id.take()
+            && with_ledger_mut(|l| l.commit_reservation(id, record)).is_err()
+        {
+            debug!("{LOG_PREFIX} commit skipped: ledger gone");
         }
     }
 

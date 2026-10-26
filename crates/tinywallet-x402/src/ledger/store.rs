@@ -73,24 +73,6 @@ impl PaymentLedger {
         Self::from_persist(Persist::open(storage)?, session_id, budget)
     }
 
-    /// Open the ledger through a current-only module grant after validating
-    /// the host's migration and legacy-import readiness record in that scope.
-    ///
-    /// Direct trusted library callers should use [`Self::open`], which can
-    /// inspect legacy resources and refuses to open while any remain.
-    ///
-    /// # Errors
-    ///
-    /// The host readiness record is missing, malformed, stale, or unreadable,
-    /// or the current ledger storage cannot be opened or read.
-    pub fn open_current(
-        storage: LedgerStorage,
-        session_id: &str,
-        budget: SpendingBudget,
-    ) -> Result<Self, String> {
-        Self::from_persist(Persist::open_current(storage)?, session_id, budget)
-    }
-
     fn from_persist(
         persist: Persist,
         session_id: &str,

@@ -46,12 +46,12 @@ tinywallet = { path = "../..", default-features = false, features = [
     "abi",
 ] }
 # TinyBus provides the typed service interface and the dynamic module host ABI.
-tinybus = { version = "=0.3.11", git = "https://github.com/tinyhumansai/tinybus", rev = "9e14f65666b11782ec1054aba576114026d180f8", default-features = false, features = [
+tinybus = { version = "=0.3.12", git = "https://github.com/senamakel/tinybus", rev = "85345114f3066e94d5d70161ea8dc43252b83ae6", default-features = false, features = [
     "macros",
     "modules",
 ] }
 # The module-side SDK owns its runtime and exports the stable C entrypoints.
-tinybus-module = { version = "=0.3.11", git = "https://github.com/tinyhumansai/tinybus", rev = "9e14f65666b11782ec1054aba576114026d180f8" }
+tinybus-module = { version = "=0.3.12", git = "https://github.com/senamakel/tinybus", rev = "85345114f3066e94d5d70161ea8dc43252b83ae6" }
 # The module runtime drives asynchronous host callbacks and serializes service
 # lifecycle changes against in-flight operations.
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
@@ -79,12 +79,10 @@ ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
 zeroize = "1"
 # Storage over the bus: the module reaches the host's storage (x402 payments
 # stream and budget-hold documents) through the ports crate's bus transport, not
-# a process-local registry. TSD core v1.9 sets this module's Rust 1.88 floor.
-tinystoragedrivers-core = { workspace = true }
-tinystoragedrivers-bus = { workspace = true }
-tinystoragedrivers-client = { workspace = true }
+# a process-local registry.
+tinystoragedrivers-types = { workspace = true }
+tinystoragedrivers-api = { workspace = true }
 tinystoragedrivers-busproxy = { workspace = true }
-tinystoragedrivers-tinybus = { workspace = true }
 # Diagnostics for the storage connection and hold-lease renewal.
 log = "0.4"
 # Generates opaque service, quote, and pending-payment identifiers.
@@ -97,15 +95,13 @@ default = []
 # are always built without it.
 static-link = []
 linked = ["static-link"]
-# Test-artifact only (the module E2E builds the cdylib with it): when the host
-# has not provisioned x402 ledger storage, fall back to in-memory storage
-# instead of failing closed. Released modules are never built with it.
-e2e-memory-storage = []
 
 [lints]
 workspace = true
 
 [dev-dependencies]
+# Testkit-backed module storage fixtures exercise the host's v2 storage ports.
+tinystoragedrivers-testkit = { version = "2.1.2", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c447da3" }
 # Encodes and decodes the Solana transaction fixtures in native tests.
 base64 = "0.23"
 # The native lifecycle fixture stages and hashes the actual cdylib to attest it.
@@ -114,7 +110,7 @@ sha2 = "0.11"
 tempfile = "3"
 # The loader E2E admits the built module from its adjacent digest manifest and
 # uses TinyBus's shared lifecycle helpers.
-tinybus = { version = "=0.3.11", git = "https://github.com/tinyhumansai/tinybus", rev = "9e14f65666b11782ec1054aba576114026d180f8", default-features = false, features = [
+tinybus = { version = "=0.3.12", git = "https://github.com/senamakel/tinybus", rev = "85345114f3066e94d5d70161ea8dc43252b83ae6", default-features = false, features = [
     "macros",
     "modules",
     "test-support",

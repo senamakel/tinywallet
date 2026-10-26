@@ -197,10 +197,9 @@ pub fn verify_contract(
             if let (Some(expected), Some(actual)) = (
                 fee_limit_sun,
                 proto::optional_varint(&raw_fields, 18, "Transaction.raw.fee_limit")?,
-            ) {
-                if actual != expected {
-                    return Err(untrusted("the transaction has a different fee_limit"));
-                }
+            ) && actual != expected
+            {
+                return Err(untrusted("the transaction has a different fee_limit"));
             }
 
             let mut expected_data = decode_hex(TRC20_TRANSFER_SELECTOR_HEX)?;
@@ -291,7 +290,7 @@ pub fn signature_hex(signature: &Signature) -> String {
 
 fn decode_hex(raw: &str) -> Result<Vec<u8>> {
     let body = raw.trim();
-    if body.len() % 2 != 0 {
+    if !body.len().is_multiple_of(2) {
         return Err(Error::InvalidField {
             field: "raw_data_hex",
             reason: "odd length".to_string(),

@@ -50,7 +50,6 @@ use tinywallet::wire::{
 use tinywallet::{Chain, key, tx};
 
 mod host;
-mod migration;
 mod native_wallet;
 mod web3;
 mod x402;
@@ -1432,38 +1431,8 @@ fn base64(bytes: &[u8]) -> String {
     out
 }
 
-#[derive(Default, serde::Deserialize)]
-struct WalletModuleConfig {
-    #[serde(default)]
-    storage_descriptor: Option<tinystoragedrivers_busproxy::StorageDescriptor>,
-}
-
-async fn setup_with_context(
-    context: tinybus_module::ModuleSetupContext,
-    config: Option<WalletModuleConfig>,
-) -> BusResult<()> {
-    let config = config.unwrap_or_default();
-    let connection = context.connection().clone();
-    let callbacks =
-        host::HostCallbacks::with_storage_descriptor(&connection, config.storage_descriptor)?;
-    callbacks
-        .validate_configured_storage()
-        .await
-        .map_err(|_| BusError::failed("wallet storage descriptor unavailable"))?;
-    migration::serve(&context).await?;
-    setup_with_callbacks(connection, callbacks).await
-}
-
-#[cfg(test)]
 async fn setup(connection: Connection) -> BusResult<()> {
     let callbacks = host::HostCallbacks::new(&connection)?;
-    setup_with_callbacks(connection, callbacks).await
-}
-
-async fn setup_with_callbacks(
-    connection: Connection,
-    callbacks: host::HostCallbacks,
-) -> BusResult<()> {
     let wallet = Wallet {
         callbacks: Some(callbacks.clone()),
         web3: tokio::sync::RwLock::new(None),
@@ -1534,13 +1503,9 @@ fn host_build_failed(message: String) -> BusError {
 )]
 mod exports {
     tinybus_module::module_export_optional_static! {
-        setup_with_context = super::setup_with_context,
-        config = Option<super::WalletModuleConfig>,
+        setup = super::setup,
         worker_threads = 2,
-        provides = [
-            "ai.tinyhumans.tinywallet.Wallet",
-            "org.tinystoragedrivers.Migration",
-        ],
+        provides = ["ai.tinyhumans.tinywallet.Wallet"],
         // Hand-maintained, and the compiler cannot check it against the
         // `#[tinybus::interface]` block above — a method missing here is
         // simply not advertised. `the_manifest_advertises_every_method` in

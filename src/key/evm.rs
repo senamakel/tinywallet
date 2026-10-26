@@ -44,7 +44,7 @@ fn hex_lower(bytes: &[u8]) -> String {
 pub fn address_from_public_key(public: &[u8]) -> Result<String> {
     let public = coins_bip32::ecdsa::VerifyingKey::from_sec1_bytes(public)
         .map_err(|_| super::Error::InvalidPublicKey)?;
-    let encoded = public.to_encoded_point(false);
+    let encoded = public.to_sec1_point(false);
     let bytes: [u8; 65] = encoded
         .as_bytes()
         .try_into()

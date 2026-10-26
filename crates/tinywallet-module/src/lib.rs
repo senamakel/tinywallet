@@ -19,9 +19,9 @@ mod service;
 #[cfg(feature = "static-link")]
 pub use service::linked_module;
 pub use service::{BUS_NAME, HOST_INTERFACE, HOST_OBJECT_PATH, OBJECT_PATH};
-/// What the module stores (owner `wallet`). A host composes it into its schema
-/// registry and generates the module's storage grant from the same items.
-pub use tinywallet_x402::ledger::storage_schema;
+/// Pure collection declarations for the host; migration behavior stays in the
+/// x402 implementation.
+pub use tinywallet_bus::storage::collections as storage_collections;
 
 #[cfg(test)]
 #[path = "lib_tests.rs"]

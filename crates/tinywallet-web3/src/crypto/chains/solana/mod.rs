@@ -87,7 +87,7 @@ async fn signer_pubkey(engine: &WalletEngine) -> Result<[u8; 32], String> {
 
 /// Decode lowercase hex.
 fn hex_to_bytes(value: &str) -> Result<Vec<u8>, String> {
-    if value.len() % 2 != 0 {
+    if !value.len().is_multiple_of(2) {
         return Err("odd-length hex from the wallet module".to_string());
     }
     (0..value.len() / 2)

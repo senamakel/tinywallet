@@ -2,16 +2,14 @@
 
 The minimal TinyBus contract for TinyWallet: names, version, shared chain
 identifiers, error vocabulary, transfer types, request/result DTOs, and the
-x402 ledger's data-only storage declaration and stored record vocabulary. The
-default and `storage` feature closures contain only serde, serde_json,
-thiserror, and the feature-disabled `tinystoragedrivers-bus` contract. The
-optional `storage` feature exposes the serializable payment record shape and
-resource names; it does not add a schema runner, storage ports, backend,
-client, or transport.
+x402 ledger's storage collection declarations and stored record vocabulary.
+The crate depends on `tinystoragedrivers-types` for the canonical
+`CollectionSpec` contract, without linking a storage backend, client, or
+transport.
 
-The data-only bus contract, including all features, supports Rust 1.85. The
-excluded storage-needs consumer independently checks the published names and
-canonical TinyStorageDrivers type at that same floor.
+The bus contract supports Rust 1.88, matching the TinyStorageDrivers v2 type
+crate. The excluded collection-contract consumer independently checks the
+published collection names and canonical type.
 
 Network enums in the bus are identifiers only. RPC endpoints, explorer URLs,
 Solana mint addresses, and display labels remain implementation-owned reference
@@ -85,13 +83,7 @@ Contract 1.12 adds optional `additional_secrets` to confidential
 shape. The module parses the challenge, selects the payment chain, and uses
 only the matching confidential secret; hosts do not parse payment challenges.
 
-The bus exposes `storage_needs()` for the x402 ledger's host-facing storage
-declaration. It uses the data-only `tinystoragedrivers-bus` type and requests
-the current `wallet.budgets` collection and `wallet.payments` stream. Those
-names come from the same bus-owned constants as the stored record vocabulary.
-The bus also defines the data-only `StorageMigrationReady` record stored at
-`wallet.budgets/migration_ready`; its required schema version and payment-import
-epoch let a module reject a missing or stale host migration attestation. The
-x402 ledger owns the executable `storage_schema()` and migration from the
-legacy `x402_budget` collection and `x402.payments` stream; the module's grant
-covers only the current names.
+The bus exposes `storage::collections()` for the host's wallet storage grant.
+The declarations include the current `wallet.budgets` and
+`wallet.migrations` collections. Migration behavior and the payment stream
+remain owned by the x402 ledger implementation.

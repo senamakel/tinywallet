@@ -4,20 +4,21 @@
 
 use super::*;
 
-use tinystoragedrivers_core::{Registry, ScopeClass};
+use tinystoragedrivers_types::CollectionSpec;
 
 #[test]
 fn every_stored_item_is_wallet_owned_and_module_scoped() {
-    let schema = storage_schema();
-    assert_eq!(schema.owner.as_str(), "wallet");
-    assert_ne!(
-        schema.items,
-        [] as [tinystoragedrivers_core::Item; 0],
-        "the wallet schema must declare at least one persisted item"
-    );
-    for item in &schema.items {
-        assert!(item.name().starts_with("wallet."), "{}", item.name());
-        assert_eq!(item.scope(), ScopeClass::Module, "{}", item.name());
+    let collections = storage_collections();
+    for collection in &collections {
+        assert!(
+            collection.name.starts_with("wallet."),
+            "{}",
+            collection.name
+        );
     }
-    Registry::compose([schema]).unwrap();
+    assert!(
+        collections
+            .iter()
+            .any(|item| *item == CollectionSpec::new("wallet.budgets"))
+    );
 }

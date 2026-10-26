@@ -130,7 +130,7 @@ impl X402Runtime {
             daily_max_atomic: config.daily_max_atomic,
             monthly_max_atomic: config.monthly_max_atomic,
         };
-        ledger::init_global_current(storage, &config.session_id, budget)?;
+        ledger::init_global(storage, &config.session_id, budget)?;
         let lease = spawn_lease_renewal();
         Ok(Self {
             lease,
@@ -585,6 +585,14 @@ fn take_request_secrets(
 
 #[cfg(test)]
 static LEDGER_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+fn memory_ledger_storage() -> ledger::LedgerStorage {
+    let scope = tinystoragedrivers_types::Scope::new("tinywallet.module-test")
+        .expect("the test scope is valid");
+    ledger::LedgerStorage::from_storage(&tinystoragedrivers_testkit::memory_storage(&scope))
+}
 
 #[cfg(test)]
 #[path = "x402_tests.rs"]

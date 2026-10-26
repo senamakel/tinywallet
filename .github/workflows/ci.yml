@@ -91,8 +91,8 @@ jobs:
             exit 1
           fi
 
-  wallet-storage-needs-contract:
-    name: Wallet storage-needs contract
+  wallet-storage-contract:
+    name: Wallet storage collection contract
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -101,9 +101,9 @@ jobs:
           submodules: recursive
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # stable
         with:
-          toolchain: '1.85.1'
+          toolchain: '1.88.0'
       - name: Compile the excluded canonical-type consumer
-        run: cargo test --locked --manifest-path proof-workspaces/storage-needs/Cargo.toml
+        run: cargo test --locked --manifest-path proof-workspaces/storage-contract/Cargo.toml
       - name: Keep the storage contract's normal/build graph data-only
         run: |
           python3 scripts/check_bus_boundaries_tests.py

@@ -2,7 +2,7 @@
 name = "tinywallet"
 version = "0.25.1"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "GPL-3.0-only"
 description = "Agent-friendly multi-chain wallet primitives in Rust."
 repository = "https://github.com/tinyhumansai/tinywallet"
@@ -44,7 +44,6 @@ default-members = [
     "crates/tinywallet-crypto",
     "crates/tinywallet-x402",
     "crates/tinywallet-bus",
-    "crates/tinywallet-client",
     "crates/tinywallet-web3",
     "crates/tinywallet-module",
 ]
@@ -54,9 +53,6 @@ exclude = ["vendor/tinybus"]
 resolver = "3"
 
 [workspace.dependencies]
-# Typed host calls use the published strict attestation API. The client needs
-# no loader or transport features; its host supplies those features.
-tinybus = { version = "=0.3.11", git = "https://github.com/tinyhumansai/tinybus", rev = "9e14f65666b11782ec1054aba576114026d180f8", default-features = false }
 # The shared agent `Tool` trait, for the `tools` features of `tinywallet-x402`
 # and `tinywallet-web3`. A git source rather than a path on purpose, matching
 # tinymcp: a host that already links tinytools (OpenHuman, through
@@ -64,21 +60,14 @@ tinybus = { version = "=0.3.11", git = "https://github.com/tinyhumansai/tinybus"
 # one package and `tinytools::Tool` stays one type. Keep the rev equal to the
 # tinytools gitlink tinyagents pins.
 tinytools = { git = "https://github.com/tinyhumansai/tinytools", rev = "bd60b9b52f1998b4483b9cf107a72d3338e672f8" }
-# The storage ports (documents, streams) the x402 ledger persists through. The
-# ports crate only: no driver, no database client. A git tag rather than a path
-# so a host that already links tinystoragedrivers (OpenHuman patches this exact
-# URL to its vendored copy) unifies to one `DocumentStore` trait. `blocking`
-# is the sync bridge the ledger's synchronous API runs the async ports on.
-tinystoragedrivers-core = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b", default-features = false, features = ["blocking", "migration-delivery"] }
-# The data-only storage-needs contract; deliberately distinct from the runtime
-# ports crate so hosts can share its vocabulary without pulling in I/O APIs.
-tinystoragedrivers-bus-contract = { package = "tinystoragedrivers-bus", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b", default-features = false }
-# The storage bus, for the loadable module only: it reaches the host's storage
-# through the same ports over TinyBus rather than a process-local registry.
-tinystoragedrivers-bus = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b" }
-tinystoragedrivers-client = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b" }
-tinystoragedrivers-busproxy = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b" }
-tinystoragedrivers-tinybus = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b", default-features = false, features = ["migration-delivery"] }
+# TinyBus host SDK used by the separately shipped typed client crate. Pin the
+# fork revision that matches the vendored ABI and TSD's bus transport.
+tinybus = { version = "=0.3.12", git = "https://github.com/senamakel/tinybus", rev = "85345114f3066e94d5d70161ea8dc43252b83ae6", default-features = false, features = ["macros", "modules"] }
+# Runtime-neutral contracts shared with the host's stable TSD release.
+tinystoragedrivers-types = { version = "2.1.2", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c447da3" }
+tinystoragedrivers-api = { version = "2.1.2", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c447da3" }
+# The module connects to host-owned storage through the TinyBus adapter.
+tinystoragedrivers-busproxy = { version = "2.1.2", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c447da3" }
 
 [dependencies]
 # The wire contract. Split out so a host that has moved signing into the
@@ -119,11 +108,11 @@ ripemd = { version = "0.2", optional = true }
 # BIP-32 on secp256k1, backed by the pure-Rust `k256` rather than the
 # `secp256k1` C library. Deriving a key wrong is silent and unrecoverable, so
 # this stays delegated to a vetted implementation — see `src/key/bip32.rs`.
-coins-bip32 = { version = "0.13", optional = true }
+coins-bip32 = { version = "0.17", optional = true }
 # Keccak-256 for the EVM and Tron addresses key derivation produces.
 #
 # PINNED TO 0.10, and not by accident — do not let dependabot move it.
-# `coins-bip32` 0.8 (via `coins-core`) depends on `sha3` 0.10 and is not going
+# `coins-bip32` (via `coins-core`) depends on `sha3` 0.10 and is not going
 # to move, so 0.10 is already in the graph of every consumer that enables
 # `key`. Asking for 0.12 here does not replace it, it ADDS a second copy: cargo
 # cannot unify across a major, so a host ends up compiling `sha3` twice plus
@@ -136,9 +125,9 @@ sha3 = { version = "0.12", optional = true }
 async-trait = { version = "0.1", optional = true }
 # BIP-39 mnemonic -> seed. Pinned to the same 0.8 line OpenHuman used before
 # this extraction, so a wallet derived by the old code derives identically here.
-coins-bip39 = { version = "0.13", optional = true }
+coins-bip39 = { version = "0.17", optional = true }
 # OS-seeded cryptographic randomness for BIP-39 mnemonic generation.
-rand = { version = "0.9", default-features = false, features = ["std", "std_rng"], optional = true }
+rand = { version = "0.10", default-features = false, features = ["std", "std_rng", "thread_rng"], optional = true }
 # HMAC-SHA512, the whole of SLIP-0010's ed25519 derivation.
 #
 # On 0.13 because `src/key/slip10.rs` builds `Hmac<Sha512>` and `Sha512` now
@@ -259,6 +248,11 @@ workspace = true
 # tinystoragedrivers names tinybus by git rev; point that source at the vendored
 # checkout so the module and the storage client share one `Connection` type.
 [patch."https://github.com/tinyhumansai/tinybus"]
+tinybus = { path = "vendor/tinybus/crates/tinybus" }
+tinybus-module = { path = "vendor/tinybus/crates/tinybus-module" }
+tinybus-macros = { path = "vendor/tinybus/crates/tinybus-macros" }
+
+[patch."https://github.com/senamakel/tinybus"]
 tinybus = { path = "vendor/tinybus/crates/tinybus" }
 tinybus-module = { path = "vendor/tinybus/crates/tinybus-module" }
 tinybus-macros = { path = "vendor/tinybus/crates/tinybus-macros" }

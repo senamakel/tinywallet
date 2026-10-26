@@ -3,14 +3,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 report="target/coverage.json"
-bash scripts/test-e2e.sh --prepare-only
-target="${CARGO_TARGET_DIR:-$root/target}"
-[[ "$target" == /* ]] || target="$root/$target"
-target="$(cd "$target" && pwd -P)"
-# Instrument the workspace's real attested client tests against a staged local
-# module so their production call paths contribute to the unchanged 90% floor.
-source "$target/tinywallet-client-e2e.env"
-cargo llvm-cov --workspace --all-features --all-targets --json --output-path "$report"
+cargo llvm-cov --workspace --exclude tinywallet-client --all-features --all-targets --json --output-path "$report"
 below="$(jq -r --arg root "$PWD" '
   .data[0].files[]
   | select(.filename | contains("/src/"))

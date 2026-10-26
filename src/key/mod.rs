@@ -251,12 +251,14 @@ pub fn derive(chain: Chain, mnemonic: &str, path: &str) -> Result<DerivedKey> {
 /// Returns [`Error::InvalidMnemonicWordCount`] when `word_count` is not a
 /// supported BIP-39 length.
 pub fn generate_mnemonic(word_count: usize) -> Result<String> {
-    use coins_bip39::{English, Mnemonic};
+    use coins_bip39::{English, Mnemonic, WordCount};
 
     let mut rng = rand::rng();
-    Mnemonic::<English>::from_rng_with_count(&mut rng, word_count)
-        .map(|mnemonic| mnemonic.to_phrase())
-        .map_err(|_| Error::InvalidMnemonicWordCount { count: word_count })
+    let word_count = WordCount::try_from(word_count)
+        .map_err(|_| Error::InvalidMnemonicWordCount { count: word_count })?;
+    Ok(Mnemonic::<English>::random(word_count, &mut rng)
+        .to_phrase()
+        .to_string())
 }
 
 /// Turn a BIP-39 phrase into its 64-byte seed.

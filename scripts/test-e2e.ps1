@@ -32,7 +32,7 @@ function Invoke-CountedNativeTest {
 
 $stage = Join-Path $target 'tinywallet-module-e2e'
 
-cargo build --locked --release --package tinywallet-module --features e2e-memory-storage
+cargo build --locked --release --package tinywallet-module
 if ($LASTEXITCODE -ne 0) { throw 'Failed to build tinywallet-module' }
 Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $stage | Out-Null

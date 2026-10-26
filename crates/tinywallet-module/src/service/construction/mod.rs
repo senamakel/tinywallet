@@ -70,7 +70,7 @@ pub(super) fn construct(
                     .strip_prefix("0x")
                     .unwrap_or(data_hex.trim());
                 if body.len() > MAX_CALLDATA_BYTES * 2
-                    || body.len() % 2 != 0
+                    || !body.len().is_multiple_of(2)
                     || !body.bytes().all(|byte| byte.is_ascii_hexdigit())
                 {
                     return Err(invalid("calldata must be bounded byte-aligned hex"));
