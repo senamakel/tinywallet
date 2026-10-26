@@ -141,19 +141,19 @@ class NativeE2ETopologyTests(unittest.TestCase):
         ci = (ROOT / ".github/workflows/ci.yml").read_text()
         self.assertIn("module-e2e-script: scripts/test-e2e.sh", ci)
 
-    def test_feature_and_coverage_lanes_stage_the_real_artifact_before_all_features(self):
+    def test_feature_and_coverage_lanes_use_current_workspace_targets(self):
         feature_shell = (ROOT / "scripts/test-features.sh").read_text()
         self.assertIn("cargo test --locked --workspace", feature_shell)
-        self.assertIn("bash scripts/test-e2e.sh --prepare-only", feature_shell)
+        self.assertNotIn("--prepare-only", feature_shell)
         self.assertNotIn("tinywallet-client", feature_shell)
         self.assertIn("cargo test --locked --workspace --all-features", feature_shell)
 
         feature_windows = (ROOT / "scripts/test-features.ps1").read_text()
-        self.assertIn(". $nativeSetup -PrepareOnly", feature_windows)
+        self.assertNotIn("PrepareOnly", feature_windows)
         self.assertIn("cargo test --locked --workspace --all-features", feature_windows)
 
         coverage = (ROOT / "scripts/check-coverage.sh").read_text()
-        self.assertIn("bash scripts/test-e2e.sh --prepare-only", coverage)
+        self.assertNotIn("--prepare-only", coverage)
         self.assertNotIn("tinywallet-client", coverage)
         self.assertIn("cargo llvm-cov --workspace --all-features --all-targets", coverage)
 
@@ -165,7 +165,7 @@ class NativeE2ETopologyTests(unittest.TestCase):
         self.assertIn("tar.exe -czf $archiveName -C 'tinywallet-client-e2e-cache' .", powershell)
         self.assertNotIn("tar.exe -czf $archivePath", powershell)
 
-    def test_contributor_checklists_use_fixture_preparing_feature_runner(self):
+    def test_contributor_checklists_use_the_feature_runner(self):
         for filename in ("AGENTS.md", "CONTRIBUTING.md", "README.md", ".github/PULL_REQUEST_TEMPLATE.md"):
             source = (ROOT / filename).read_text()
             self.assertIn("scripts/test-features.sh", source)
