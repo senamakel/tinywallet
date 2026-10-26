@@ -85,13 +85,7 @@ Contract 1.12 adds optional `additional_secrets` to confidential
 shape. The module parses the challenge, selects the payment chain, and uses
 only the matching confidential secret; hosts do not parse payment challenges.
 
-The bus exposes `storage_needs()` for the x402 ledger's host-facing storage
-declaration. It uses the data-only `tinystoragedrivers-bus` type and requests
-the current `wallet.budgets` collection and `wallet.payments` stream. Those
-names come from the same bus-owned constants as the stored record vocabulary.
-The bus also defines the data-only `StorageMigrationReady` record stored at
-`wallet.budgets/migration_ready`; its required schema version and payment-import
-epoch let a module reject a missing or stale host migration attestation. The
-x402 ledger owns the executable `storage_schema()` and migration from the
-legacy `x402_budget` collection and `x402.payments` stream; the module's grant
-covers only the current names.
+The bus exposes `storage::collections()` for the host's wallet storage grant.
+The declarations include the current `wallet.budgets` and
+`wallet.migrations` collections. Migration behavior and the payment stream
+remain owned by the x402 ledger implementation.

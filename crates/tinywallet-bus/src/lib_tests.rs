@@ -119,18 +119,13 @@ fn the_contract_accepts_its_own_version_and_newer_minors() {
 }
 
 #[test]
-fn storage_needs_publish_only_the_x402_ledger_resources() {
-    let needs = super::storage_needs();
+fn storage_declarations_are_available_from_the_bus_contract() {
+    let names = super::storage_collections()
+        .into_iter()
+        .map(|collection| collection.name)
+        .collect::<Vec<_>>();
 
-    assert_eq!(needs.collections.len(), 1);
-    let collection = &needs.collections[0];
-    assert_eq!(collection.name, super::X402_BUDGET_COLLECTION);
-    assert_eq!(collection.indexes, Vec::new());
-    assert_eq!(collection.ttl_field, None);
-    assert_eq!(collection.search, None);
-    assert_eq!(needs.stream_prefixes, [super::X402_PAYMENTS_STREAM_PREFIX]);
-    assert_eq!(needs.blob_prefixes, &[] as &[&str]);
-    assert_eq!(needs.secret_prefixes, &[] as &[&str]);
+    assert_eq!(names, ["wallet.budgets", "wallet.migrations"]);
 }
 
 #[test]
@@ -198,16 +193,6 @@ fn the_method_list_is_sorted_complete_and_free_of_duplicates() {
             "{member} is missing from METHODS"
         );
     }
-}
-
-#[test]
-fn storage_declarations_are_available_from_the_bus_contract() {
-    let names = super::storage_collections()
-        .into_iter()
-        .map(|collection| collection.name)
-        .collect::<Vec<_>>();
-
-    assert_eq!(names, ["wallet.budgets", "wallet.migrations"]);
 }
 
 #[cfg(feature = "wire")]
@@ -431,12 +416,3 @@ fn every_confidential_member_is_a_member() {
     assert!(CONFIDENTIAL_METHODS.contains(&names::methods::DERIVE_MNEMONIC_SEED));
 }
 
-#[test]
-fn storage_declarations_are_available_from_the_bus_contract() {
-    let names = crate::storage::collections()
-        .into_iter()
-        .map(|collection| collection.name)
-        .collect::<Vec<_>>();
-
-    assert_eq!(names, ["wallet.budgets", "wallet.migrations"]);
-}

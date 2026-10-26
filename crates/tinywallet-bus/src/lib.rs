@@ -27,7 +27,6 @@ pub mod mnemonic;
 pub mod names;
 pub mod storage;
 mod storage_names;
-mod storage_needs;
 #[cfg(feature = "wire")]
 pub mod tools;
 pub mod version;
@@ -51,7 +50,6 @@ pub use names::{
     OBJECT_PATH,
 };
 pub use storage_names::{BUDGETS_COLLECTION, PAYMENTS_STREAM};
-pub use storage_needs::{X402_BUDGET_COLLECTION, X402_PAYMENTS_STREAM_PREFIX, storage_needs};
 pub use version::{CONTRACT_VERSION, is_compatible};
 
 #[cfg(test)]
