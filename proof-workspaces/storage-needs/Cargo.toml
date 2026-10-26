@@ -1,8 +1,8 @@
 [package]
-name = "tinywallet-storage-needs-consumer"
+name = "tinywallet-storage-contract-consumer"
 version = "0.0.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 publish = false
 
 [workspace]
@@ -10,4 +10,4 @@ resolver = "3"
 
 [dependencies]
 tinywallet-bus = { path = "../../crates/tinywallet-bus", default-features = false }
-tinystoragedrivers-bus = { git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b", default-features = false }
+tinystoragedrivers-types = { git = "https://github.com/senamakel/tinystoragedrivers", rev = "400b71e5c40fe964130c89e981c64ddeead5619f" }
