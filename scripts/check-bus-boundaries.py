@@ -11,7 +11,8 @@ ALLOWED = {
 }
 REGISTRY = "registry+https://github.com/rust-lang/crates.io-index"
 TSD_TYPES = "tinystoragedrivers-types"
-TSD_TYPES_REV = "c447da31"
+TSD_TYPES_REV = "c447da3"
+TSD_TYPES_COMMIT = "c447da319e41dfe17bba4afb1831fe0cf0eef154"
 TSD_TYPES_SOURCE = f"https://github.com/senamakel/tinystoragedrivers?rev={TSD_TYPES_REV}#"
 
 # Chain, key and crypto implementations never enter the bus closure, not even
@@ -45,10 +46,10 @@ def is_canonical_tsd_source(source, *, require_full_hash=False):
     if not resolved.startswith(TSD_TYPES_SOURCE):
         return False
     commit = resolved[len(TSD_TYPES_SOURCE):]
-    minimum_length = len(TSD_TYPES_REV) if require_full_hash else 8
+    minimum_length = len(TSD_TYPES_COMMIT) if require_full_hash else 8
     return (
-        minimum_length <= len(commit) <= len(TSD_TYPES_REV)
-        and TSD_TYPES_REV.startswith(commit)
+        minimum_length <= len(commit) <= len(TSD_TYPES_COMMIT)
+        and TSD_TYPES_COMMIT.startswith(commit)
     )
 
 
