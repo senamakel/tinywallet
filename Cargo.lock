@@ -2212,7 +2212,7 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
 name = "tinywallet"
-version = "0.26.0"
+version = "0.27.0"
 dependencies = [
  "async-trait",
  "bitcoin",
@@ -2237,7 +2237,7 @@ dependencies = [
 
 [[package]]
 name = "tinywallet-bus"
-version = "0.26.0"
+version = "0.27.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2247,7 +2247,7 @@ dependencies = [
 
 [[package]]
 name = "tinywallet-crypto"
-version = "0.26.0"
+version = "0.27.0"
 dependencies = [
  "async-trait",
  "bech32 0.12.0",
@@ -2264,7 +2264,7 @@ dependencies = [
 
 [[package]]
 name = "tinywallet-module"
-version = "0.26.0"
+version = "0.27.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -2297,7 +2297,7 @@ dependencies = [
 
 [[package]]
 name = "tinywallet-web3"
-version = "0.26.0"
+version = "0.27.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2321,7 +2321,7 @@ dependencies = [
 
 [[package]]
 name = "tinywallet-x402"
-version = "0.26.0"
+version = "0.27.0"
 dependencies = [
  "anyhow",
  "async-trait",
