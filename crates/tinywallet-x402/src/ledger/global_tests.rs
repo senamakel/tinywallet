@@ -39,4 +39,3 @@ async fn the_global_ledger_lifecycle_runs_on_a_multi_thread_runtime() {
     clear_global();
     assert!(with_ledger(|_| ()).is_err());
 }
-
