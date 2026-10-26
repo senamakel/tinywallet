@@ -157,7 +157,7 @@ class NativeE2ETopologyTests(unittest.TestCase):
         coverage = (ROOT / "scripts/check-coverage.sh").read_text()
         self.assertNotIn("--prepare-only", coverage)
         self.assertIn("--exclude tinywallet-client", coverage)
-        self.assertIn("cargo llvm-cov --workspace --all-features --all-targets", coverage)
+        self.assertIn("cargo llvm-cov --workspace --exclude tinywallet-client --all-features --all-targets", coverage)
 
     def test_windows_archive_operand_is_local_not_a_drive_qualified_remote(self):
         powershell = (ROOT / "scripts/test-e2e.ps1").read_text()
