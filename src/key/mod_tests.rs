@@ -14,6 +14,7 @@
 
 use super::{Error, derive};
 use crate::chain::Chain;
+use coins_bip32::prelude::k256::elliptic_curve::sec1::ToSec1Point;
 use std::fmt::Write as _;
 
 /// The canonical BIP-39 test vector: 11 × "abandon" + "about".

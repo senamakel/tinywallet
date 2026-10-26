@@ -28,6 +28,7 @@ use std::str::FromStr;
 
 use coins_bip32::path::DerivationPath;
 use coins_bip32::prelude::SigningKey;
+use coins_bip32::prelude::k256::elliptic_curve::sec1::ToSec1Point;
 use coins_bip32::xkeys::XPriv;
 
 use super::{Error, Result};
@@ -43,7 +44,7 @@ impl Secp256k1Key {
     /// EVM and Tron both hash this — minus the prefix byte — with Keccak-256 to
     /// form an address.
     pub(super) fn uncompressed_public(&self) -> [u8; 65] {
-        let encoded = self.secret.verifying_key().to_encoded_point(false);
+        let encoded = self.secret.verifying_key().to_sec1_point(false);
         let mut out = [0u8; 65];
         // Uncompressed SEC1 is 65 bytes by definition, so this cannot be short.
         out.copy_from_slice(encoded.as_bytes());
@@ -57,7 +58,7 @@ impl Secp256k1Key {
     /// nobody holds the key to, which is why the two encodings are separate
     /// named methods rather than one with a boolean.
     pub(super) fn compressed_public(&self) -> [u8; 33] {
-        let encoded = self.secret.verifying_key().to_encoded_point(true);
+        let encoded = self.secret.verifying_key().to_sec1_point(true);
         let mut out = [0u8; 33];
         out.copy_from_slice(encoded.as_bytes());
         out
