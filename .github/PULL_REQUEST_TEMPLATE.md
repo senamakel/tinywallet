@@ -14,8 +14,9 @@
 
 Commands actually run, with their outcome:
 
-The feature runner stages the wallet module fixture required by native tests;
-use the shell runner on Unix and PowerShell runner on Windows.
+The feature runner excludes the `tinywallet-client` native integration tests,
+which need the module staged by `scripts/test-e2e.sh`. Use the shell runner on
+Unix and the PowerShell runner on Windows.
 
 - [ ] `cargo fmt --all -- --check`
 - [ ] `cargo clippy --all-targets --all-features -- -D warnings`

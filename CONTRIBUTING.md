@@ -18,9 +18,10 @@ cargo build --all-targets --all-features
 bash scripts/test-features.sh
 ```
 
-On Windows, run `scripts/test-features.ps1`. These runners stage the real
-wallet module before the all-features test targets execute; a bare
-`cargo test --all-features` does not prepare that fixture.
+On Windows, run `scripts/test-features.ps1`. These runners exclude the
+`tinywallet-client` native integration tests, then run the client's library
+tests. Use `scripts/test-e2e.sh` or `scripts/test-e2e.ps1` for tests that need
+the wallet module staged.
 
 The bundled example should also run:
 
