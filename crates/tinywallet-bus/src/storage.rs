@@ -1,9 +1,26 @@
 //! Pure storage declarations the host can ensure before starting the module.
 
-use tinystoragedrivers_types::CollectionSpec;
-
 #[cfg(feature = "wire")]
 use serde::{Deserialize, Serialize};
+
+/// A wallet-owned collection that the host should ensure in its bound storage scope.
+///
+/// This is contract vocabulary only; storage backend options and migration
+/// behavior remain owned by the host and TinyWallet implementation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "wire", derive(Serialize, Deserialize))]
+pub struct CollectionDeclaration {
+    /// The stable name of the collection.
+    pub name: String,
+}
+
+impl CollectionDeclaration {
+    /// Declare a collection by its stable name.
+    #[must_use]
+    pub fn new(name: impl Into<String>) -> Self {
+        Self { name: name.into() }
+    }
+}
 
 #[cfg(feature = "wire")]
 /// Payment lifecycle state in the canonical `wallet.payments` record.
@@ -73,9 +90,9 @@ pub struct StoredPaymentRecord {
 /// Migration behavior remains in the x402 implementation. The host only needs
 /// these declarations to ensure the collections in its already-bound scope.
 #[must_use]
-pub fn collections() -> Vec<CollectionSpec> {
+pub fn collections() -> Vec<CollectionDeclaration> {
     vec![
-        CollectionSpec::new("wallet.budgets"),
-        CollectionSpec::new("wallet.migrations"),
+        CollectionDeclaration::new("wallet.budgets"),
+        CollectionDeclaration::new("wallet.migrations"),
     ]
 }
