@@ -13,7 +13,9 @@ use tinywallet_bus::wire::{
 };
 use tinywallet_x402::crypto::{CryptoPayments, PaymentAccount, PaymentSigner, SignScheme};
 use tinywallet_x402::ledger::{self, PaymentRecord, PaymentStatus, SpendingBudget};
-use tinywallet_x402::protocol::{handle_402_and_pay_authorized, parse_settlement_response};
+use tinywallet_x402::protocol::{
+    handle_402_and_pay_authorized, parse_settlement_response, settles,
+};
 use tinywallet_x402::wire::PaymentChain;
 
 use super::host::HostCallbacks;
@@ -318,8 +320,9 @@ impl X402Runtime {
         let receipt = request
             .settlement_response
             .as_deref()
-            .and_then(|value| parse_settlement_response(value).ok());
-        let status = if receipt.as_ref().is_some_and(|receipt| receipt.success) {
+            .and_then(|value| parse_settlement_response(value).ok())
+            .filter(|receipt| settles(receipt, &pending.network, pending.amount_atomic));
+        let status = if receipt.is_some() {
             PaymentStatus::Settled
         } else {
             // Neither a failed HTTP response nor an elapsed authorization
@@ -327,7 +330,7 @@ impl X402Runtime {
             PaymentStatus::Pending
         };
         let tx_signature = receipt
-            .filter(|receipt| receipt.success && !receipt.transaction.is_empty())
+            .filter(|receipt| !receipt.transaction.is_empty())
             .map(|receipt| receipt.transaction);
         if status == pending.status {
             return Ok(());
@@ -605,3 +608,7 @@ mod lifecycle_tests;
 #[cfg(test)]
 #[path = "x402_storage_bus_tests.rs"]
 mod storage_bus_tests;
+
+#[cfg(test)]
+#[path = "x402_record_tests.rs"]
+mod record_tests;

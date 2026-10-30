@@ -1,6 +1,6 @@
 [package]
 name = "tinywallet-bus"
-version = "0.25.1"
+version = "0.27.0"
 edition = "2024"
 rust-version = "1.88"
 license = "GPL-3.0-only"
@@ -20,6 +20,10 @@ serde = { version = "1", optional = true }
 serde_json = { version = "1", optional = true }
 # Error vocabulary derives; no crypto execution crosses this dependency.
 thiserror = "2"
+# Hosts read the module's collection declarations from this contract without
+# linking the implementation or its migration behavior.
+tinystoragedrivers-types = { workspace = true }
+
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

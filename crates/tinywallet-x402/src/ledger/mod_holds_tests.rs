@@ -307,7 +307,7 @@ fn a_reservation_that_fits_is_retried_when_a_commit_makes_the_snapshot_stale() {
 
 /// Pause the committing writer on its first release read, after its append
 /// has completed but before the hold document changes.
-fn reserve_during_commit(durable: bool, committed_amount: u64, reopen: bool) {
+fn reserve_during_commit(committed_amount: u64, reopen: bool) {
     let base = LedgerStorage::memory();
     let documents = Arc::new(InterleavingDocuments {
         inner: Arc::clone(&base.documents),
@@ -327,13 +327,9 @@ fn reserve_during_commit(durable: bool, committed_amount: u64, reopen: bool) {
         let verdict = observer.reserve_at(now(), 50).unwrap();
         *captured.lock().unwrap() = Some(verdict);
     })));
-    if durable {
-        owner
-            .try_commit_reservation(id, settled(committed_amount))
-            .unwrap();
-    } else {
-        owner.commit_reservation(id, settled(committed_amount));
-    }
+    owner
+        .try_commit_reservation(id, settled(committed_amount))
+        .unwrap();
     let verdict = result.lock().unwrap().take().expect("release read ran");
     assert_eq!(
         verdict.is_ok(),
@@ -344,19 +340,15 @@ fn reserve_during_commit(durable: bool, committed_amount: u64, reopen: bool) {
 
 #[test]
 fn a_reservation_counts_an_appended_payment_once_before_its_hold_is_released() {
-    for durable in [false, true] {
-        for reopen in [false, true] {
-            reserve_during_commit(durable, 30, reopen);
-        }
+    for reopen in [false, true] {
+        reserve_during_commit(30, reopen);
     }
 }
 
 #[test]
 fn a_payment_still_counts_against_the_cap_before_its_hold_is_released() {
-    for durable in [false, true] {
-        for reopen in [false, true] {
-            reserve_during_commit(durable, 80, reopen);
-        }
+    for reopen in [false, true] {
+        reserve_during_commit(80, reopen);
     }
 }
 

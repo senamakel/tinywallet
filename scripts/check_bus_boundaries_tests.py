@@ -26,19 +26,19 @@ class ContractBoundaryTests(unittest.TestCase):
     def test_local_package_cannot_impersonate_serde(self):
         self.assertTrue(boundary.audit(metadata("serde", source=None)))
 
-    def test_pinned_fork_tsd_types_git_source_is_allowed(self):
+    def test_canonical_pinned_tsd_types_git_source_is_allowed(self):
         self.assertEqual(
             boundary.audit(
                 metadata(
                     boundary.TSD_TYPES,
                     source="git+" + boundary.TSD_TYPES_SOURCE
-                    + "c447da319e41dfe17bba4afb1831fe0cf0eef154",
+                    + "bf1f0a97fbe6165a6edd9521659c7f6859700761",
                 )
             ),
             [],
         )
 
-    def test_unpinned_fork_tsd_types_source_is_rejected(self):
+    def test_fork_tsd_types_source_is_rejected(self):
         self.assertTrue(
             boundary.audit(
                 metadata(
@@ -49,17 +49,9 @@ class ContractBoundaryTests(unittest.TestCase):
             )
         )
 
-    def test_tree_allows_only_the_pinned_fork_source_for_tsd_types(self):
+    def test_tree_allows_only_the_canonical_pinned_source_for_tsd_types(self):
         self.assertEqual(
-            boundary.audit_tree(
-                [
-                    (
-                        boundary.TSD_TYPES,
-                        boundary.TSD_TYPES_SOURCE
-                        + "c447da319e41dfe17bba4afb1831fe0cf0eef154",
-                    )
-                ]
-            ),
+            boundary.audit_tree([(boundary.TSD_TYPES, boundary.TSD_TYPES_SOURCE + "bf1f0a97fbe6165a6edd9521659c7f6859700761")]),
             [],
         )
         self.assertTrue(
@@ -72,8 +64,8 @@ class ContractBoundaryTests(unittest.TestCase):
                 [
                     (
                         boundary.TSD_TYPES,
-                        "https://github.com/tinyhumansai/tinystoragedrivers"
-                        "?tag=v2.1.2#400b71e5c40fe964130c89e981c64ddeead5619f",
+                        "https://github.com/senamakel/tinystoragedrivers"
+                        "?tag=v2.1.0#3332061434c01872b0161191268166c12563af87",
                     )
                 ]
             )
@@ -83,7 +75,7 @@ class ContractBoundaryTests(unittest.TestCase):
 class EngineTreeTests(unittest.TestCase):
     def test_versioned_cargo_tree_lines_are_checked_by_package_name(self):
         output = """\
-tinywallet-module v0.25.1 (/work/tinywallet)
+tinywallet-module v0.24.1 (/work/tinywallet)
 rusqlite v0.40.2 (registry+https://github.com/rust-lang/crates.io-index)
 tinystoragedrivers-api v2.1.0 (https://github.com/tinyhumansai/tinystoragedrivers)
 """

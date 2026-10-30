@@ -1055,11 +1055,17 @@ fn transaction_shape_and_key_guards_refuse_cross_chain_inputs() {
         }),
         0
     );
-    let mut creation = evm_spec();
-    if let TransactionSpec::Evm { to, .. } = &mut creation {
-        *to = String::new();
+    // A blank recipient would sign a contract creation: refused.
+    for blank in ["", "  "] {
+        let mut creation = evm_spec();
+        if let TransactionSpec::Evm { to, .. } = &mut creation {
+            *to = blank.to_string();
+        }
+        assert!(matches!(
+            evm_transaction(&creation),
+            Err(Failure::InvalidInput(_))
+        ));
     }
-    assert!(evm_transaction(&creation).unwrap().to.is_none());
 }
 
 #[tokio::test]

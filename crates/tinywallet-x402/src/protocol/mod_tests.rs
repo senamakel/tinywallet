@@ -28,6 +28,9 @@ use crate::wire::{
 // Fixtures
 // ---------------------------------------------------------------------------
 
+/// A request on the origin the fixture challenge names as its resource.
+const REQUEST_URL: &str = "https://x402.example.test/a";
+
 /// A builder that answers with a fixed proof and remembers what it was asked.
 #[derive(Default)]
 struct StubBuilder {
@@ -558,7 +561,7 @@ async fn paying_needs_an_initialised_ledger() {
     let _guard = ledger::TEST_LOCK.lock().await;
     ledger::reset_global();
     let headers = challenge_headers(&challenge(vec![solana_requirement()]));
-    let err = handle_402_and_pay(&StubBuilder::default(), &headers, "https://x")
+    let err = handle_402_and_pay(&StubBuilder::default(), &headers, REQUEST_URL)
         .await
         .unwrap_err();
     assert_eq!(
@@ -574,7 +577,7 @@ async fn a_payment_within_budget_yields_the_header_and_ledger_metadata() {
     let builder = StubBuilder::default();
     let headers = challenge_headers(&challenge(vec![evm_requirement(), solana_requirement()]));
 
-    let result = handle_402_and_pay(&builder, &headers, "https://x402.example.test/a")
+    let result = handle_402_and_pay(&builder, &headers, REQUEST_URL)
         .await
         .unwrap();
 
@@ -600,7 +603,7 @@ async fn approval_runs_after_budget_reservation_and_denial_releases_it() {
         &headers,
         "https://x402.example.test/a",
         |url, requirement, chain, amount| async move {
-            assert_eq!(url, "https://x402.example.test/thing");
+            assert_eq!(url, "https://x402.example.test/a");
             assert_eq!(requirement.pay_to, crate::test_support::SOLANA_RECIPIENT);
             assert_eq!(chain, PaymentChain::Solana);
             assert_eq!(amount, 10_000);
@@ -647,13 +650,43 @@ async fn approval_runs_after_budget_reservation_and_denial_releases_it() {
 }
 
 #[tokio::test]
+async fn a_challenge_naming_another_origin_is_refused_before_anything_is_held() {
+    let _guard = ledger::TEST_LOCK.lock().await;
+    let _dir = init_ledger(SpendingBudget::default());
+    let builder = StubBuilder::default();
+    let headers = challenge_headers(&challenge(vec![solana_requirement()]));
+    let asked = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let callback = asked.clone();
+    let error = handle_402_and_pay_authorized(
+        &builder,
+        &headers,
+        "https://evil.example.test/a",
+        move |_, _, _, _| async move {
+            callback.store(true, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        },
+    )
+    .await
+    .unwrap_err();
+
+    assert!(matches!(error, X402Error::Protocol(_)), "{error}");
+    assert!(!asked.load(std::sync::atomic::Ordering::SeqCst));
+    assert!(builder.chains.lock().unwrap().is_empty());
+    assert_eq!(
+        ledger::with_ledger(ledger::PaymentLedger::reserved_atomic).unwrap(),
+        0
+    );
+    ledger::reset_global();
+}
+
+#[tokio::test]
 async fn an_unparseable_amount_is_a_protocol_error() {
     let _guard = ledger::TEST_LOCK.lock().await;
     let _dir = init_ledger(SpendingBudget::default());
     let mut requirement = solana_requirement();
     requirement.amount = "lots".into();
     let headers = challenge_headers(&challenge(vec![requirement]));
-    let err = handle_402_and_pay(&StubBuilder::default(), &headers, "u")
+    let err = handle_402_and_pay(&StubBuilder::default(), &headers, REQUEST_URL)
         .await
         .unwrap_err();
     assert!(
@@ -675,7 +708,7 @@ async fn each_budget_limit_refuses_with_its_own_error() {
         daily_max_atomic: 1_000_000,
         monthly_max_atomic: 1_000_000,
     });
-    let err = handle_402_and_pay(&builder, &headers, "u")
+    let err = handle_402_and_pay(&builder, &headers, REQUEST_URL)
         .await
         .unwrap_err();
     assert_eq!(
@@ -690,7 +723,7 @@ async fn each_budget_limit_refuses_with_its_own_error() {
         monthly_max_atomic: 100_000_000,
     });
     ledger::with_ledger_mut(|l| l.record_payment(settled(995_000))).unwrap();
-    let err = handle_402_and_pay(&builder, &headers, "u")
+    let err = handle_402_and_pay(&builder, &headers, REQUEST_URL)
         .await
         .unwrap_err();
     assert_eq!(
@@ -705,7 +738,7 @@ async fn each_budget_limit_refuses_with_its_own_error() {
         monthly_max_atomic: 1_000_000,
     });
     ledger::with_ledger_mut(|l| l.record_payment(settled(995_000))).unwrap();
-    let err = handle_402_and_pay(&builder, &headers, "u")
+    let err = handle_402_and_pay(&builder, &headers, REQUEST_URL)
         .await
         .unwrap_err();
     assert_eq!(
@@ -752,7 +785,7 @@ async fn parallel_payments_cannot_overspend_the_daily_cap() {
         .map(|_| {
             let builder = Arc::clone(&builder);
             let headers = headers.clone();
-            tokio::spawn(async move { handle_402_and_pay(&*builder, &headers, "u").await })
+            tokio::spawn(async move { handle_402_and_pay(&*builder, &headers, REQUEST_URL).await })
         })
         .collect();
     let mut results = Vec::new();
@@ -789,9 +822,11 @@ async fn a_payment_holds_its_amount_until_its_result_is_dropped() {
     let headers = challenge_headers(&challenge(vec![solana_requirement()]));
     let builder = StubBuilder::default();
 
-    let first = handle_402_and_pay(&builder, &headers, "u").await.unwrap();
+    let first = handle_402_and_pay(&builder, &headers, REQUEST_URL)
+        .await
+        .unwrap();
     assert_eq!(first.reservation.amount(), 10_000);
-    let err = handle_402_and_pay(&builder, &headers, "u")
+    let err = handle_402_and_pay(&builder, &headers, REQUEST_URL)
         .await
         .unwrap_err();
     assert_eq!(
@@ -801,7 +836,11 @@ async fn a_payment_holds_its_amount_until_its_result_is_dropped() {
     );
 
     drop(first);
-    assert!(handle_402_and_pay(&builder, &headers, "u").await.is_ok());
+    assert!(
+        handle_402_and_pay(&builder, &headers, REQUEST_URL)
+            .await
+            .is_ok()
+    );
     ledger::reset_global();
 }
 
@@ -815,7 +854,7 @@ async fn a_failed_signature_releases_the_hold() {
         ..StubBuilder::default()
     };
 
-    handle_402_and_pay(&failing, &headers, "u")
+    handle_402_and_pay(&failing, &headers, REQUEST_URL)
         .await
         .unwrap_err();
 
@@ -835,7 +874,7 @@ async fn a_wallet_failure_is_passed_through() {
         ..StubBuilder::default()
     };
     let headers = challenge_headers(&challenge(vec![solana_requirement()]));
-    let err = handle_402_and_pay(&builder, &headers, "u")
+    let err = handle_402_and_pay(&builder, &headers, REQUEST_URL)
         .await
         .unwrap_err();
     assert_eq!(err.to_string(), "x402 wallet: wallet secret: locked");
@@ -1071,7 +1110,9 @@ async fn a_server_that_hangs_up_on_the_retry_is_a_transport_error() {
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
-    let header = challenge_header(&challenge(vec![solana_requirement()]));
+    let mut on_this_origin = challenge(vec![solana_requirement()]);
+    on_this_origin.resource.url = format!("{url}/thing");
+    let header = challenge_header(&on_this_origin);
     tokio::spawn(async move {
         // First connection: answer the 402 and close.
         let (mut socket, _) = listener.accept().await.unwrap();
@@ -1167,7 +1208,7 @@ async fn an_unsupported_challenge_reserves_and_signs_nothing() {
     let builder = StubBuilder::default();
     let headers = challenge_headers(&challenge(vec![requirement_on("eip155:137", "0xbad")]));
 
-    let err = handle_402_and_pay(&builder, &headers, "u")
+    let err = handle_402_and_pay(&builder, &headers, REQUEST_URL)
         .await
         .unwrap_err();
 

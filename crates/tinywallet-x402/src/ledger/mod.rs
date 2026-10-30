@@ -39,7 +39,7 @@
 //! together overspend. [`reserve`] (or [`PaymentLedger::reserve`]) therefore
 //! checks and holds the amount in one critical section, before anything is
 //! signed. The hold is a [`Reservation`]: dropped, it releases; committed with
-//! [`Reservation::commit`], it turns into the recorded payment.
+//! [`Reservation::commit_durable`], it turns into the recorded payment.
 //!
 //! Holds live in one `wallet.budgets/holds` document that every writer on the
 //! storage updates by compare-and-swap, so the check-and-hold is atomic across
@@ -91,3 +91,7 @@ mod authorization_test;
 #[cfg(test)]
 #[path = "mod_holds_tests.rs"]
 mod holds_test;
+
+#[cfg(test)]
+#[path = "mod_paging_tests.rs"]
+mod paging_test;

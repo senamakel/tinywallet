@@ -28,7 +28,7 @@ pub use client::{
     pay_challenge_header, refresh_solana_authorizations,
 };
 pub use error::X402Error;
-pub use headers::{encode_payment, parse_402_headers, parse_settlement_response};
+pub use headers::{encode_payment, parse_402_headers, parse_settlement_response, settles};
 pub use proxy::ProxyPolicy;
 
 pub(crate) const LOG_PREFIX: &str = "[x402]";

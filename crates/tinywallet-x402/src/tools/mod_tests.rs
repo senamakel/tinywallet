@@ -65,7 +65,7 @@ fn tool_with(proxy: Arc<FakeProxyPolicy>) -> X402RequestTool {
     .with_request_guard(Arc::new(FixtureGuard))
 }
 
-fn tool() -> X402RequestTool {
+pub(super) fn tool() -> X402RequestTool {
     tool_with(Arc::new(FakeProxyPolicy::default()))
 }
 
@@ -125,7 +125,7 @@ fn receipt(success: bool, transaction: &str) -> String {
     )
 }
 
-fn paid_config(requirement: PaymentRequirements) -> ServerConfig {
+pub(super) fn paid_config(requirement: PaymentRequirements) -> ServerConfig {
     ServerConfig {
         challenge: Some(challenge(vec![requirement])),
         receipt: Some(receipt(true, "0xabc123")),
@@ -134,24 +134,24 @@ fn paid_config(requirement: PaymentRequirements) -> ServerConfig {
     }
 }
 
-fn init_ledger() -> ledger::LedgerStorage {
+pub(super) fn init_ledger() -> ledger::LedgerStorage {
     let storage = ledger::LedgerStorage::memory();
     ledger::init_global(storage.clone(), "tool-test", SpendingBudget::default()).unwrap();
     storage
 }
 
-fn records() -> Vec<PaymentRecord> {
+pub(super) fn records() -> Vec<PaymentRecord> {
     // Oldest first.
     let mut records = ledger::with_ledger(|l| l.recent_payments(50)).unwrap();
     records.reverse();
     records
 }
 
-fn text(result: &ToolResult) -> String {
+pub(super) fn text(result: &ToolResult) -> String {
     result.text()
 }
 
-async fn run(tool: &X402RequestTool, args: serde_json::Value) -> ToolResult {
+pub(super) async fn run(tool: &X402RequestTool, args: serde_json::Value) -> ToolResult {
     tool.execute(args).await.unwrap()
 }
 
@@ -655,7 +655,9 @@ async fn a_retry_that_never_answers_keeps_the_valid_authorization_pending() {
     let _dir = init_ledger();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
-    let header = challenge_header(&challenge(vec![evm_requirement()]));
+    let mut on_this_origin = challenge(vec![evm_requirement()]);
+    on_this_origin.resource.url = format!("{url}/thing");
+    let header = challenge_header(&on_this_origin);
     tokio::spawn(async move {
         let (mut socket, _) = listener.accept().await.unwrap();
         let mut buffer = [0u8; 4096];
@@ -691,7 +693,10 @@ async fn networks_are_labelled_for_people() {
     let server = TestServer::start(ServerConfig::default()).await;
     let cases = [
         ("eip155:8453", "Base"),
+        ("eip155:84532", "Base Sepolia"),
         ("eip155:1", "Ethereum"),
+        ("eip155:10", "EVM"),
+        ("eip155:137", "EVM"),
         ("eip155:42161", "EVM"),
         ("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", "Solana"),
         ("cosmos:hub", "cosmos:hub"),

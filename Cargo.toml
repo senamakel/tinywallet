@@ -1,6 +1,6 @@
 [package]
 name = "tinywallet"
-version = "0.25.1"
+version = "0.27.0"
 edition = "2024"
 rust-version = "1.88"
 license = "GPL-3.0-only"
@@ -59,7 +59,7 @@ resolver = "3"
 # tinyagents) patches this exact URL to its own copy, so the two unify into
 # one package and `tinytools::Tool` stays one type. Keep the rev equal to the
 # tinytools gitlink tinyagents pins.
-tinytools = { git = "https://github.com/tinyhumansai/tinytools", rev = "bd60b9b52f1998b4483b9cf107a72d3338e672f8" }
+tinytools = { git = "https://github.com/tinyhumansai/tinytools", rev = "41cc80ac9acf37a14f20be94f60ee552749f1540" }
 # TinyBus host SDK used by the separately shipped typed client crate. Pin the
 # fork revision that matches the vendored ABI and TSD's bus transport.
 tinybus = { version = "=0.3.12", git = "https://github.com/senamakel/tinybus", rev = "85345114f3066e94d5d70161ea8dc43252b83ae6", default-features = false, features = ["macros", "modules"] }
@@ -127,7 +127,7 @@ async-trait = { version = "0.1", optional = true }
 # this extraction, so a wallet derived by the old code derives identically here.
 coins-bip39 = { version = "0.17", optional = true }
 # OS-seeded cryptographic randomness for BIP-39 mnemonic generation.
-rand = { version = "0.10", default-features = false, features = ["std", "std_rng", "thread_rng"], optional = true }
+rand = { version = "0.10", default-features = false, features = ["std", "std_rng", "sys_rng", "thread_rng"], optional = true }
 # HMAC-SHA512, the whole of SLIP-0010's ed25519 derivation.
 #
 # On 0.13 because `src/key/slip10.rs` builds `Hmac<Sha512>` and `Sha512` now

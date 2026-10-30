@@ -1317,18 +1317,19 @@ fn evm_transaction(spec: &TransactionSpec) -> Result<tx::evm::LegacyTransaction,
         ));
     };
 
+    // An empty recipient would be contract creation, which a wallet
+    // transaction never is: refuse it rather than sign one.
+    if to.trim().is_empty() {
+        return Err(Failure::InvalidInput(
+            "EVM recipient is required".to_string(),
+        ));
+    }
+
     Ok(tx::evm::LegacyTransaction {
         nonce: u128::from(*nonce),
         gas_price: decimal_u128(gas_price_wei, "gas_price_wei")?,
         gas_limit: u128::from(*gas_limit),
-        // An empty recipient is contract creation, which a wallet transfer
-        // never is — but the field models it, so an empty string maps to it
-        // rather than being silently treated as an address.
-        to: if to.trim().is_empty() {
-            None
-        } else {
-            Some(to.clone())
-        },
+        to: Some(to.clone()),
         value: decimal_u128(value_wei, "value_wei")?,
         data: decode_hex(data_hex)?,
         chain_id: *chain_id,
