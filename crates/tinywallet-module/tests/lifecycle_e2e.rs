@@ -25,8 +25,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD as BASE64;
 use bitcoin::secp256k1::{Message, Secp256k1, SecretKey};
 use sha2::{Digest, Sha256};
 use tinybus::Connection;
@@ -45,7 +43,7 @@ use tinywallet_bus::wire::{
     NativeWalletPrepareTransferRequest, NativeWalletServiceHandle, NetworkRequest,
     PrepareTransferParams, RpcEndpointKey, SecretMaterial, SolanaCluster, WalletAccountsResponse,
     WalletBackendRequest, WalletBackendResponse, WalletChain, Web3CloseRequest, Web3ServiceHandle,
-    X402ConfigResponse, X402ConfigureRequest,
+    X402ConfigResponse, X402ConfigureRequest, X402ServiceHandle,
 };
 use tinywallet_module::{BUS_NAME, HOST_INTERFACE, HOST_OBJECT_PATH, OBJECT_PATH};
 
@@ -132,7 +130,7 @@ async fn the_built_module_signs_every_chain_over_a_real_broker() {
 
     let proxy = client.proxy(BUS_NAME, OBJECT_PATH, BUS_NAME).unwrap();
     let x402_configured = proxy
-        .call(
+        .call::<X402ServiceHandle>(
             "X402Configure",
             (X402ConfigureRequest {
                 config: X402ConfigResponse {
