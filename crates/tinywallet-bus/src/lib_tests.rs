@@ -129,6 +129,17 @@ fn storage_declarations_are_available_from_the_bus_contract() {
 }
 
 #[test]
+fn storage_declarations_are_bus_owned_wire_types() {
+    let declarations = super::storage_collections();
+    assert_eq!(declarations.len(), 2);
+    assert_eq!(declarations[0].name, "wallet.budgets");
+    assert_eq!(
+        serde_json::to_value(&declarations[0]).unwrap(),
+        serde_json::json!({ "name": "wallet.budgets" })
+    );
+}
+
+#[test]
 fn the_identity_matches_the_path_the_module_serves() {
     // Both spellings appear in the module's `serve_at` / `request_name` pair,
     // and a host that guesses one of them gets `NameHasNoOwner` at call time.
