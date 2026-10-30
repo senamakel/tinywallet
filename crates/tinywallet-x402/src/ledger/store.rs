@@ -241,7 +241,8 @@ impl PaymentLedger {
     /// payments that each fit alone therefore cannot both be admitted when
     /// together they exceed a cap, even across processes on one storage. The
     /// hold ends with [`release`](Self::release) or
-    /// [`commit_reservation`](Self::commit_reservation), or expires on its own.
+    /// [`try_commit_reservation`](Self::try_commit_reservation), or expires on
+    /// its own.
     ///
     /// # Errors
     ///
@@ -390,18 +391,6 @@ impl PaymentLedger {
             }
         }
         Err("x402 budget hold renewal: gave up after repeated conflicts".to_string())
-    }
-
-    /// Record `record` and drop the hold `id`, recorded first so the amount is
-    /// never missing from the totals: it is held, then held and recorded for
-    /// an instant, then recorded.
-    pub fn commit_reservation(&mut self, id: ReservationId, record: PaymentRecord) {
-        let key = self.reservations.get(&id).map(|hold| hold.key.clone());
-        if let Err(error) = self.append_record(record.clone(), key) {
-            warn!("{LOG_PREFIX} record append failed: {error}");
-            self.records.push(record.at_millisecond_precision());
-        }
-        self.release(id);
     }
 
     /// The total currently held by reservations, in atomic units.

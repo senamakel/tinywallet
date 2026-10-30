@@ -253,10 +253,10 @@ pub fn derive(chain: Chain, mnemonic: &str, path: &str) -> Result<DerivedKey> {
 pub fn generate_mnemonic(word_count: usize) -> Result<String> {
     use coins_bip39::{English, Mnemonic, WordCount};
 
-    let mut rng = rand::rng();
-    let word_count = WordCount::try_from(word_count)
+    let count = WordCount::try_from(word_count)
         .map_err(|_| Error::InvalidMnemonicWordCount { count: word_count })?;
-    Ok(Mnemonic::<English>::random(word_count, &mut rng)
+    let mut rng = rand::rng();
+    Ok(Mnemonic::<English>::random(count, &mut rng)
         .to_phrase()
         .to_string())
 }

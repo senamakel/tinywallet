@@ -2210,8 +2210,8 @@ dependencies = [
 
 [[package]]
 name = "tinytools"
-version = "0.5.0"
-source = "git+https://github.com/tinyhumansai/tinytools?rev=bd60b9b52f1998b4483b9cf107a72d3338e672f8#bd60b9b52f1998b4483b9cf107a72d3338e672f8"
+version = "0.6.0"
+source = "git+https://github.com/tinyhumansai/tinytools?rev=41cc80ac9acf37a14f20be94f60ee552749f1540#41cc80ac9acf37a14f20be94f60ee552749f1540"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2227,7 +2227,7 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
 name = "tinywallet"
-version = "0.25.1"
+version = "0.27.0"
 dependencies = [
  "async-trait",
  "bitcoin",
@@ -2252,11 +2252,12 @@ dependencies = [
 
 [[package]]
 name = "tinywallet-bus"
-version = "0.25.1"
+version = "0.27.0"
 dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+ "tinystoragedrivers-types",
 ]
 
 [[package]]
@@ -2273,7 +2274,7 @@ dependencies = [
 
 [[package]]
 name = "tinywallet-crypto"
-version = "0.25.1"
+version = "0.27.0"
 dependencies = [
  "async-trait",
  "bech32 0.12.0",
@@ -2290,7 +2291,7 @@ dependencies = [
 
 [[package]]
 name = "tinywallet-module"
-version = "0.25.1"
+version = "0.27.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -2323,7 +2324,7 @@ dependencies = [
 
 [[package]]
 name = "tinywallet-web3"
-version = "0.25.1"
+version = "0.27.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2347,7 +2348,7 @@ dependencies = [
 
 [[package]]
 name = "tinywallet-x402"
-version = "0.25.1"
+version = "0.27.0"
 dependencies = [
  "anyhow",
  "async-trait",

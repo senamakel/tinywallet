@@ -23,3 +23,7 @@ pub use request::{
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod test;
+
+#[cfg(test)]
+#[path = "mod_settle_tests.rs"]
+mod settle_test;

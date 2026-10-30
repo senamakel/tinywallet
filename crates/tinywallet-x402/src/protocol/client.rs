@@ -81,6 +81,7 @@ impl X402Client {
         };
 
         let challenge = parse_402_headers(response.headers())?;
+        ensure_same_origin(&challenge.resource.url, url.as_str())?;
         debug!(
             "{LOG_PREFIX} got 402 challenge version={} accepts={}",
             challenge.x402_version,
@@ -214,8 +215,9 @@ pub struct X402PaymentResult {
     /// bound it to the transaction payload.
     pub solana_last_valid_block_height: Option<u64>,
     /// The budget held for this payment. Keep it alive until the outcome is
-    /// recorded, then [`commit`](Reservation::commit) it with the final record;
-    /// dropping it releases the hold without recording anything.
+    /// recorded, then [`commit_durable`](Reservation::commit_durable) it with
+    /// the final record; dropping it releases the hold without recording
+    /// anything.
     pub reservation: Reservation,
 }
 
@@ -254,7 +256,7 @@ pub async fn handle_402_and_pay(
 /// Parse and atomically reserve one challenge before asking the caller to
 /// approve it, then build the payment only after approval.
 ///
-/// The callback receives the challenge's resource URL and selected, validated
+/// The callback receives the requested URL and the selected, validated
 /// payment terms after the budget hold exists. Returning an error drops the
 /// reservation before this method returns. This lets a composing module put
 /// its host approval boundary between budget admission and secret-bearing
@@ -278,6 +280,7 @@ where
     let (challenge, idx, chain) = handle_402(response_headers)?;
     let requirement = challenge.accepts[idx].clone();
     let amount = parse_amount(&requirement)?;
+    ensure_same_origin(&challenge.resource.url, request_url)?;
 
     refresh_solana_authorizations(builder).await?;
 
@@ -305,14 +308,9 @@ where
         }
     };
 
-    authorize(
-        challenge.resource.url.clone(),
-        requirement.clone(),
-        chain,
-        amount,
-    )
-    .await
-    .map_err(X402Error::Wallet)?;
+    authorize(request_url.to_string(), requirement.clone(), chain, amount)
+        .await
+        .map_err(X402Error::Wallet)?;
 
     debug!(
         "{LOG_PREFIX} paying {} atomic {} to {} for {} chain={:?}",
@@ -335,6 +333,19 @@ where
         solana_last_valid_block_height: payment.solana_last_valid_block_height,
         reservation,
     })
+}
+
+/// Refuse a challenge whose resource is on another origin than the URL that was
+/// requested: the paying server chooses that resource, so it could otherwise
+/// have a payment approved and recorded under a trusted host's name.
+fn ensure_same_origin(resource_url: &str, request_url: &str) -> Result<(), X402Error> {
+    let origin = |url: &str| reqwest::Url::parse(url).ok().map(|url| url.origin());
+    match (origin(resource_url), origin(request_url)) {
+        (Some(resource), Some(request)) if resource == request => Ok(()),
+        _ => Err(X402Error::Protocol(format!(
+            "challenge resource {resource_url} is not on the origin of the requested URL {request_url}"
+        ))),
+    }
 }
 
 /// Refresh pending Solana authorization bounds using finalized chain evidence.

@@ -434,10 +434,12 @@ fn committing_a_reservation_records_the_payment_and_frees_the_hold() {
     let mut ledger = ledger_in(&dir);
     let id = ledger.reserve(400_000).unwrap().unwrap();
 
-    ledger.commit_reservation(
-        id,
-        record(400_000, PaymentStatus::Settled, Utc::now(), SESSION),
-    );
+    ledger
+        .try_commit_reservation(
+            id,
+            record(400_000, PaymentStatus::Settled, Utc::now(), SESSION),
+        )
+        .unwrap();
 
     assert_eq!(ledger.reserved_atomic(), 0);
     let summary = ledger.summary();
@@ -490,7 +492,8 @@ fn a_global_reservation_committed_is_recorded_once() {
     init_global(dir.clone(), SESSION, budget()).unwrap();
 
     let held = reserve(500_000).unwrap().unwrap();
-    held.commit(record(500_000, PaymentStatus::Settled, Utc::now(), SESSION));
+    held.commit_durable(record(500_000, PaymentStatus::Settled, Utc::now(), SESSION))
+        .unwrap();
 
     assert_eq!(with_ledger(PaymentLedger::reserved_atomic).unwrap(), 0);
     assert_eq!(

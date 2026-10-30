@@ -390,16 +390,7 @@ fn host_declarations_are_pure_wallet_collection_specs() {
 
 #[test]
 fn ledger_and_bus_declare_the_same_collections() {
-    assert_eq!(
-        collections()
-            .into_iter()
-            .map(|collection| collection.name)
-            .collect::<Vec<_>>(),
-        tinywallet_bus::storage::collections()
-            .into_iter()
-            .map(|collection| collection.name)
-            .collect::<Vec<_>>()
-    );
+    assert_eq!(collections(), tinywallet_bus::storage::collections());
 }
 
 #[test]

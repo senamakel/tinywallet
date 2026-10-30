@@ -174,6 +174,24 @@ async fn the_valid_before_time_is_now_plus_the_timeout() {
 }
 
 #[tokio::test]
+async fn a_server_timeout_cannot_stretch_the_authorization_past_five_minutes() {
+    let mut requirement = evm_requirement();
+    requirement.max_timeout_seconds = u64::MAX;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let proof = evm_proof(
+        build_evm(FakePaymentSigner::default(), &requirement)
+            .await
+            .unwrap(),
+    );
+    let valid_before: u64 = proof.authorization.valid_before.parse().unwrap();
+    assert!(valid_before >= now + 300, "{valid_before} vs {now}");
+    assert!(valid_before <= now + 300 + 5, "{valid_before} vs {now}");
+}
+
+#[tokio::test]
 async fn each_payment_gets_a_fresh_nonce() {
     let requirement = evm_requirement();
     let first = evm_proof(
@@ -338,11 +356,14 @@ fn the_recovery_id_is_offset_and_checked() {
     assert_eq!(eip712_signature(&raw).unwrap()[64], 28);
     raw[64] = 0;
     assert_eq!(eip712_signature(&raw).unwrap()[64], 27);
-    raw[64] = 250;
-    assert_eq!(
-        eip712_signature(&raw).unwrap_err().to_string(),
-        "x402 wallet: recovery id out of range"
-    );
+    for id in [2, 3, 27, 250] {
+        raw[64] = id;
+        assert_eq!(
+            eip712_signature(&raw).unwrap_err().to_string(),
+            "x402 wallet: recovery id out of range",
+            "recovery id {id}"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -58,6 +58,18 @@ pub fn parse_settlement_response(b64_str: &str) -> Result<SettlementResponse, St
     serde_json::from_slice(&json_bytes).map_err(|e| format!("PAYMENT-RESPONSE JSON parse: {e}"))
 }
 
+/// Whether `receipt` settles the payment we sent: a successful receipt for
+/// the same network and, when the receipt names one, the same atomic amount.
+#[must_use]
+pub fn settles(receipt: &SettlementResponse, network: &str, amount_atomic: u64) -> bool {
+    receipt.success
+        && receipt.network == network
+        && receipt
+            .amount
+            .as_deref()
+            .is_none_or(|amount| amount.parse::<u64>() == Ok(amount_atomic))
+}
+
 /// Encode a payment proof as the `PAYMENT-SIGNATURE` header value.
 ///
 /// # Errors

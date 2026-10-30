@@ -77,15 +77,20 @@ struct Shared {
 
 impl TestServer {
     /// Start a server on an ephemeral loopback port.
-    pub(crate) async fn start(config: ServerConfig) -> Self {
+    pub(crate) async fn start(mut config: ServerConfig) -> Self {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        // A real server names a resource on its own origin; the payer refuses
+        // any other.
+        if let Some(challenge) = &mut config.challenge {
+            challenge.resource.url = format!("http://{addr}/thing");
+        }
         let requests = Arc::new(Mutex::new(Vec::new()));
         let shared = Arc::new(Shared {
             config,
             requests: Arc::clone(&requests),
         });
         let app = Router::new().fallback(any(handle)).with_state(shared);
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
         tokio::spawn(async move {
             axum::serve(listener, app).await.unwrap();
         });

@@ -13,6 +13,11 @@ use crate::wire::{
     PaymentRequirements, X402_VERSION,
 };
 
+/// The longest an EIP-3009 authorization stays valid, whatever
+/// `maxTimeoutSeconds` the server asks for: an unbounded value would sign a
+/// transfer that never expires.
+const MAX_AUTHORIZATION_SECS: u64 = 300;
+
 /// Build an EVM payment using EIP-3009 `transferWithAuthorization`.
 ///
 /// Signs the typed data with the wallet's EVM key and returns the proof for the
@@ -51,10 +56,13 @@ pub(super) fn eip712_signature(signature: &[u8]) -> Result<[u8; 65], X402Error> 
             "the wallet module returned a malformed signature".to_string(),
         ));
     };
+    // A secp256k1 recovery id is 0 or 1; anything else is not a signature
+    // any verifier will accept.
+    if raw[64] > 1 {
+        return Err(X402Error::Wallet("recovery id out of range".to_string()));
+    }
     let mut sig_bytes = raw;
-    sig_bytes[64] = raw[64]
-        .checked_add(27)
-        .ok_or_else(|| X402Error::Wallet("recovery id out of range".to_string()))?;
+    sig_bytes[64] = raw[64] + 27;
     Ok(sig_bytes)
 }
 
@@ -95,7 +103,7 @@ pub(super) fn evm_payment_authorization(
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
-        .saturating_add(req.max_timeout_seconds);
+        .saturating_add(req.max_timeout_seconds.min(MAX_AUTHORIZATION_SECS));
     let valid_before = eip712::u256_from_u64(valid_before_secs);
     let nonce = fresh_nonce();
 

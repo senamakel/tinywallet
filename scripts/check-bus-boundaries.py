@@ -11,9 +11,8 @@ ALLOWED = {
 }
 REGISTRY = "registry+https://github.com/rust-lang/crates.io-index"
 TSD_TYPES = "tinystoragedrivers-types"
-TSD_TYPES_REV = "c447da3"
-TSD_TYPES_COMMIT = "c447da319e41dfe17bba4afb1831fe0cf0eef154"
-TSD_TYPES_SOURCE = f"https://github.com/senamakel/tinystoragedrivers?rev={TSD_TYPES_REV}#"
+TSD_TYPES_REV = "bf1f0a97fbe6165a6edd9521659c7f6859700761"
+TSD_TYPES_SOURCE = f"https://github.com/tinyhumansai/tinystoragedrivers?rev={TSD_TYPES_REV}#"
 
 # Chain, key and crypto implementations never enter the bus closure, not even
 # through transitive dependencies.
@@ -39,17 +38,17 @@ def forbidden(name):
 
 
 def is_canonical_tsd_source(source, *, require_full_hash=False):
-    """Whether Cargo resolved TSD types from the pinned fork revision."""
+    """Whether Cargo resolved TSD types from the canonical pinned revision."""
     if not isinstance(source, str):
         return False
     resolved = source.removeprefix("git+")
     if not resolved.startswith(TSD_TYPES_SOURCE):
         return False
     commit = resolved[len(TSD_TYPES_SOURCE):]
-    minimum_length = len(TSD_TYPES_COMMIT) if require_full_hash else 8
+    minimum_length = len(TSD_TYPES_REV) if require_full_hash else 8
     return (
-        minimum_length <= len(commit) <= len(TSD_TYPES_COMMIT)
-        and TSD_TYPES_COMMIT.startswith(commit)
+        minimum_length <= len(commit) <= len(TSD_TYPES_REV)
+        and TSD_TYPES_REV.startswith(commit)
     )
 
 
