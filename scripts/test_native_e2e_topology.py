@@ -93,8 +93,8 @@ def _msrv_contract_issues(workflow):
     bus_docs = (ROOT / "crates/tinywallet-bus/README.md").read_text()
     bus_manifest_text = (ROOT / "crates/tinywallet-bus/Cargo.toml").read_text()
     x402_manifest_text = (ROOT / "crates/tinywallet-x402/Cargo.toml").read_text()
-    if "Rust 1.88" not in bus_docs or "tinystoragedrivers-types" not in bus_manifest_text:
-        issues.append("bus docs and manifest must describe the TSD v2 type contract at Rust 1.88")
+    if "Rust 1.88" not in bus_docs or "tinystoragedrivers-types" in bus_manifest_text:
+        issues.append("bus docs and manifest must keep portable collection declarations free of storage-driver dependencies at Rust 1.88")
     if not all(word in x402_manifest_text for word in ("1.88", "ledger", "pay", "tools")):
         issues.append("x402 manifest must document the Rust 1.88 ledger/pay/tools feature floor")
     return issues
