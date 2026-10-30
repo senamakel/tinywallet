@@ -107,9 +107,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "tinystoragedrivers-types"
-version = "2.1.2"
-source = "git+https://github.com/senamakel/tinystoragedrivers?rev=c447da3#c447da319e41dfe17bba4afb1831fe0cf0eef154"
+name = "tinywallet-bus"
+version = "0.25.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -117,18 +116,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "tinywallet-bus"
-version = "0.25.1"
-dependencies = [
- "thiserror",
- "tinystoragedrivers-types",
-]
-
-[[package]]
 name = "tinywallet-storage-contract-consumer"
 version = "0.0.0"
 dependencies = [
- "tinystoragedrivers-types",
  "tinywallet-bus",
 ]
 
