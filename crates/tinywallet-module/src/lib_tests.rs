@@ -11,14 +11,13 @@ fn every_stored_item_is_wallet_owned_and_module_scoped() {
         .map(|collection| collection.name)
         .collect::<Vec<_>>();
     for collection in &collections {
-        assert!(
-            collection.starts_with("wallet."),
-            "{}",
-            collection
-        );
+        assert!(collection.starts_with("wallet."), "{}", collection);
     }
     assert_eq!(
         collections,
-        vec!["wallet.budgets".to_string(), "wallet.migrations".to_string()]
+        vec![
+            "wallet.budgets".to_string(),
+            "wallet.migrations".to_string()
+        ]
     );
 }
