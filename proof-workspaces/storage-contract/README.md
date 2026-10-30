@@ -2,6 +2,6 @@
 
 This directory is excluded from the TinyWallet workspace and has its own lock
 file. It compiles the public `tinywallet_bus::storage::collections()` API from
-a downstream crate while naming `tinystoragedrivers_types::CollectionSpec`
-directly, so a copied contract type fails to compile. The CI job runs this
-consumer with Rust 1.88 and `--locked`.
+a downstream crate using the bus-owned collection declaration, without a
+TinyStorageDrivers dependency. The CI job runs this consumer with Rust 1.88
+and `--locked`.

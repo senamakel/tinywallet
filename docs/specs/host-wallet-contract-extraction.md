@@ -18,14 +18,14 @@ behavior.
 ## Storage requirements
 
 The bus publishes the x402 ledger's host-facing
-`storage::collections() -> Vec<CollectionSpec>` declaration using the canonical
-TinyStorageDrivers types crate. It names `wallet.budgets` and
-`wallet.migrations`, with no indexes, expiry or search policy. The host ensures
-those collections in the caller's authenticated scope and serves a scoped v2
-`Storage` handle to the module over TinyBus. The x402 implementation owns the
-payments stream declaration and performs its schema and legacy-data migration
-through the v2 document and stream ports. The bus itself does not create or
-access storage.
+`storage::collections() -> Vec<CollectionDeclaration>` using a bus-owned,
+serde-compatible name-only type. It names `wallet.budgets` and
+`wallet.migrations`; storage indexes, expiry and search policy remain with the
+host. The host maps those names to its storage API, ensures the collections in
+the caller's authenticated scope, and serves a scoped v2 `Storage` handle to
+the module over TinyBus. The x402 implementation owns the payments stream
+declaration and performs its schema and legacy-data migration through the v2
+document and stream ports. The bus itself does not create or access storage.
 
 ## Endpoint key mapping
 

@@ -3,13 +3,11 @@
 The minimal TinyBus contract for TinyWallet: names, version, shared chain
 identifiers, error vocabulary, transfer types, request/result DTOs, and the
 x402 ledger's storage collection declarations and stored record vocabulary.
-The crate depends on `tinystoragedrivers-types` for the canonical
-`CollectionSpec` contract, without linking a storage backend, client, or
-transport.
+Collection declarations are bus-owned names, without a storage backend,
+client, or transport dependency.
 
-The bus contract supports Rust 1.88, matching the TinyStorageDrivers v2 type
-crate. The excluded collection-contract consumer independently checks the
-published collection names and canonical type.
+The bus contract supports Rust 1.88. The excluded collection-contract consumer
+checks the public collection names without depending on a storage crate.
 
 Network enums in the bus are identifiers only. RPC endpoints, explorer URLs,
 Solana mint addresses, and display labels remain implementation-owned reference
